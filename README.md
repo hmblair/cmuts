@@ -1,11 +1,3 @@
-~~~text
-                      _       
-  ___ _ __ ___  _   _| |_ ___ 
- / __| '_ ` _ \| | | | __/ __|
-| (__| | | | | | |_| | |_\__ \
- \___|_| |_| |_|\__,_|\__|___/
-~~~
-
 ## Overview
 
 `cmuts` is a mutation-counting program that is made for wranging experimental data from modern NGS technologies. It features
