@@ -10,7 +10,7 @@
 To build, you will need installed copies of
    1. `samtools` and `HTSlib`.
    2. A copy of `HDF5` with parallel support enabled.
-   3. `OpenMP` and `OpenMPI`.
+   3. `OpenMPI`.
 
 These must be visible to `cmake`. If you are running on Sherlock, then 
 ```
