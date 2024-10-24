@@ -9,7 +9,7 @@
 
 To build, you will need installed copies of
    1. `samtools` and `HTSlib`.
-   2. A copy of `HDF5` with parallel support enabled.
+   2. `HDF5` with parallel support enabled.
    3. `OpenMPI`.
 
 These must be visible to `cmake`. If you are running on Sherlock, then 
@@ -36,5 +36,4 @@ To run, you will need:
 
 See `cmuts --help` for more runtime options.
 
-The output file will contain two datasets, called "mutations" and "insertions". The former is of shape $`n \times l \times 4 \times 5`$, with dimension 2 specifying the original base and dimension 3 the mutated base. Here, deletions are considered a deletion and are in the final row of the array. The latter is of shape $`n \times l \times 4`$, with the final dimension denoting the type of the inserted base.
-
+The output file will contain two datasets, called "mutations" and "insertions". The former is of shape $`n \times l \times 4 \times 5`$, with dimension 2 specifying the original base and dimension 3 the mutated base. Here, deletions are considered a mutation and are in the final row of the array. The latter is of shape $`n \times l \times 4`$, with the final dimension denoting the type of the inserted base.
