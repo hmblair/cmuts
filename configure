@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm -rf bin
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX=../ ..
@@ -7,3 +8,4 @@ make
 make install
 cd ..
 rm -rf build
+# ln -s ../preprocess/preprocess bin/preprocess
