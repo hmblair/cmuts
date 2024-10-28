@@ -43,7 +43,7 @@ typedef struct {
 typedef struct {
     int compression;
     int chunkSize;
-    const char *group;
+    char *group;
 } DataspaceFlags;
 
 Filespace makeFilespace(

@@ -33,6 +33,14 @@ char *replaceExtension(
 
 }
 
+void replaceChar(char *str, char x, char y) {
+    for (int i = 0; str[i] != '\0'; i++) {
+        if (str[i] == x) {
+            str[i] = y;
+        }
+    }
+}
+
 void fileCheck(
     const char *filename,
     bool overwrite,
@@ -332,7 +340,6 @@ int main(int argc, char **argv) {
         {"min-cov-base-quality", required_argument, 0, 0},
         {"max-indel-length", required_argument, 0, 0},
         {"num-neighbours", required_argument, 0, 0},
-        {"group", required_argument, 0, 0},
         {0, 0, 0, 0}
     };
 
@@ -367,9 +374,6 @@ int main(int argc, char **argv) {
             }
             if (strcmp(longOptions[optionIndex].name, "num-neighbours") == 0) {
                 cFlags.numNeighboursToCheck = safeStringToInt(optarg, "num-neighbours");
-            }
-            if (strcmp(longOptions[optionIndex].name, "group") == 0) {
-                dFlags.group = optarg;
             }
             break;
           case 'h':
@@ -499,7 +503,10 @@ int main(int argc, char **argv) {
 
     inFile = argv[optind + nfile];
 
+    // Remove the extension from the file, and replaceall backslashes with
+    // hyphens, to get the group name
     dFlags.group = removeExtension(inFile);
+    replaceChar(dFlags.group, '/', '-');
 
     // Open an IndexedBAM handle to get some metadata
     // on the file
