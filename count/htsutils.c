@@ -894,9 +894,9 @@ static int accumulateMutations(
                             (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + base])+=delValue;
                         }
                     } else {
-                        int8_t base = baseToInt(referenceSequence[lastDeletionEnd-1])
+                        int8_t base = baseToInt(referenceSequence[lastDeletionEnd-1]);
                         (mutations[(lastDeletionEnd-1) * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])--;
-                        (mutations[(lastDeletionEnd-1) * N_BASES * N_DELBASES + base * N_DELBASES + base])++);
+                        (mutations[(lastDeletionEnd-1) * N_BASES * N_DELBASES + base * N_DELBASES + base])++;
                     }
 
                     // No need to reset the counter as the values
