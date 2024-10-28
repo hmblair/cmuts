@@ -885,12 +885,18 @@ static int accumulateMutations(
                 // roll it in
                 if (deletionStart - lastDeletionEnd + 1 < cFlags.collapseMutations) {
 
-                    float delValue = 1.0f / (lastDeletionEnd - lastDeletionStart);
+                    if (cFlags.spreadDeletions) {
+                        float delValue = 1.0f / (lastDeletionEnd - lastDeletionStart);
 
-                    for (hts_pos_t pos = lastDeletionStart; pos < lastDeletionEnd; pos++) {
-                        int8_t base = baseToInt(referenceSequence[pos]);
-                        (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])-=delValue;
-                        (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + base])+=delValue;
+                        for (hts_pos_t pos = lastDeletionStart; pos < lastDeletionEnd; pos++) {
+                            int8_t base = baseToInt(referenceSequence[pos]);
+                            (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])-=delValue;
+                            (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + base])+=delValue;
+                        }
+                    } else {
+                        int8_t base = baseToInt(referenceSequence[lastDeletionEnd-1])
+                        (mutations[(lastDeletionEnd-1) * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])--;
+                        (mutations[(lastDeletionEnd-1) * N_BASES * N_DELBASES + base * N_DELBASES + base])++);
                     }
 
                     // No need to reset the counter as the values
