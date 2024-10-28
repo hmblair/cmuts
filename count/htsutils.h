@@ -48,12 +48,12 @@
 typedef struct {
     const char *filename;
     faidx_t *fai;
-    int numSequences; 
+    uint64_t numSequences; 
 } IndexedFASTA;
 
 IndexedFASTA openIndexedFASTA(const char *filename);
 
-char *getSequence(IndexedFASTA ixFASTA, int ix);
+char *getSequence(IndexedFASTA ixFASTA, uint64_t ix);
 
 void closeIndexedFASTA(IndexedFASTA ixFASTA);
 
@@ -65,10 +65,10 @@ typedef struct {
     bam1_t *alignment;
     hts_idx_t *index;
     bam_hdr_t *header;
-    int numReferences;
-    int numAlignments;
-    int numUnmappedReads;
-    int maxReferenceLength;
+    uint64_t numReferences;
+    uint64_t numAlignments;
+    uint64_t numUnmappedReads;
+    uint64_t maxReferenceLength;
 } IndexedBAM;
 
 IndexedBAM openIndexedBAM(const char* filename);
@@ -109,7 +109,7 @@ AlignmentCount countMutations(
     float *insertions,
     char *referenceSequence,
     IndexedBAM ixBAM,
-    int ix, 
+    uint64_t ix, 
     CountingFlags cFlags
 );
 

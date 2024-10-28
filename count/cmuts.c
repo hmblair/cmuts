@@ -165,11 +165,11 @@ static inline void printProgress(Progress progress, Timer timer) {
 }
 
 typedef struct {
-    int ix;
-    int size;
+    uint64_t ix;
+    uint64_t size;
 } BatchInfo;
 
-BatchInfo getBatchInfo(int ix, int size, int max) {
+BatchInfo getBatchInfo(uint64_t ix, uint64_t size, uint64_t max) {
     BatchInfo batch;
     batch.ix = ix;
     batch.size = MIN(size, max - ix);
@@ -202,7 +202,7 @@ AlignmentCount batchedCountMutations(
     AlignmentCount count;
     count.numAlignments = 0;
     count.numSkipped = 0;
-    for (int32_t ix = batch.ix; ix < batch.ix + batch.size; ix++) {
+    for (uint64_t ix = batch.ix; ix < batch.ix + batch.size; ix++) {
 
         // Get the reference sequence for this index
         char *sequence = getSequence(ixFASTA, ix);
@@ -474,8 +474,8 @@ int main(int argc, char **argv) {
         MPI_INFO_NULL
     );
 
-    int maxIX = (progress.totalReferences / (size * CHUNK_SIZE) ) * size * CHUNK_SIZE;
-    int overflowProcs = (maxIX + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    uint64_t maxIX = (progress.totalReferences / (size * CHUNK_SIZE) ) * size * CHUNK_SIZE;
+    uint64_t overflowProcs = (maxIX + CHUNK_SIZE - 1) / CHUNK_SIZE;
     // MPI_Comm MPI_COMM_SPLIT = splitProcs(
     //    rank,
     //    overflowProcs
@@ -512,7 +512,7 @@ int main(int argc, char **argv) {
         meta.maxReferenceLength, 
         N_BASES
     };
-    int totalRefs = meta.numReferences;
+    uint64_t totalRefs = meta.numReferences;
     // Close the metadata handle
     closeIndexedBAM(meta);
 
@@ -551,7 +551,7 @@ int main(int argc, char **argv) {
 
     // The main loop
     for (
-        int32_t refIX = rank * CHUNK_SIZE;
+        uint64_t refIX = rank * CHUNK_SIZE;
         refIX < maxIX;
         refIX += size * CHUNK_SIZE
     ) {
@@ -582,14 +582,14 @@ int main(int argc, char **argv) {
             refIX
         );
 
-        int localSum = 0;
+        uint64_t localSum = 0;
         MPI_Reduce(
             &count.numAlignments, 
             &localSum, 
             1, MPI_INT, MPI_SUM, 
             0, MPI_COMM_WORLD
         );
-        int localSkipped = 0;
+        uint64_t localSkipped = 0;
         MPI_Reduce(
             &count.numSkipped, 
             &localSkipped, 

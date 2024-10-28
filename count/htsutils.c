@@ -132,7 +132,7 @@ IndexedFASTA openIndexedFASTA(const char *filename) {
 
 }
 
-char *getSequence(IndexedFASTA ixFASTA, int ix) {
+char *getSequence(IndexedFASTA ixFASTA, uint64_t ix) {
 
     if (ix < 0 || ix >= ixFASTA.numSequences) {
         fprintf(stderr, "The index (%d) is larger than the number of sequences in the FASTA file %s (%d).\n", ix, ixFASTA.filename, ixFASTA.numSequences);
@@ -984,7 +984,7 @@ AlignmentCount countMutations(
     float *insertions,
     char *referenceSequence,
     IndexedBAM ixBAM,
-    int ix,
+    uint64_t ix,
     CountingFlags cFlags
 ) {
 
