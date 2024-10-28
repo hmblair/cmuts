@@ -135,14 +135,14 @@ IndexedFASTA openIndexedFASTA(const char *filename) {
 char *getSequence(IndexedFASTA ixFASTA, uint64_t ix) {
 
     if (ix < 0 || ix >= ixFASTA.numSequences) {
-        fprintf(stderr, "The index (%d) is larger than the number of sequences in the FASTA file %s (%d).\n", ix, ixFASTA.filename, ixFASTA.numSequences);
+        fprintf(stderr, "The index (%lld) is larger than the number of sequences in the FASTA file %s (%lld).\n", ix, ixFASTA.filename, ixFASTA.numSequences);
         return NULL;
     }
 
     // Get the sequence name for the given sequence number
     const char *name = faidx_iseq(ixFASTA.fai, ix);
     if (!name) {
-        fprintf(stderr, "Failed to get the name of sequence %d.\n", ix);
+        fprintf(stderr, "Failed to get the name of sequence %lld.\n", ix);
         return NULL;
     }
 
@@ -236,8 +236,9 @@ CountingFlags defaultCountingFlags() {
 
     CountingFlags cFlags;
 
-    cFlags.minMapQ = DEFAULT_MIN_MAPPING_QUALITY;
-    cFlags.minBaseQ = DEFAULT_MIN_NUCLEOTIDE_QUALITY;
+    cFlags.minSeqMapQ = DEFAULT_MIN_MAPPING_QUALITY;
+    cFlags.minBaseMutQ = DEFAULT_MIN_NUCLEOTIDE_QUALITY;
+    cFlags.minBaseCovQ = DEFAULT_MIN_NUCLEOTIDE_QUALITY;
     cFlags.maxDelLength = DEFAULT_MAX_DELETION_LENGTH;
     cFlags.minQueryLength = DEFAULT_MIN_QUERY_LENGTH;
     cFlags.collapseMutations = DEFAULT_COLLAPSE_MUTATIONS;
@@ -250,12 +251,16 @@ CountingFlags defaultCountingFlags() {
 
 bool verifyCountingFlags(CountingFlags cFlags) {
 
-    if (cFlags.minMapQ < 0 || cFlags.minMapQ > 100) {
+    if (cFlags.minSeqMapQ < 0 || cFlags.minSeqMapQ > 100) {
         fprintf(stderr, "The minimum mapping quailty must be between 0 and 100.\n");
         return false;
     }
-    if (cFlags.minBaseQ < 0 || cFlags.minBaseQ > 100) {
-        fprintf(stderr, "The minimum base quailty must be between 0 and 100.\n");
+    if (cFlags.minBaseMutQ < 0 || cFlags.minBaseMutQ > 100) {
+        fprintf(stderr, "The minimum mutated base quailty must be between 0 and 100.\n");
+        return false;
+    }
+    if (cFlags.minBaseCovQ < 0 || cFlags.minBaseCovQ > 100) {
+        fprintf(stderr, "The minimum coverage base quailty must be between 0 and 100.\n");
         return false;
     }
     if (cFlags.maxDelLength < 0) {
@@ -556,7 +561,7 @@ static int accumulateMutations(
 
     // Guard based on the mapping quality
     uint8_t mappingQ = ixBAM.alignment->core.qual;
-    if (mappingQ < cFlags.minMapQ) {
+    if (mappingQ < cFlags.minSeqMapQ) {
         return QUERY_SKIPPED;
     }
 
@@ -654,7 +659,7 @@ static int accumulateMutations(
                                 queryLength,
                                 cFlags.numNeighboursToCheck,
                                 perNucMappingQ,
-                                cFlags.minBaseQ
+                                cFlags.minBaseCovQ
                             );
 
                             if (base != -1 && ofQuality) {
@@ -699,7 +704,7 @@ static int accumulateMutations(
                         queryLength,
                         cFlags.numNeighboursToCheck,
                         perNucMappingQ,
-                        cFlags.minBaseQ
+                        cFlags.minBaseMutQ
                     );
 
                     // If mbase is -1, then the mutated base is not one of
@@ -998,7 +1003,7 @@ AlignmentCount countMutations(
     // the current reference sequence
     hts_itr_t *iter = sam_itr_queryi(ixBAM.index, ix, 0, HTS_POS_MAX);
     if (iter == NULL) {
-        fprintf(stderr, "There was an error creating the iterator for reference sequence %d.\n", ix);
+        fprintf(stderr, "There was an error creating the iterator for reference sequence %lld.\n", ix);
         exit(EXIT_FAILURE);
     }
 

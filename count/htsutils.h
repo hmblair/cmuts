@@ -78,8 +78,9 @@ void closeIndexedBAM(IndexedBAM bam);
 
 
 typedef struct {
-    int minMapQ;
-    int minBaseQ;
+    int minSeqMapQ;
+    int minBaseMutQ;
+    int minBaseCovQ;
     int maxDelLength;
     int minQueryLength;
     int collapseMutations;

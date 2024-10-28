@@ -261,13 +261,13 @@ void printHelp(int STATUS) {
     printf("  %s\n\n", USAGE_STR);
     printf("    --fasta=S, -f:           The input FASTA file, possibly in .gz format, and indexed by samtools faidx.\n");
     printf("    --output=S, -o:          The output HDF5 file.\n");
-    printf("    --group=S:               Put the output datasets inside this group in the HDF5 file. This allows for appending to existing HDF5 files.\n");
     printf("    --overwite:              Whether to delete the existing file, should it exist.\n");
-    printf("    --compression=N, -c:     The compression level of the HDF5 file, from 0 to 9.\n");
+    printf("    --compression=N, -c:     The compression level of the HDF5 file, from 0 to 9. Defaults to 3.\n");
     printf("    --spread, -s:  Spread ambiguous deletions across the region of ambiguity.\n");
     printf("    --collapse=N:            Collapse mutations which are within N bases towards the 3' end.\n");
     printf("    --min-mapping-quality=N: Skip alignments with a mapping quality below N.\n");
-    printf("    --min-base-quality=N:    Ignore mutations with a PHRED score below N.\n");
+    printf("    --min-mut-base-quality=N:    Ignore mutations with a PHRED score below N.\n");
+    printf("    --min-cov-base-quality=N:    Ignore coverage with a PHRED score below N.\n");
     printf("    --min-query-length=N:    Skip alignments with a query length below N.\n");
     printf("    --max-indel-length=N:    Ignore indels with a length longer than N.\n");
     printf("    --num-neighbours=N:      Check the PHRED score of N neighbours on each side of the base.\n");
@@ -328,7 +328,8 @@ int main(int argc, char **argv) {
         {"collapse", required_argument, 0, 0},
         {"min-query-length", required_argument, 0, 0},
         {"min-mapping-quality", required_argument, 0, 0},
-        {"min-base-quality", required_argument, 0, 0},
+        {"min-mut-base-quality", required_argument, 0, 0},
+        {"min-cov-base-quality", required_argument, 0, 0},
         {"max-indel-length", required_argument, 0, 0},
         {"num-neighbours", required_argument, 0, 0},
         {"group", required_argument, 0, 0},
@@ -349,14 +350,17 @@ int main(int argc, char **argv) {
             if (strcmp(longOptions[optionIndex].name, "overwrite") == 0) {
                 overwrite = true;
             }
-            if (strcmp(longOptions[optionIndex].name, "min-base-quality") == 0) {
-                cFlags.minBaseQ = safeStringToInt(optarg, "min-base-quality");
+            if (strcmp(longOptions[optionIndex].name, "min-mut-base-quality") == 0) {
+                cFlags.minBaseMutQ = safeStringToInt(optarg, "min-mut-base-quality");
+            }
+            if (strcmp(longOptions[optionIndex].name, "min-cov-base-quality") == 0) {
+                cFlags.minBaseCovQ = safeStringToInt(optarg, "min-cov-base-quality");
             }
             if (strcmp(longOptions[optionIndex].name, "max-indel-length") == 0) {
                 cFlags.maxDelLength = safeStringToInt(optarg, "max-indel-length");
             }
             if (strcmp(longOptions[optionIndex].name, "min-mapping-quality") == 0) {
-                cFlags.minMapQ = safeStringToInt(optarg, "min-mapping-quality");
+                cFlags.minSeqMapQ = safeStringToInt(optarg, "min-mapping-quality");
             }
             if (strcmp(longOptions[optionIndex].name, "min-query-length") == 0) {
                 cFlags.minQueryLength= safeStringToInt(optarg, "min-query-length");
