@@ -4,7 +4,6 @@
 //
 // Helper functions
 //
-//
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
@@ -107,7 +106,6 @@ static inline bool isSubsequence(
 
 //
 // For working with indexed FASTA files
-//
 //
 
 IndexedFASTA openIndexedFASTA(const char *filename) {
@@ -625,7 +623,6 @@ static int accumulateMutations(
 
             while (cigarOpLength > 0) {
 
-
                 // Get the current mdTag tag operation as an
                 // alphanumeric value
                 char mdChar = mdTag[mdIX];
@@ -722,14 +719,23 @@ static int accumulateMutations(
                         }
 
                         // If we are currently in a potentially deleted region, then we keep the deletion but change the coverage to a mutation.
-                        if (referencePosition < lastDeletionEnd && cFlags.spreadDeletions) {
+                        if (referencePosition < lastDeletionEnd) {
 
-                            if (lastDeletionEnd - 1 - referencePosition >= cFlags.collapseMutations) {
+                            if (lastDeletionEnd - 1 - referencePosition >= cFlags.collapseMutations) { 
 
-                            float delValue = 1.0f / (lastDeletionEnd - lastDeletionStart);
+                            if (cFlags.spreadDeletions) {
 
-                            (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + mbase])+=(1-delValue);
-                            (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + obase])-=(1-delValue);
+                                float delValue = 1.0f / (lastDeletionEnd - lastDeletionStart);
+
+                                (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + mbase])+=(1-delValue);
+                                (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + obase])-=(1-delValue);
+
+                            } else {
+
+                                (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + obase])--;
+                                (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + mbase])++;
+
+                            }
 
                             lastMut = referencePosition;
                             obase_l = obase;
@@ -752,6 +758,7 @@ static int accumulateMutations(
                                     (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])-=delValue;
                                     (mutations[pos * N_BASES * N_DELBASES + base * N_DELBASES + base])+=delValue;
                                 }
+
                             } else {
                                 int8_t base = baseToInt(referenceSequence[lastDeletionEnd-1]);
                                 (mutations[(lastDeletionEnd - 1) * N_BASES * N_DELBASES + base * N_DELBASES + IX_DEL])--;
@@ -777,7 +784,16 @@ static int accumulateMutations(
                     // In order for the position to count towards the 
                     // coverage, we act as if there is no mutation.
                     else if (referencePosition >= lastDeletionEnd) {
-                        (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + obase])++;
+                        bool ofQuality = isOfQuality(
+                            queryPosition,
+                            queryLength,
+                            cFlags.numNeighboursToCheck,
+                            perNucMappingQ,
+                            cFlags.minBaseCovQ
+                        );
+                        if (ofQuality) {
+                            (mutations[referencePosition * N_BASES * N_DELBASES + obase * N_DELBASES + obase])++;
+                        }
                     }
 
                     // Move forward by one position in the reference and
@@ -879,7 +895,7 @@ static int accumulateMutations(
                 // If the previous mutation is sufficiently close
                 // to the beginning of this deletion, then we 
                 // roll it in
-                if (deletionStart - lastMut < cFlags.collapseMutations) {
+                if (deletionEnd - 1 - lastMut < cFlags.collapseMutations) {
                     (mutations[lastMut * N_BASES * N_DELBASES + obase_l * N_DELBASES + mbase_l])--;
                     (mutations[lastMut * N_BASES * N_DELBASES + obase_l * N_DELBASES + obase_l])++;
 
@@ -889,7 +905,7 @@ static int accumulateMutations(
                 // If the previous deletion is sufficiently close
                 // to the beginning of this deletion, then we 
                 // roll it in
-                if (deletionStart - lastDeletionEnd + 1 < cFlags.collapseMutations) {
+                if (deletionEnd - lastDeletionEnd + 1 < cFlags.collapseMutations) {
 
                     if (cFlags.spreadDeletions) {
                         float delValue = 1.0f / (lastDeletionEnd - lastDeletionStart);
@@ -945,9 +961,17 @@ static int accumulateMutations(
                 // they aren't counted as a mutation
                 for (hts_pos_t i = deletionStart; i < deletionEnd; i++) {
                     int8_t base = baseToInt(referenceSequence[i]);
-                    (mutations[i * N_BASES * N_DELBASES + base * N_DELBASES + base])++;
+                    bool ofQuality = isOfQuality(
+                        queryPosition,
+                        queryLength,
+                        cFlags.numNeighboursToCheck,
+                        perNucMappingQ,
+                        cFlags.minBaseCovQ
+                    );
+                    if (ofQuality) {
+                        (mutations[i * N_BASES * N_DELBASES + base * N_DELBASES + base])++;
+                    }
                 }
-
             }
 
             // Move forward in the reference position and the
