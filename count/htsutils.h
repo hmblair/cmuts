@@ -71,7 +71,11 @@ typedef struct {
     uint64_t maxReferenceLength;
 } IndexedBAM;
 
-IndexedBAM openIndexedBAM(const char* filename);
+IndexedBAM openIndexedBAM(
+    const char* filename,
+    const char* fastaFile,
+    bool skipCount
+);
 
 void closeIndexedBAM(IndexedBAM bam);
 

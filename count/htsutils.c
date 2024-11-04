@@ -165,11 +165,15 @@ void closeIndexedFASTA(IndexedFASTA ixFASTA) {
 //
 
 
-IndexedBAM openIndexedBAM(const char* filename) {
+IndexedBAM openIndexedBAM(
+    const char* filename,
+    const char* fastaFile,
+    bool skipCount
+) {
 
+    // Initialise the ixBAM struct
     IndexedBAM ixBAM;
     ixBAM.filename = filename;
-
     // Open the ixBAM file
     ixBAM.file = sam_open(filename, "r");
     if (ixBAM.file == NULL) {
@@ -177,6 +181,8 @@ IndexedBAM openIndexedBAM(const char* filename) {
         exit(EXIT_FAILURE);
     }
 
+    // Set the index file (for CRAM files)
+    hts_set_fai_filename(ixBAM.file, fastaFile);
     // Open the ixBAM index file
     ixBAM.index = sam_index_load(ixBAM.file, filename);
     if (ixBAM.index == NULL) {
@@ -193,29 +199,25 @@ IndexedBAM openIndexedBAM(const char* filename) {
         exit(EXIT_FAILURE);
     }
 
-    // Get the number of reference sequences
-    ixBAM.numReferences = ixBAM.header->n_targets;
-    // Get the number of alignments and unmapped reads;
-    // also keep track of the longest sequence
-    ixBAM.numAlignments = 0;
-    ixBAM.numUnmappedReads = 0;
-    ixBAM.maxReferenceLength = 0;
-    for (int i = 0; i < ixBAM.numReferences; i++) {
-        uint64_t mapped = 0, unmapped = 0;
-        if (hts_idx_get_stat(ixBAM.index, i, &mapped, &unmapped) < 0) {
-            continue;
-        }
-        ixBAM.numAlignments += mapped;
-        ixBAM.numUnmappedReads += unmapped;
-        // If the current sequence is longer than the previous max,
-        // then update the max length
-        if (ixBAM.header->target_len[i] > ixBAM.maxReferenceLength) {
-            ixBAM.maxReferenceLength = ixBAM.header->target_len[i];
-        }
-    }
-
     // Allocate space for one alignment
     ixBAM.alignment = bam_init1();
+
+    if (~skipCount) {
+        // Get the number of reference sequences
+        ixBAM.numReferences = ixBAM.header->n_targets;
+        // Get the number of sequences
+        while (sam_read1(ixBAM.file, ixBAM.header, ixBAM.alignment) >= 0) {
+            ixBAM.numAlignments++;
+        }
+        // Get the length of the longest sequence
+        for (int i = 0; i < ixBAM.numReferences; i++) {
+            if (ixBAM.header->target_len[i] > ixBAM.maxReferenceLength) {
+                ixBAM.maxReferenceLength = ixBAM.header->target_len[i];
+            }
+        }
+        // Reallocate space for one alignment
+        ixBAM.alignment = bam_init1();
+    }
 
     return ixBAM;
 

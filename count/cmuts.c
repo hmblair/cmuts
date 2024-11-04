@@ -1,5 +1,7 @@
 #include "cmuts.h"
 #include "h5utils.h"
+#include <complex.h>
+#include <stdbool.h>
 
 char *removeExtension(const char *filename) {
 
@@ -141,6 +143,7 @@ typedef struct {
     uint64_t totalReferences;
     uint64_t totalAlignments;
     uint64_t unmappedReads;
+    uint64_t maxReferenceLength;
 } Progress;
 
 Progress initProgress() {
@@ -151,6 +154,7 @@ Progress initProgress() {
     progress.unmappedReads = 0;
     progress.totalAlignments = 0;
     progress.totalReferences = 0;
+    progress.maxReferenceLength = 0;
     return progress;
 }
 
@@ -447,9 +451,15 @@ int main(int argc, char **argv) {
 
         // Open an IndexedBAM handle to get some metadata
         // on the file
-        IndexedBAM meta = openIndexedBAM(inFile);
+        IndexedBAM meta = openIndexedBAM(
+            inFile,
+            fastaFile,
+            false
+        );
+
         if (nfile == 0) {
             progress.totalReferences += meta.numReferences;
+            progress.maxReferenceLength = meta.maxReferenceLength;
         }
         progress.totalAlignments += meta.numAlignments;
         progress.unmappedReads += meta.numUnmappedReads;
@@ -503,29 +513,24 @@ int main(int argc, char **argv) {
 
     inFile = argv[optind + nfile];
 
-    // Remove the extension from the file, and replaceall backslashes with
+    // Remove the extension from the file, and replace all backslashes with
     // hyphens, to get the group name
     dFlags.group = removeExtension(inFile);
     replaceChar(dFlags.group, '/', '-');
 
-    // Open an IndexedBAM handle to get some metadata
-    // on the file
-    IndexedBAM meta = openIndexedBAM(inFile);
     // Specify the size of the datasets in the HDF5 file
     hsize_t mutationDimensions[4] = {
-        meta.numReferences, 
-        meta.maxReferenceLength, 
+        progress.totalReferences, 
+        progress.maxReferenceLength, 
         N_BASES,
         N_DELBASES
     };
     hsize_t insertionDimensions[3] = {
-        meta.numReferences, 
-        meta.maxReferenceLength, 
+        progress.totalReferences, 
+        progress.maxReferenceLength, 
         N_BASES
     };
-    uint64_t totalRefs = meta.numReferences;
-    // Close the metadata handle
-    closeIndexedBAM(meta);
+    uint64_t totalRefs = progress.totalReferences;
 
     if (groupExists(filespace, dFlags.group)) {
         printf("The group \"%s\" in the file \"%s\" already exists. Please use the --overwrite flag to overwrite the file, or choose another group name to write to the existing file with the --group option.\n", dFlags.group, outFile);
@@ -557,8 +562,13 @@ int main(int argc, char **argv) {
 
     // Each thread gets their own file handle,
     // so that data may be loaded in parallel
-    IndexedBAM ixBAM = openIndexedBAM(inFile);
+    IndexedBAM ixBAM = openIndexedBAM(
+        inFile,
+        fastaFile,
+        true
+    );
     IndexedFASTA ixFASTA = openIndexedFASTA(fastaFile);
+    // Set the reference genome for the BAM file
 
     // The main loop
     for (
