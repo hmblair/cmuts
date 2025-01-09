@@ -28,6 +28,8 @@ cd cmuts
 ```
 Don't forget to add the `./bin` directory to your path.
 
+If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
+
 ## Usage
 
 To run, you will need:
