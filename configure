@@ -3,9 +3,12 @@
 rm -rf bin
 mkdir build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX=../ ..
+if [[ -z "${HDF5_DIR}" ]]; then
+    cmake -DCMAKE_INSTALL_PREFIX=../ ..
+else
+    cmake -DCMAKE_INSTALL_PREFIX=../ -DHDF5_ROOT=$HDF5_DIR ..
+fi
 make
 make install
 cd ..
 rm -rf build
-# ln -s ../preprocess/preprocess bin/preprocess
