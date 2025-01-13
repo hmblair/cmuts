@@ -1,5 +1,6 @@
 #include "cmuts.h"
 #include "h5utils.h"
+#include "htsutils.h"
 #include <complex.h>
 #include <stdbool.h>
 
@@ -434,7 +435,7 @@ int main(int argc, char **argv) {
     // Create a Progress object to keep track of the
     // current progress
     Progress progress = initProgress();
-
+    // Loop over all specified files
     for (int nfile = 0; nfile < nfiles; nfile++) {
 
         inFile = argv[optind + nfile];
@@ -463,6 +464,8 @@ int main(int argc, char **argv) {
         }
         progress.totalAlignments += meta.numAlignments;
         progress.unmappedReads += meta.numUnmappedReads;
+
+        closeIndexedBAM(meta);
 
     }
 

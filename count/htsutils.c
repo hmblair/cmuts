@@ -195,17 +195,25 @@ IndexedBAM openIndexedBAM(
     ixBAM.header = sam_hdr_read(ixBAM.file);
     if (ixBAM.header == NULL) {
         fprintf(stderr, "Error: Failed to read header for \"%s\".\n", filename);
+        hts_idx_destroy(ixBAM.index);
         sam_close(ixBAM.file);
         exit(EXIT_FAILURE);
     }
 
     // Allocate space for one alignment
     ixBAM.alignment = bam_init1();
+    if (ixBAM.alignment == NULL) {
+        fprintf(stderr, "Error: Failed to initialize BAM alignment.\n");
+        bam_hdr_destroy(ixBAM.header);
+        hts_idx_destroy(ixBAM.index);
+        sam_close(ixBAM.file);
+        exit(EXIT_FAILURE);
+    }
 
     if (~skipCount) {
         // Get the number of reference sequences
         ixBAM.numReferences = ixBAM.header->n_targets;
-        // Get the number of sequences
+        // Get the number of aligned sequences
         while (sam_read1(ixBAM.file, ixBAM.header, ixBAM.alignment) >= 0) {
             ixBAM.numAlignments++;
         }
@@ -215,8 +223,17 @@ IndexedBAM openIndexedBAM(
                 ixBAM.maxReferenceLength = ixBAM.header->target_len[i];
             }
         }
-        // Reallocate space for one alignment
-        ixBAM.alignment = bam_init1();
+        // Reset file pointer
+        hts_idx_destroy(ixBAM.index);
+        ixBAM.index = sam_index_load(ixBAM.file, filename);
+        if (ixBAM.index == NULL) {
+            fprintf(stderr, "Error: Failed to reopen ixBAM index for \"%s\".\n", filename);
+            bam_destroy1(ixBAM.alignment);
+            bam_hdr_destroy(ixBAM.header);
+            sam_close(ixBAM.file);
+            exit(EXIT_FAILURE);
+        }
+
     }
 
     return ixBAM;
@@ -275,7 +292,7 @@ bool verifyCountingFlags(CountingFlags cFlags) {
         fprintf(stderr, "The distance to collapose mutations over must be non-negative.\n");
         return false;
     }
-    if (cFlags.numNeighboursToCheck< 0) {
+    if (cFlags.numNeighboursToCheck < 0) {
         fprintf(stderr, "The number of neighbours to quality-check must be non-negative.\n");
         return false;
     }
