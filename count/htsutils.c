@@ -8,6 +8,8 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
+static bool SOFT_CLIPPING_OBSERVED = false;
+
 static inline char* parseMD(const bam1_t *aln) {
     uint8_t* md_ptr = bam_aux_get(aln, "MD");
 
@@ -1008,10 +1010,13 @@ static int accumulateMutations(
             }
 
         } else if (cigarOp == BAM_CSOFT_CLIP) {
-
+	  if ( !SOFT_CLIPPING_OBSERVED ) {
             printf("Soft clipping observed.\n");
+	    SOFT_CLIPPING_OBSERVED = true;
+	  }
             queryPosition += cigarOpLength;
             cigarOpLength = 0;
+	    
 
         } else if (cigarOp == BAM_CHARD_CLIP) {
 
