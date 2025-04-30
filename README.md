@@ -30,7 +30,7 @@ Don't forget to add the `./bin` directory to your path.
 
 If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
 
-## Usage
+# Usage
 
 To run, you will need:
    1. A FASTA file of reference sequences, as specified by the `-f` flag.
@@ -40,7 +40,7 @@ Note that an index (.fai, .bai, or .crai) for each of these files will be built 
 
 In addition to the respective datasets below, the output HDF5 file will also have a `sequence` dataset containing the FASTA sequences encoded as 8-bit integers.
 
-### Standard Mode
+## Modification Counting
 
 Counting the modifications present in a single aligned and sorted HTS file can be achieved by calling
 ```
@@ -56,11 +56,56 @@ mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted1.bam sorted2.bam ...
 ```
 The output file will contain one dataset per input, with name given by the path of the file (without any extension). Each is of shape $`n \times l \times 4 \times 6`$, with dimension 2 specifying the original base and dimension 3 the mutated base. Here, deletions and insertions are considered a mutation and are in the final two rows of the array.
 
+The following lists all additional commands available:
 
-### Joint Mode
+`--overwrite`: Overwrite an existing HDF5 file.
+
+`--compression`: Compression level of the HDF5 output (0-9). Default: 3
+
+`--min-phred`: PHRED score threshold for base processing. Default: 20
+
+`--min-mapq`: Mapping quality threshold for alignment processing. Default: 20
+
+`--max-indel-length`: The longest indels to consider. Default: 10
+
+`--chunk-size`: The number of references to process at a time per thread. Default: 128
+
+`--min-length`: Minimum length for alignment processing. Default: 2
+
+`--max-length`: Maximum length for alignment processing. Default: 10000
+
+`--quality-window`: Check the quality of each base in a window of this size around each base. Default: 2
+
+`--joint`: Compute the joint distribution of mutations. See below.
+
+`--fast`: Compute modification locations and coverage only.
+
+`--very-fast`: Compute modification locations only.
+
+`--spread`: Spread out ambiguous deletions.
+
+## Joint Mutation Counting
 
 To compute the joint distribution of modifications over all positions, the `--joint` flag can be passed.
 ```
 cmuts --joint -o out.h5 -f seq.fasta sorted.bam
 ```
-The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 4`$, with the final dimension specifying `$p_{0,0}, p_{0,1}, p_{1,0}$`, and `$p_{1,1}$` respectively.
+The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each position has a modification ($`i=1`$) or no modification ($`i=0`$).
+
+## Normalization
+
+The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It can be run as
+```
+cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-group OUTPUT_GROUPS INPUT.h5
+```
+The `--mod-ds` and `--nomod-ds` flags specify which datasets in the input HDF5 file to process. The latter is optional, but if given, the number of datasets for both must match. `--out-group` specifies which group in the output HDF5 file to place the two datasets, `reactivity` and `reads`; the same rules apply for it too.
+
+Additional flags which may be useful are:
+
+`overwrite`: Overwrite an existing HDF5 file.
+
+`--clip-reactivity`: Clip the reactivity values to the range $`[0,1]`$.
+
+`--5p-primer-length`: The length of the 5' primer, which will be zeroed out. Default: 26
+
+`--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 20
