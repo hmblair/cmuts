@@ -1,0 +1,811 @@
+#include "cmuts.hpp"
+#include "hts.hpp"
+#include <stdexcept>
+
+namespace cmuts {
+
+
+
+//
+// Helpers for joint
+//
+
+
+
+template <typename dtype, bool match>
+static inline void __joint(view_t<dtype, _ndims(DetailLevel::Joint)> arr, hts_pos_t ix, dtype mask) {
+
+    if constexpr (match) {
+
+        for (hts_pos_t jx = 0; jx < ix; jx++) {
+
+            dtype nval   = arr.periodic(jx, -1, 0);
+            dtype nval_c = 1 - nval;
+
+            arr(ix, jx, NOMOD_MOD)   += mask * nval;
+            arr(jx, ix, NOMOD_MOD)   += mask * nval;
+
+            arr(ix, jx, NOMOD_NOMOD) += mask * nval_c;
+            arr(jx, ix, NOMOD_NOMOD) += mask * nval_c;
+
+        }
+
+        arr(ix, ix, NOMOD_NOMOD) += mask;
+
+    } else {
+
+        for (hts_pos_t jx = 0; jx < ix; jx++) {
+
+            dtype nval   = arr.periodic(jx, -1, 0);
+            dtype nval_c = 1 - nval;
+
+            arr(ix, jx, MOD_MOD)   += mask * nval;
+            arr(jx, ix, MOD_MOD)   += mask * nval;
+
+            arr(ix, jx, MOD_NOMOD) += mask * nval_c;
+            arr(jx, ix, MOD_NOMOD) += mask * nval_c;
+
+        }
+
+        arr(ix, ix, MOD_MOD) += mask;
+
+    }
+
+}
+
+
+
+//
+// Helpers for ambiguous deletions
+//
+
+
+
+static inline hts_pos_t _first_match(
+    base_t base,
+    const seq_t& seq,
+    hts_pos_t M,
+    hts_pos_t N
+) {
+
+    for (hts_pos_t i = M; i < N; i++) {
+        if (seq[i] == base) {
+            return i+1;
+        }
+    }
+
+    return -1;
+
+}
+
+static inline hts_pos_t _last_match(
+    base_t base,
+    const seq_t& seq,
+    hts_pos_t M,
+    hts_pos_t N
+) {
+
+    for (hts_pos_t i = N; i >= M; i--) {
+        if (seq[i] == base) {
+            return i-1;
+        }
+    }
+
+    return -1;
+
+}
+
+static hts_pos_t _get_ambiguous_end(
+    hts_pos_t start,
+    hts_pos_t end,
+    const seq_t& sequence
+) {
+
+    size_t size = sequence.size();
+    if (end >= size) {
+        return size;
+    }
+
+    // We wish to find the final base for which the deletion could
+    // have occured at. Given a string S, with deletion starting at
+    // position M and ending at position N, we wish to find the largest
+    // K such that S[K] could potentially be part of the deletion.
+    // If D is the string with the deletion, then we make use of
+    // the fact that S[K] is a valid deletion if and only if 
+    // D[M:K] is a subsequence of S[M:K-1].
+
+    // We can find the largest such K in an efficient manner.
+    //  - Check if D[N] is in S[M:N]. While this is so,
+    //    - Advance M to the base after the first position in 
+    //      S where D[N] occurs, and
+    //    - Update N -> N + 1.
+    // The final N is the furthest base in the 3' direction
+    // that can be deleted to yield the same deletion. If N
+    // ever reaches the end of the reference sequence, we
+    // must terminate.
+
+    hts_pos_t M = start, N = end;
+
+    M = _first_match(sequence[N], sequence, M, N);
+    while (M != -1 && N != size - 1) {
+        N++;
+        M = _first_match(sequence[N], sequence, M, N);
+    }
+
+    return N;
+
+}
+
+static hts_pos_t _get_ambiguous_start(
+    hts_pos_t start,
+    hts_pos_t end,
+    const seq_t& sequence
+) {
+
+    if (start <= 0) {
+        return 0;
+    }
+
+    // The algorithm for finding the first base that could
+    // be feasilby deleted is dual to that for finding the
+    // last such base.
+    hts_pos_t M = start, N = end;
+
+    N = _last_match(sequence[M-1], sequence, M, N);
+    while (N != -1 && M != 0) {
+        M--;
+        N = _last_match(sequence[M-1], sequence, M, N);
+    }
+
+    return M;
+
+}
+
+static inline std::pair<hts_pos_t, hts_pos_t> _get_ambiguous_region(
+    hts_pos_t start,
+    hts_pos_t end,
+    const seq_t& sequence
+) {
+
+    hts_pos_t ambig_s = _get_ambiguous_start(start, end, sequence);
+    hts_pos_t ambig_e = _get_ambiguous_end(start, end, sequence);
+
+    return std::pair<hts_pos_t, hts_pos_t>(ambig_s, ambig_e);
+
+}
+
+template <typename dtype, DetailLevel detail>
+static inline dtype _total_muts(
+    view_t<dtype, _ndims(detail)> arr,
+    hts_pos_t ix
+) {
+
+    if constexpr (detail == DetailLevel::Normal) {
+        dtype total = 0;
+        // From A
+        total += arr(ix, IX_A, IX_C);
+        total += arr(ix, IX_A, IX_G);
+        total += arr(ix, IX_A, IX_T);
+        // From C
+        total += arr(ix, IX_C, IX_A);
+        total += arr(ix, IX_C, IX_G);
+        total += arr(ix, IX_C, IX_T);
+        // From G
+        total += arr(ix, IX_G, IX_A);
+        total += arr(ix, IX_G, IX_C);
+        total += arr(ix, IX_G, IX_T);
+        // From T
+        total += arr(ix, IX_T, IX_A);
+        total += arr(ix, IX_T, IX_C);
+        total += arr(ix, IX_T, IX_G);
+        return total;
+    }
+
+    if constexpr (detail == DetailLevel::Fast) {
+        return arr(ix, 0);
+    }
+
+    if constexpr (detail == DetailLevel::VeryFast) {
+        return arr(ix);
+    }
+
+    if constexpr (detail == DetailLevel::VeryFast) {
+        return arr.periodic(ix, -1, 0);
+    }
+
+    return static_cast<dtype>(0);
+
+}
+
+template <typename dtype>
+static inline void _normalize(std::vector<dtype>& arr) {
+
+    dtype total = 0;
+    for (const dtype& val : arr) {
+        total += val;
+    }
+    if (total == 0) {
+        for (dtype& val : arr) {
+            val = 1 / arr.size();
+        }
+    } else {
+        for (dtype& val : arr) {
+            val /= total;
+        }
+    }
+
+}
+
+template <typename dtype, DetailLevel detail>
+static inline std::vector<dtype> _mut_weights(
+    hts_pos_t start,
+    hts_pos_t end,
+    view_t<dtype, _ndims(detail)> arr
+) {
+
+    std::vector<dtype> weights(end - start, 0);
+    for (hts_pos_t ix = start; ix < end; ix++) {
+        weights[ix - start] = _total_muts<dtype, detail>(arr, ix);
+    }
+    _normalize<dtype>(weights);
+
+    return weights;
+
+}
+
+
+
+//
+// Mutation counting
+//
+
+
+
+template <DetailLevel detail, typename dtype>
+static inline void __match(
+    view_t<dtype, _ndims(detail)> arr,
+    hts_pos_t rpos,
+    base_t rbase,
+    dtype mask
+) {
+
+    // Count the base type and position
+    if constexpr (detail == DetailLevel::Normal) {
+        arr(rpos, rbase, rbase) += mask;
+    }
+    // Count the base position
+    if constexpr (detail == DetailLevel::Fast) {
+        arr(rpos, 1) += mask;
+    }
+    if constexpr (detail == DetailLevel::Joint) {
+        __joint<dtype, true>(arr, rpos, mask);
+    }
+
+};
+
+
+template <DetailLevel detail, typename dtype>
+static inline void __mismatch(
+    view_t<dtype, _ndims(detail)> arr,
+    hts_pos_t rpos,
+    base_t qbase,
+    base_t rbase,
+    dtype mask
+) {
+
+    // Record the original base, new base, and position
+    if constexpr (detail == DetailLevel::Normal) {
+        arr(rpos, rbase, qbase) += mask;
+    }
+    // Record the position and an associated match
+    if constexpr (detail == DetailLevel::Fast) {
+        arr(rpos, 0) += mask;
+        arr(rpos, 1) += mask;
+    }
+    // Record the position
+    if constexpr (detail == DetailLevel::VeryFast) {
+        arr(rpos) += mask;
+    }
+    // Record the position
+    if constexpr (detail == DetailLevel::Joint) {
+        arr.periodic(rpos, -1, 0) += mask;
+        __joint<dtype, false>(arr, rpos, mask);
+    }
+
+};
+
+template <DetailLevel detail, typename dtype>
+static inline void __del(
+    view_t<dtype, _ndims(detail)> arr,
+    hts_pos_t rpos,
+    base_t rbase,
+    dtype mask
+) {
+
+    // Record the original base and position
+    if constexpr (detail == DetailLevel::Normal) {
+        arr(rpos, rbase, IX_DEL) += mask;
+    }
+    // Record the position and an associated match
+    if constexpr (detail == DetailLevel::Fast) {
+        arr(rpos, 0) += mask;
+        arr(rpos, 1) += mask;
+    }
+    // Record the position
+    if constexpr (detail == DetailLevel::VeryFast) {
+        arr(rpos) += mask;
+    }
+    //
+    if constexpr (detail == DetailLevel::Joint) {
+        arr.periodic(rpos, -1, 0) += mask;
+        __joint<dtype, false>(arr, rpos, mask);
+    }
+
+};
+
+template <DetailLevel detail, typename dtype>
+static inline void __spread_del(
+    hts_pos_t start,
+    hts_pos_t end,
+    const HTS::Alignment& aln,
+    view_t<dtype, _ndims(detail)> arr,
+    const std::vector<dtype>& mask
+) {
+
+    auto region = _get_ambiguous_region(start, end, aln.reference());
+    std::vector<dtype> weights = _mut_weights<dtype, detail>(region.first, region.second, arr);
+
+    for (hts_pos_t ix = region.first; ix < region.second; ix++) {
+
+        dtype val = weights[ix - region.first] * mask[ix];
+        base_t rbase = aln.rbase(ix);
+        __del<detail, dtype>(arr, ix, rbase, val);
+
+        // Only count coverage within the stated deletion to avoid double-counting
+        if (ix >= start && ix < end) {
+            __match<detail, dtype>(arr, ix, rbase, mask[ix] - val);
+        }
+
+    }
+
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __ins(
+    view_t<dtype, _ndims(detail)> arr,
+    hts_pos_t rpos,
+    base_t qbase,
+    dtype mask
+) {
+
+    // Record the new base and position
+    if constexpr (detail == DetailLevel::Normal) {
+        arr(rpos, qbase, IX_INS) += mask;
+    }
+    // Record the position; no associated match
+    if constexpr (detail == DetailLevel::Fast) {
+        arr(rpos, 0) += mask;
+    }
+    // Record the position
+    if constexpr (detail == DetailLevel::VeryFast) {
+        arr(rpos) += mask;
+    }
+    //
+    if constexpr (detail == DetailLevel::Joint) {
+        arr.periodic(rpos, -1, 0) += mask;
+        __joint<dtype, false>(arr, rpos, mask);
+    }
+
+};
+
+template <DetailLevel detail, typename dtype>
+static inline void __count(
+    const HTS::Alignment& aln,
+    view_t<dtype, _ndims(detail)> arr,
+    const Params& params
+) {
+
+    // Matches, mismatches, etc.
+    HTS::CIGAR cigar = aln.cigar();
+    // Reference and query positions
+    hts_pos_t rpos = aln.offset(), qpos = 0;
+    // Reference and query bases
+    base_t rbase = IX_UNK, qbase = IX_UNK;
+    // PHRED quality mask
+    std::vector<dtype> mask = aln.mask<dtype>(params.min_quality, params.quality_window);
+
+    for (auto& op : cigar) {
+
+        // Insertions at the end of the sequence are ignored
+        if (rpos >= aln.rlength()) { break; }
+
+        switch (op.type()) {
+
+            case HTS::CIGAR_t::MATCH: {
+                while (op.advance()) {
+                    rbase = aln.rbase(rpos);
+                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+                    rpos++;
+                    qpos++;
+                }
+                break;
+            }
+
+            case HTS::CIGAR_t::MISMATCH: {
+                while (op.advance(-1)) {
+                    rbase = aln.rbase(rpos);
+                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+                    rpos++;
+                    qpos++;
+                }
+
+                rbase = aln.rbase(rpos);
+                qbase = aln.qbase(qpos);
+                if (qbase != IX_UNK) {
+                    __mismatch<detail, dtype>(arr, rpos, qbase, rbase, mask[qpos]);
+                } else {
+                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+                }
+                rpos++;
+                qpos++;
+                break;
+            }
+
+            case HTS::CIGAR_t::DEL: {
+                if (params.spread_deletions) {
+                    __spread_del<detail, dtype>(rpos, rpos + op.length(), aln, arr, mask);
+                    rpos += op.length();
+                }
+
+                else {
+                    while (op.advance(-1)) {
+                        rbase = aln.rbase(rpos);
+                        __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+                        rpos++;
+                    }
+                    rbase = aln.rbase(rpos);
+                    __del<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+                    rpos++;
+                }
+                break;
+            }
+
+            case HTS::CIGAR_t::INS: {
+                qpos += op.length() - 1;
+                qbase = aln.qbase(qpos);
+                if (qbase != IX_UNK) {
+                    __ins<detail, dtype>(arr, rpos, qbase, mask[qpos]);
+                }
+                qpos++;
+                break;
+            }
+
+            case HTS::CIGAR_t::SOFT: {
+                qpos += op.length();
+                break;
+            }
+
+            case HTS::CIGAR_t::HARD: {
+                break;
+            }
+
+            case HTS::CIGAR_t::SKIP: {
+                rpos += op.length();
+                break;
+            }
+
+            case HTS::CIGAR_t::PAD: {
+                break;
+            }
+
+            case HTS::CIGAR_t::BACK: {
+                break;
+            }
+
+            case HTS::CIGAR_t::UNKNOWN: {
+                throw std::runtime_error("Unknown CIGAR operation encountered at reference position " + std::to_string(rpos) + ".");
+            }
+
+        }
+
+    }
+
+}
+
+static inline bool __check_quality(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+    return (
+        aln.aligned() &&
+        aln.mapq()    >= params.min_mapq   &&
+        aln.qlength() >= params.min_length &&
+        aln.qlength() <  params.max_length
+    );
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __count_with_quality_check(
+    const HTS::Alignment& aln,
+    view_t<dtype, _ndims(detail)> arr,
+    const Params& params,
+    Stats& stats
+) {
+
+    if (!__check_quality(aln, params)) {
+        stats.skipped();
+    } else {
+        __count<detail, dtype>(aln, arr, params);
+        stats.processed();
+    }
+
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __count_reference(
+    HTS::Alignment& aln,
+    view_t<dtype, _ndims(detail)> arr,
+    const Params& params,
+    Stats& stats
+) {
+
+    while (aln.next()) {
+
+        __count_with_quality_check<detail, dtype>(aln, arr, params, stats);
+
+        // Zero out the temp portion of the array
+        if constexpr (detail == DetailLevel::Joint) {
+            xt::view(arr, xt::all(), -1, 0).fill(0.0);
+        }
+
+    }
+
+}
+
+
+
+//
+// Main
+//
+
+
+
+static inline std::vector<size_t> __dims(const HTS::File& file, DetailLevel detail) {
+
+    size_t size   = file.size();
+    size_t length = file.max_length();
+
+    switch (detail) {
+        case DetailLevel::Normal: {
+            return {size, length, N_BASES, N_DELBASES};
+        }
+        case DetailLevel::Fast: {
+            return {size, length, 2};
+        }
+        case DetailLevel::VeryFast: {
+            return {size, length};
+        }
+        case DetailLevel::Joint: {
+            return {size, length, length + 1, 4};
+        }
+    }
+
+}
+
+template<typename dtype, size_t N>
+static inline HDF5::Memspace<dtype, N> __memspace(
+    HTS::File& htsfile,
+    HDF5::File& hdf5,
+    DetailLevel detail
+) {
+
+    std::string name = htsfile.path();
+    std::vector<size_t> dims = __dims(htsfile, detail);
+
+    return hdf5.memspace<dtype, N>(dims, name);
+
+}
+
+template <typename dtype, DetailLevel detail>
+static inline void __fill_at_offset(
+    HTS::Alignment& aln,
+    HDF5::Memspace<dtype, _ndims(detail)>& memspace,
+    const Params& params,
+    Stats& stats,
+    int64_t offset
+) {
+
+    view_t<dtype, _ndims(detail)> arr = memspace.view(offset);
+    return __count_reference<detail, dtype>(aln, arr, params, stats);
+
+}
+
+template <typename dtype, DetailLevel detail>
+static inline void __process(
+    HTS::File& file,
+    HDF5::File& hdf5,
+    const Params& params,
+    Stats& stats,
+    HDF5::Memspace<dtype, _ndims(detail)>& memspace,
+    int64_t min
+) {
+
+    int64_t max = std::min(
+        min + memspace.size(),
+        file.size()
+    );
+
+    for (int64_t ix = min; ix < max; ix++) {
+        HTS::Alignment aln = file.alignment(ix);
+        int64_t offset = ix - min;
+        __fill_at_offset<dtype, detail>(aln, memspace, params, stats, offset);
+    }
+
+    memspace.safe_write(min);
+    memspace.clear();
+
+}
+
+__Main::__Main(
+    HTS::File& file,
+    HDF5::File& hdf5,
+    const MPI::Manager& mpi,
+    const Params& params,
+    Stats& stats
+) : file(file), hdf5(hdf5), mpi(mpi), params(params), chunk(mpi.chunk(hdf5.chunk_size(), file.size())), stats(stats) { };
+
+template <typename dtype, DetailLevel detail>
+Main<dtype, detail>::Main(
+    HTS::File& file,
+    HDF5::File& hdf5,
+    const MPI::Manager& mpi,
+    const Params& params,
+    Stats& stats
+) : __Main(file, hdf5, mpi, params, stats), memspace(__memspace<dtype, _ndims(detail)>(file, hdf5, detail)) {}
+
+template <typename dtype, DetailLevel detail>
+void Main<dtype, detail>::run() {
+
+    stats.body();
+
+    for (int64_t ix = chunk.low; ix < chunk.high; ix += chunk.step) {
+
+        __process<dtype, detail>(
+            file,
+            hdf5,
+            params,
+            stats,
+            memspace,
+            ix
+        );
+        stats.aggregate();
+        stats.body();
+
+    }
+
+}
+
+template class Main<float, DetailLevel::Normal>;
+template class Main<float, DetailLevel::Fast>;
+template class Main<float, DetailLevel::VeryFast>;
+template class Main<float, DetailLevel::Joint>;
+
+DetailLevel detail(bool fast, bool joint) {
+
+    if (fast && joint) {
+        throw std::runtime_error("Can't use both fast and joint.");
+    }
+    if (fast) {
+        return DetailLevel::Fast;
+    }
+    if (joint) {
+        return DetailLevel::Joint;
+    }
+    return DetailLevel::Normal;
+
+}
+
+std::unique_ptr<__Main> get_main(
+    HTS::File& file,
+    HDF5::File& hdf5,
+    const MPI::Manager& mpi,
+    const Params& params,
+    Stats& stats
+) {
+
+    switch (params.detail) {
+
+        case DetailLevel::Normal: {
+            return std::make_unique<Main<float, DetailLevel::Normal>>(file, hdf5, mpi, params, stats);
+        }
+
+        case DetailLevel::Fast: {
+            return std::make_unique<Main<float, DetailLevel::Fast>>(file, hdf5, mpi, params, stats);
+        }
+
+        case DetailLevel::VeryFast: {
+            return std::make_unique<Main<float, DetailLevel::VeryFast>>(file, hdf5, mpi, params, stats);
+        }
+
+        case DetailLevel::Joint: {
+            return std::make_unique<Main<float, DetailLevel::Joint>>(file, hdf5, mpi, params, stats);
+        }
+
+    }
+
+}
+
+static inline double _percent(int64_t a, int64_t b) {
+    double a_double = static_cast<double>(a);
+    double b_double = static_cast<double>(b);
+    return a_double / b_double * 100;
+}
+
+static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t references) {
+    Utils::Line _print_references("References");
+    Utils::Line _print_aligned("Aligned reads");
+    Utils::Line _print_unaligned("Unaligned reads");
+
+    Utils::cursor_down(1);
+    Utils::version();
+    Utils::divider();
+    _print_references.print(references);
+    _print_aligned.print(aligned);
+    _print_unaligned.print(unaligned);
+    Utils::divider();
+    Utils::cursor_down(3);
+    Utils::cursor_down(2);
+    Utils::cursor_up(2);
+}
+
+
+
+//
+// Stats
+//
+
+
+
+Stats::Stats(
+    int64_t aligned,
+    int64_t unaligned,
+    int64_t references,
+    const MPI::Manager& mpi
+) : _aligned(aligned),
+    _unaligned(unaligned),
+    _references(references),
+    _mpi(mpi) {}
+
+void Stats::processed() {
+    _processed++;
+}
+
+void Stats::skipped() {
+    _processed++;
+    _skipped++;
+}
+
+void Stats::aggregate() {
+    _processed = _mpi.reduce(_processed);
+    _skipped = _mpi.reduce(_skipped);
+}
+
+void Stats::header() const {
+    if (_mpi.root()) {
+        _print_header(_aligned, _unaligned, _references);
+    }
+}
+
+void Stats::body() const {
+    if (_mpi.root()) {
+        Utils::cursor_up(3);
+        double percent_processed = _percent(_processed, _aligned);
+        double percent_skipped = _percent(_skipped, _aligned);
+        _print_processed.print(percent_processed);
+        _print_skipped.print(percent_skipped);
+        _print_elapsed.print(_mpi.time_str());
+    }
+}
+
+
+}

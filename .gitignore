@@ -1,0 +1,6 @@
+.*
+!/.gitignore
+bin/
+build/
+examples/
+__pycache__/

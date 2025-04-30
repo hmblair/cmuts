@@ -1,0 +1,100 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Check if dependencies are installed
+command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
+command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
+
+# Clean and create working directory
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+WORK_DIR=${SCRIPT_DIR}"/.tests_tmp"
+rm -rf ${WORK_DIR}
+mkdir -p ${WORK_DIR}
+pushd ${WORK_DIR} > /dev/null
+
+LENGTH_MIN=2
+LENGTH_MAX=250
+LENGTH=$((RANDOM % (LENGTH_MAX - LENGTH_MIN + 1) + LENGTH_MIN))
+
+QUERIES_MIN=1
+QUERIES_MAX=256
+QUERIES=$((RANDOM % (QUERIES_MAX - QUERIES_MIN + 1) + QUERIES_MIN))
+
+REFERENCES_MIN=1
+REFERENCES_MAX=64
+REFERENCES=$((RANDOM % (REFERENCES_MAX - REFERENCES_MIN + 1) + REFERENCES_MIN))
+
+QUALITY_MIN=0
+QUALITY_MAX=40
+QUALITY=$((RANDOM % (QUALITY_MAX - QUALITY_MIN + 1) + QUALITY_MIN))
+
+WINDOW_MIN=0
+WINDOW_MAX=10
+WINDOW=$((RANDOM % (WINDOW_MAX - WINDOW_MIN + 1) + WINDOW_MIN))
+
+MIN_LENGTH_MIN=2
+MIN_LENGTH_MAX=$((LENGTH - 1))
+MIN_LENGTH=$((RANDOM % (MIN_LENGTH_MAX - MIN_LENGTH_MIN + 1) + MIN_LENGTH_MIN))
+
+MAX_LENGTH_MIN=${LENGTH}
+MAX_LENGTH_MAX=$((2 * LENGTH))
+MAX_LENGTH=$((RANDOM % (MAX_LENGTH_MAX - MAX_LENGTH_MIN + 1) + MAX_LENGTH_MIN))
+
+THREADS_MIN=1
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux OS
+    THREADS_MAX=$(nproc)
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    THREADS_MAX=$(sysctl -n hw.ncpu)
+else
+    echo "Unsupported OS type: $OSTYPE"
+    exit 1
+fi
+THREADS=$((RANDOM % (THREADS_MAX - THREADS_MIN + 1) + THREADS_MIN))
+
+FASTA="seq.fasta"
+SAM="aln.sam"
+BAM="aln.bam"
+EXP_H5="expected.h5"
+CMUTS_H5="cmuts.h5"
+
+echo ""
+echo "        TEST PARAMETERS"
+echo " ─────────────────────────────"
+echo "   THREADS:          $THREADS"
+echo "   REFERENCE LENGTH: $LENGTH"
+echo "   REFERENCES:       $REFERENCES"
+echo "   QUERIES:          $QUERIES"
+echo "   MIN LENGTH:       $MIN_LENGTH"
+echo "   MAX LENGTH:       $MAX_LENGTH"
+echo "   MIN QUALITY:      $QUALITY"
+echo "   QUALITY WINDOW:   $WINDOW"
+echo " ─────────────────────────────"
+
+../../../bin/cmuts-generate-tests \
+    --length ${LENGTH} \
+    --min-length ${MIN_LENGTH} \
+    --queries ${QUERIES} \
+    --references ${REFERENCES} \
+    --out-fasta ${FASTA} \
+    --out-sam ${SAM} \
+    --out-h5 ${EXP_H5} \
+    --min-quality ${QUALITY} \
+    --quality-window ${WINDOW}
+
+samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM}
+
+mpirun -np ${THREADS} cmuts \
+    --fasta ${FASTA} \
+    --output ${CMUTS_H5} \
+    --min-mapq ${QUALITY} \
+    --min-phred ${QUALITY} \
+    --quality-window ${WINDOW} \
+    --min-length ${MIN_LENGTH} \
+    ${BAM} > /dev/null
+
+python3 ../compare.py ${CMUTS_H5} ${EXP_H5}
+
+popd > /dev/null

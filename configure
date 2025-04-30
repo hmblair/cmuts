@@ -1,0 +1,55 @@
+#!/bin/bash
+
+set -euo pipefail
+
+DEBUG=0
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --debug)
+      DEBUG=1
+      shift
+      ;;
+    *)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Check if dependencies are installed
+command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but it's not installed. Exiting."; exit 1; }
+command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but it's not installed. Exiting."; exit 1; }
+
+# Set default HDF5_DIR if not provided as an environment variable
+HDF5_DIR="${HDF5_DIR:-/Users/hmblair/Utils/hdf5/hdf5}"
+
+# Define project-specific paths
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+BUILD_DIR=${SCRIPT_DIR}/build
+SHARE_DIR=${SCRIPT_DIR}/share
+BIN_DIR=${SCRIPT_DIR}/bin
+INCLUDE_DIR=${SCRIPT_DIR}/include
+
+# Clean and create build directory
+rm -rf ${BIN_DIR}
+mkdir -p ${BUILD_DIR} ${BIN_DIR}
+
+pushd ${BUILD_DIR} > /dev/null
+
+# Run cmake with appropriate options
+CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR}"
+[[ -n "${HDF5_DIR}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
+[[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDEBUG=1"
+cmake ${CMAKE_OPTIONS} ..
+
+# Build and install project
+make
+make install
+
+popd > /dev/null
+
+# Post-install steps
+rm -rf ${SHARE_DIR} ${INCLUDE_DIR}
+ln -s ${SCRIPT_DIR}/src/cmuts-normalize ${BIN_DIR}/cmuts-normalize
+chmod +x ${BIN_DIR}/cmuts-normalize
