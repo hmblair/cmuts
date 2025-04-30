@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+set -eo pipefail
 
 DEBUG=0
 
@@ -20,9 +20,6 @@ done
 # Check if dependencies are installed
 command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but it's not installed. Exiting."; exit 1; }
 command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but it's not installed. Exiting."; exit 1; }
-
-# Set default HDF5_DIR if not provided as an environment variable
-HDF5_DIR="${HDF5_DIR:-/Users/hmblair/Utils/hdf5/hdf5}"
 
 # Define project-specific paths
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
