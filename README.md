@@ -97,9 +97,9 @@ The output file will contain one dataset per input with the same naming scheme a
 
 The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the dependencies in `requirements.txt` and can be run as
 ```
-cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-group OUTPUT_GROUPS INPUT.h5
+cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-groups OUTPUT_GROUPS INPUT.h5
 ```
-The `--mod-ds` and `--nomod-ds` flags specify which datasets in the input HDF5 file to process. The latter is optional, but if given, the number of datasets for both must match. `--out-group` specifies which group in the output HDF5 file to place the two datasets, `reactivity` and `reads`; the same rules apply for it too.
+The `--mod-ds` and `--nomod-ds` flags specify which dataset(s) in the input HDF5 file to process. The latter is optional, but if given, the number of datasets for both must match. `--out-groups` specifies which group(s) in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
 
 Additional flags which may be useful are:
 
