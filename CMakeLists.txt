@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 cmake_policy(SET CMP0074 NEW)
 
-project(cmuts CXX)
+project(cmuts C CXX)
 set(TESTS "cmuts-generate-tests")
 
 set(CMAKE_CXX_STANDARD 20)
