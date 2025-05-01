@@ -42,7 +42,7 @@ In addition to the respective datasets below, the output HDF5 file will also hav
 
 ## Modification Counting
 
-Counting the modifications present in a single aligned and sorted HTS file can be achieved by calling
+Counting the modifications present in a single aligned HTS file can be achieved by calling
 ```
 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
@@ -50,11 +50,11 @@ To use multiple threads, invoke `mpirun -np THREADS` first:
 ```
 mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
-Multiple HTS files with the same reference can be processed at the same time as well:
+Multiple SAM/BAM/CRAM files with the same reference can be processed at the same time as well:
 ```
 mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted1.bam sorted2.bam ...
 ```
-The output file will contain one dataset per input, with name given by the path of the file (without any extension). Each is of shape $`n \times l \times 4 \times 6`$, with dimension 2 specifying the original base and dimension 3 the mutated base. Here, deletions and insertions are considered a mutation and are in the final two rows of the array.
+The output file will contain one dataset per input, with name given by the path of the file (without any extension). Each is of shape $`n \times l \times 4 \times 6`$ for $`n`$ sequences with a maximum length of $`l`$. Dimension 2 specifies the original base and dimension 3 the mutated base; here, deletions are considered a mutation and are in the second to final row of the array. The final row contains all insertions, with dimension 2 specifying the base inserted.
 
 The following lists all additional commands available:
 
@@ -94,7 +94,7 @@ The output file will contain one dataset per input with the same naming scheme a
 
 ## Normalization
 
-The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It can be run as
+The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the dependencies in `requiresments.txt` and can be run as
 ```
 cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-group OUTPUT_GROUPS INPUT.h5
 ```
@@ -109,3 +109,7 @@ Additional flags which may be useful are:
 `--5p-primer-length`: The length of the 5' primer, which will be zeroed out. Default: 26
 
 `--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 20
+
+## Tests
+
+`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/accuracy/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored.
