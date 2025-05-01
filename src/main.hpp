@@ -36,7 +36,7 @@ public:
 // Variables for "files" argument
 const std::string FILES_SHORT_NAME = "";
 const std::string FILES_LONG_NAME = "files";
-const std::string FILES_HELP = "The input HTS files.";
+const std::string FILES_HELP = "The input SAM/BAM/CRAM files.";
 
 // Variables for "-o", "--output" argument
 const std::string OUTPUT_SHORT_NAME = "-o";
@@ -51,7 +51,7 @@ const std::string FASTA_HELP = "The reference FASTA file.";
 // Variables for "--overwrite" argument
 const std::string OVERWRITE_SHORT_NAME = "";
 const std::string OVERWRITE_LONG_NAME = "--overwrite";
-const std::string OVERWRITE_HELP = "Overwrite any existing file.";
+const std::string OVERWRITE_HELP = "Overwrite an existing HDF5 file.";
 
 // Variables for "-c", "--compression" argument
 const std::string COMPRESSION_SHORT_NAME = "-c";
@@ -80,7 +80,7 @@ const std::string MAX_INDEL_LENGTH_HELP = "The longest indels to consider.";
 const std::string CHUNK_SIZE_SHORT_NAME = "";
 const std::string CHUNK_SIZE_LONG_NAME = "--chunk-size";
 const int CHUNK_SIZE_DEFAULT = 128;
-const std::string CHUNK_SIZE_HELP = "The number of references to process at a time.";
+const std::string CHUNK_SIZE_HELP = "The number of references to process at a time per thread.";
 
 // Variables for "--min-length" argument
 const std::string MIN_LENGTH_SHORT_NAME = "";
@@ -92,27 +92,27 @@ const std::string MIN_LENGTH_HELP = "Minimum length for alignment processing.";
 const std::string MAX_LENGTH_SHORT_NAME = "";
 const std::string MAX_LENGTH_LONG_NAME = "--max-length";
 const int MAX_LENGTH_DEFAULT = 10000;
-const std::string MAX_LENGTH_HELP = "Maximum length the query sequence may be beyond that of the reference sequence.";
+const std::string MAX_LENGTH_HELP = "Maximum length for alignment processing.";
 
 // Variables for "--joint" argument
 const std::string JOINT_SHORT_NAME = "";
 const std::string JOINT_LONG_NAME = "--joint";
-const std::string JOINT_HELP = "joint mode.";
+const std::string JOINT_HELP = "Compute the joint distribution of mutations.";
 
 // Variables for "--fast" argument
 const std::string FAST_SHORT_NAME = "";
 const std::string FAST_LONG_NAME = "--fast";
-const std::string FAST_HELP = "fast mode.";
+const std::string FAST_HELP = "Compute modification locations and coverage only.";
 
 // Variables for "--fast" argument
 const std::string VERY_FAST_SHORT_NAME = "";
 const std::string VERY_FAST_LONG_NAME = "--very-fast";
-const std::string VERY_FAST_HELP = "very fast mode.";
+const std::string VERY_FAST_HELP = "Compute modification locations only.";
 
 // Variables for "--spread" argument
 const std::string SPREAD_SHORT_NAME = "";
 const std::string SPREAD_LONG_NAME = "--spread";
-const std::string SPREAD_HELP = "Spread deletions.";
+const std::string SPREAD_HELP = "Spread out ambiguous deletions.";
 
 // Variables for "--quality-window" argument
 const std::string QUALITY_WINDOW_SHORT_NAME = "";
