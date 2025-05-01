@@ -1,7 +1,7 @@
 ## Overview
 
-`cmuts` is a mutation-counting program that is made for wranging experimental data from modern NGS technologies. It features
-* Fast, compiled C++ execution with native multithreading support
+`cmuts` is a mutation-counting program that is made for wrangling experimental data from modern NGS technologies. It features
+* Fast, compiled C++ code with native multithreading support
 * Streamed IO and direct output to compressed HDF5 files
 * Handling of arbitrary-length ambiguous deletions, including deletion spreading
 
@@ -33,7 +33,7 @@ If `cmake` has issues finding the HDF5 installation or you want to use a specifi
 # Usage
 
 To run, you will need:
-   1. A FASTA file of reference sequences, as specified by the `-f` flag.
+   1. A FASTA file of reference sequences, as specified by the `-f` option.
    2. One or more SAM/BAM/CRAM files of aligned reads.
 
 Note that an index (.fai, .bai, or .crai) for each of these files will be built automatically. If the file is not sorted, `samtools sort` will be called.
@@ -84,7 +84,7 @@ The following lists all additional commands available:
 
 `--spread`: Spread out ambiguous deletions.
 
-## Joint Mutation Counting
+## Joint Modification Counting
 
 To compute the joint distribution of modifications over all positions, the `--joint` flag can be passed.
 ```
@@ -94,7 +94,7 @@ The output file will contain one dataset per input with the same naming scheme a
 
 ## Normalization
 
-The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the dependencies in `requiresments.txt` and can be run as
+The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the dependencies in `requirements.txt` and can be run as
 ```
 cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-group OUTPUT_GROUPS INPUT.h5
 ```
@@ -102,7 +102,7 @@ The `--mod-ds` and `--nomod-ds` flags specify which datasets in the input HDF5 f
 
 Additional flags which may be useful are:
 
-`overwrite`: Overwrite an existing HDF5 file.
+`--overwrite`: Overwrite an existing HDF5 file.
 
 `--clip-reactivity`: Clip the reactivity values to the range $`[0,1]`$.
 
@@ -112,4 +112,4 @@ Additional flags which may be useful are:
 
 ## Tests
 
-`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/accuracy/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored.
+`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/accuracy/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions.
