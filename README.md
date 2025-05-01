@@ -11,12 +11,13 @@ To build, you will need installed copies of
    1. `samtools` and `HTSlib`.
    2. `HDF5` with parallel support enabled.
    3. `OpenMPI`.
+   4. `cmake >= 3.29`
 
-These must be visible to `cmake`. Stanford users: if you are running on Sherlock, then
+The former must be visible `cmake`. Stanford users: if you are running on Sherlock, then
 ```
 ml load hdf5/1.14.4
 ml load biology samtools/1.16.1
-ml load cmake/3.24.2
+ml load cmake/3.31.4
 ```
 is sufficient.
 
@@ -86,11 +87,11 @@ The following lists all additional commands available:
 
 ## Joint Modification Counting
 
-To compute the joint distribution of modifications over all positions, the `--joint` flag can be passed.
+To compute the joint distribution of modifications over all pairs of positions, the `--joint` flag can be passed.
 ```
 cmuts --joint -o out.h5 -f seq.fasta sorted.bam
 ```
-The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each position has a modification ($`i=1`$) or no modification ($`i=0`$).
+The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each pair of positions has a modification ($`i=1`$) or no modification ($`i=0`$).
 
 ## Normalization
 
