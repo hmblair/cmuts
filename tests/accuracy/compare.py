@@ -20,4 +20,3 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
         print("   MEAN DIFFERENCE: ", diff.mean())
         print("   MAX DIFFERENCE:  ", diff.max())
         print()
-        print(diff.sum(2))

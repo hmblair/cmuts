@@ -41,6 +41,11 @@ MAX_LENGTH_MIN=${LENGTH}
 MAX_LENGTH_MAX=$((2 * LENGTH))
 MAX_LENGTH=$((RANDOM % (MAX_LENGTH_MAX - MAX_LENGTH_MIN + 1) + MAX_LENGTH_MIN))
 
+MAX_INDEL_MIN=0
+MAX_INDEL_MAX=${LENGTH}
+MAX_INDEL=$((RANDOM % (MAX_INDEL_MAX - MAX_INDEL_MIN + 1) + MAX_INDEL_MIN))
+
+
 THREADS_MIN=1
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux OS
@@ -69,6 +74,7 @@ echo "   REFERENCES:       $REFERENCES"
 echo "   QUERIES:          $QUERIES"
 echo "   MIN LENGTH:       $MIN_LENGTH"
 echo "   MAX LENGTH:       $MAX_LENGTH"
+echo "   MAX INDEL LENGTH: $MAX_INDEL"
 echo "   MIN QUALITY:      $QUALITY"
 echo "   QUALITY WINDOW:   $WINDOW"
 echo " ─────────────────────────────"
@@ -82,6 +88,7 @@ echo " ────────────────────────�
     --out-sam ${SAM} \
     --out-h5 ${EXP_H5} \
     --min-quality ${QUALITY} \
+    --max-indel-length ${MAX_INDEL} \
     --quality-window ${WINDOW}
 
 samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM}
@@ -93,6 +100,7 @@ mpirun -np ${THREADS} cmuts \
     --min-phred ${QUALITY} \
     --quality-window ${WINDOW} \
     --min-length ${MIN_LENGTH} \
+    --max-indel-length ${MAX_INDEL} \
     ${BAM} > /dev/null
 
 python3 ../compare.py ${CMUTS_H5} ${EXP_H5}
