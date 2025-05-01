@@ -1085,6 +1085,54 @@ hts_pos_t CIGAR_op::length() const {
 
 }
 
+hts_pos_t CIGAR_op::rlength() const {
+
+    switch (_type) {
+
+        case CIGAR_t::MATCH:
+        case CIGAR_t::MISMATCH:
+        case CIGAR_t::DEL:
+        case CIGAR_t::SKIP: {
+            return _length;
+        }
+
+        case CIGAR_t::INS:
+        case CIGAR_t::SOFT:
+        case CIGAR_t::HARD:
+        case CIGAR_t::PAD:
+        case CIGAR_t::BACK:
+        case CIGAR_t::UNKNOWN: {
+            return 0;
+        }
+
+    }
+
+}
+
+hts_pos_t CIGAR_op::qlength() const {
+
+    switch (_type) {
+
+        case CIGAR_t::MATCH:
+        case CIGAR_t::MISMATCH:
+        case CIGAR_t::INS:
+        case CIGAR_t::SOFT: {
+            return _length;
+        }
+
+        case CIGAR_t::DEL:
+        case CIGAR_t::SKIP:
+        case CIGAR_t::HARD:
+        case CIGAR_t::PAD:
+        case CIGAR_t::BACK:
+        case CIGAR_t::UNKNOWN: {
+            return 0;
+        }
+
+    }
+
+}
+
 std::string CIGAR_op::str() const {
 
     return std::to_string(_length) + _cigar_hts_format(_type);
@@ -1140,6 +1188,18 @@ CIGAR::CIGAR(size_t size) {
     _str.reserve(size);
 
 }
+
+hts_pos_t CIGAR::rlength() const {
+
+    hts_pos_t _rlength = 0;
+    for (const auto& op : _str) {
+        _rlength += op.rlength();
+    }
+
+    return _rlength;
+
+}
+
 
 std::string CIGAR::str() const {
 

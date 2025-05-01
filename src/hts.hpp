@@ -193,6 +193,10 @@ public:
     CIGAR_t type() const;
     // Get the length of the op
     hts_pos_t length() const;
+    // Get the length of the reference the op consumes
+    hts_pos_t rlength() const;
+    // Get the length of the query the op consumes
+    hts_pos_t qlength() const;
     // The op as it would appear in an HTS file
     std::string str() const;
     // Increase the length by val
@@ -250,6 +254,8 @@ public:
     // The total number of bases covered by the CIGAR
     // (matches + mismatches + insertions + deletions)
     size_t bases() const;
+    // Get the length of the reference the op consumes
+    hts_pos_t rlength() const;
     // Add an op to the end of the CIGAR.
     // Merge it into the final op if it is of the same type.
     void extend(CIGAR_op op);
