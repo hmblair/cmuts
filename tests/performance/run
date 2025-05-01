@@ -1,12 +1,13 @@
-#!/bin/zsh
+#!/bin/bash
 
 set -euo pipefail
-if [[ `uname` == Darwin ]]; then
-    MAX_MEMORY_UNITS=KB
-else
-    MAX_MEMORY_UNITS=MB
-fi
-TIMEFMT='%E %M '$MAX_MEMORY_UNITS
+__time() {
+    if [[ $(uname) == Darwin ]]; then
+        gtime -f "%E %M KB" "$@"
+    else
+        /usr/bin/time -f "%E %M MB" "$@"
+    fi
+}
 
 # Check if dependencies are installed
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
@@ -68,7 +69,7 @@ for QUERIES in 128 512 2048 8192 32768 131072; do
     fi
 
     echo -n "cmuts:    "
-    time mpirun -np ${THREADS} cmuts \
+    __time mpirun -np ${THREADS} cmuts \
         -f ${FASTA} \
         -o ${CMUTS_H5} \
         --min-mapq ${QUALITY} \
@@ -82,7 +83,7 @@ for QUERIES in 128 512 2048 8192 32768 131072; do
     mkdir ${RF_DIR}
     cd ${RF_DIR}
     echo -n "rf-count: "
-    time rf-count \
+    __time rf-count \
         -wt ${THREADS} \
         -f ../${FASTA} \
         -m -orc \
