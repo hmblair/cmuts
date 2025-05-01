@@ -1,6 +1,6 @@
 ## Overview
 
-`cmuts` is a mutation-counting program that is made for wrangling experimental data from modern NGS technologies. It features
+`cmuts` is a program for counting mutations and computing reactivity profiles in MaP-seq experiments. It features
 * Fast, compiled C++ code with native multithreading support
 * Streamed IO and direct output to compressed HDF5 files
 * Handling of arbitrary-length ambiguous deletions, including deletion spreading
