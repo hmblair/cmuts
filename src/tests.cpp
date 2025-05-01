@@ -256,7 +256,8 @@ void _add_deletions(
     const HTS::PHRED& phred,
     size_t window,
     HTS::CIGAR_op& op,
-    std::mt19937& gen
+    std::mt19937& gen,
+    bool _matches_instead
 ) {
 
     bool _mapping_mask = (quality >= min_quality);
@@ -272,7 +273,11 @@ void _add_deletions(
     }
 
     base_t rbase = reference[rpos];
-    arr(rpos, rbase, IX_DEL) += mask;
+    if (_matches_instead) {
+        arr(rpos, rbase, rbase) += mask;
+    } else {
+        arr(rpos, rbase, IX_DEL) += mask;
+    }
 
     rpos++;
 
@@ -307,8 +312,12 @@ void _add_insertions(
 
     base_t qbase = _random_base(gen);
     query.push_back(qbase);
-    if (rpos < reference.size()) {
-        arr(rpos, qbase, IX_INS) += mask;
+    // if (rpos < reference.size()) {
+    //     arr(rpos, qbase, IX_INS) += mask;
+    // }
+    hts_pos_t _rpos = std::min(rpos, (hts_pos_t)reference.size() - 1);
+    if (_rpos > 0) {
+        arr(_rpos, qbase, IX_INS) += mask;
     }
 
     qpos++;
@@ -329,6 +338,7 @@ _MUTANT<dtype> _get_mutant(
     int quality,
     int min_quality,
     hts_pos_t min_length,
+    int max_indel_length,
     size_t window,
     std::mt19937& gen
 ) {
@@ -339,6 +349,7 @@ _MUTANT<dtype> _get_mutant(
     HTS::CIGAR cigar;
 
     hts_pos_t ins_length = _random_int(gen, 0, reference.size());
+    ins_length = 0;
     hts_pos_t del_length = _random_int(gen, 0, reference.size() - 1);
     hts_pos_t match_length = reference.size() - del_length;
     hts_pos_t query_length = match_length + ins_length;
@@ -406,6 +417,9 @@ _MUTANT<dtype> _get_mutant(
 
             case HTS::CIGAR_t::DEL: {
 
+                bool _matches_instead = false;
+                if (curr.length() > max_indel_length) { _matches_instead = true; }
+
                 _add_deletions<dtype>(
                     reference,
                     query,
@@ -417,7 +431,8 @@ _MUTANT<dtype> _get_mutant(
                     phred,
                     window,
                     curr,
-                    gen
+                    gen,
+                    _matches_instead
                 );
                 prev = curr;
                 cigar.extend(curr);
@@ -428,13 +443,15 @@ _MUTANT<dtype> _get_mutant(
 
             case HTS::CIGAR_t::INS: {
 
+                int __quality = quality;
+                if (curr.length() > max_indel_length) { __quality = -1; }
                 _add_insertions<dtype>(
                     reference,
                     query,
                     qpos,
                     rpos,
                     arr,
-                    quality,
+                    __quality,
                     min_quality,
                     phred,
                     window,
@@ -521,6 +538,7 @@ void __run_tests(
     hts_pos_t length,
     hts_pos_t min_length,
     int min_quality,
+    int max_indel_length,
     size_t window,
     std::string out_sam,
     std::string out_fasta,
@@ -563,7 +581,7 @@ void __run_tests(
         std::vector<std::string> _phreds;
         for (size_t jx = 0; jx < nqueries; jx++) {
 
-            _MUTANT<float> mut = _get_mutant<float>(_reference, arr, _mapping_qualties[jx], min_quality, min_length, window, gen);
+            _MUTANT<float> mut = _get_mutant<float>(_reference, arr, _mapping_qualties[jx], min_quality, min_length, max_indel_length, window, gen);
 
             _queries.push_back(HTS::_to_str(mut.query));
             _cigars.push_back(mut.cigar.str());
@@ -603,7 +621,7 @@ int main(int argc, char** argv) {
     }
 
     try {
-        __run_tests(mpi, opt.references, opt.queries, opt.length, opt.min_length, opt.min_quality, opt.window, opt.out_sam, opt.out_fasta, opt.out_h5);
+        __run_tests(mpi, opt.references, opt.queries, opt.length, opt.min_length, opt.min_quality, opt.max_indel_length, opt.window, opt.out_sam, opt.out_fasta, opt.out_h5);
         } catch (const std::exception& err) {
         mpi.err() << "Error: " << err.what() << "\n";
         return EXIT_FAILURE;
