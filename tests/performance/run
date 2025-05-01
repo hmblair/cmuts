@@ -1,6 +1,12 @@
-#!/bin/bash
+#!/bin/zsh
 
 set -euo pipefail
+if [[ `uname` == Darwin ]]; then
+    MAX_MEMORY_UNITS=KB
+else
+    MAX_MEMORY_UNITS=MB
+fi
+TIMEFMT='%E %M '$MAX_MEMORY_UNITS
 
 # Check if dependencies are installed
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
@@ -14,12 +20,14 @@ LENGTH=100
 REFERENCES=1024
 QUALITY=0
 WINDOW=0
+MAX_INDEL=100
 MIN_LENGTH=2
 MAX_LENGTH=$((2 * LENGTH))
-THREADS=1
+THREADS=8
 
 EXP_H5="expected.h5"
 CMUTS_H5="cmuts.h5"
+RF_DIR="_rf_count"
 
 echo ""
 echo " ─────────────────────────────"
@@ -31,6 +39,7 @@ echo " ────────────────────────�
 for QUERIES in 128 512 2048 8192 32768 131072; do
 
     echo "   QUERIES:          $QUERIES"
+    echo " ─────────────────────────────"
     pushd ${CASES_DIR} > /dev/null
 
     SAM="aln_"${REFERENCES}"_"${QUERIES}".sam"
@@ -48,6 +57,7 @@ for QUERIES in 128 512 2048 8192 32768 131072; do
             --out-sam ${SAM} \
             --out-h5 ${EXP_H5} \
             --min-quality ${QUALITY} \
+            --max-indel-length ${MAX_INDEL} \
             --quality-window ${WINDOW}
 
         samtools calmd -b -@8 ${SAM} ${FASTA} > ${BAM}
@@ -57,8 +67,28 @@ for QUERIES in 128 512 2048 8192 32768 131072; do
 
     fi
 
-    /usr/bin/time mpirun -np ${THREADS} cmuts -f ${FASTA} -o ${CMUTS_H5} --min-mapq ${QUALITY} --quality-window ${WINDOW} --min-length ${MIN_LENGTH} ${BAM} > /dev/null
+    echo -n "cmuts:    "
+    time mpirun -np ${THREADS} cmuts \
+        -f ${FASTA} \
+        -o ${CMUTS_H5} \
+        --min-mapq ${QUALITY} \
+        --quality-window ${WINDOW} \
+        --min-length ${MIN_LENGTH} \
+        --max-indel-length ${MAX_INDEL} \
+        ${BAM} > /dev/null
     rm -rf ${CMUTS_H5}
+
+    rm -rf ${RF_DIR}
+    mkdir ${RF_DIR}
+    cd ${RF_DIR}
+    echo -n "rf-count: "
+    time rf-count \
+        -wt ${THREADS} \
+        -f ../${FASTA} \
+        -m -orc \
+        ../${BAM} > /dev/null 
+    cd ..
+
     echo " ─────────────────────────────"
 
     popd > /dev/null
@@ -105,8 +135,18 @@ for REFERENCES in 128 512 2048 8192; do
 
     fi
 
-    /usr/bin/time mpirun -np ${THREADS} cmuts -f ${FASTA} -o ${CMUTS_H5} --min-mapq ${QUALITY} --quality-window ${WINDOW} --min-length ${MIN_LENGTH} ${BAM} > /dev/null
+    echo -n "cmuts:    "
+    time mpirun -np ${THREADS} cmuts -f ${FASTA} -o ${CMUTS_H5} --min-mapq ${QUALITY} --quality-window ${WINDOW} --min-length ${MIN_LENGTH} ${BAM} > /dev/null
     rm -rf ${CMUTS_H5}
+
+    rm -rf _rf
+    mkdir _rf
+    cd _rf
+    echo -n "rf-count: "
+    time rf-count -t ${THREADS} -f ../${FASTA} ../${BAM}
+    cd ..
+    rm -rf _rf
+
     echo " ─────────────────────────────"
 
     popd > /dev/null
