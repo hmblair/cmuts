@@ -5,6 +5,7 @@
 * Streamed IO and direct output to compressed HDF5 files
 * Handling of arbitrary-length ambiguous deletions, including deletion spreading
 
+
 ## Installation
 
 To build, you will need installed copies of
@@ -31,6 +32,7 @@ Don't forget to add the `./bin` directory to your path.
 
 If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
 
+
 # Usage
 
 To run, you will need:
@@ -39,7 +41,6 @@ To run, you will need:
 
 Note that an index (.fai, .bai, or .crai) for each of these files will be built automatically. If the file is not sorted, `samtools sort` will be called.
 
-In addition to the respective datasets below, the output HDF5 file will also have a `sequence` dataset containing the FASTA sequences encoded as 8-bit integers.
 
 ## Modification Counting
 
@@ -85,13 +86,6 @@ The following lists all additional commands available:
 
 `--spread`: Spread out ambiguous deletions.
 
-## Joint Modification Counting
-
-To compute the joint distribution of modifications over all pairs of positions, the `--joint` flag can be passed.
-```
-cmuts --joint -o out.h5 -f seq.fasta sorted.bam
-```
-The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each pair of positions has a modification ($`i=1`$) or no modification ($`i=0`$).
 
 ## Normalization
 
@@ -111,6 +105,27 @@ Additional flags which may be useful are:
 
 `--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 20
 
+
+## Tokenization
+
+`cmuts` will automatically tokenize the reference sequences and place them in a `sequence` dataset in the output HDF5 file. This can be done even in the absence of a SAM/BAM file, i.e.
+```
+cmuts -f seq.fasta -o out.h5
+```
+will fill the `sequence` dataset in `out.h5`.
+
+
+## Joint Modification Counting
+
+To compute the joint distribution of modifications over all pairs of positions, the `--joint` flag can be passed.
+```
+cmuts --joint -o out.h5 -f seq.fasta sorted.bam
+```
+The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each pair of positions has a modification ($`i=1`$) or no modification ($`i=0`$).
+
+
 ## Tests
 
 `cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/accuracy/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions.
+
+There is also a command to assess the performance of `cmuts`, in `./tests/performance`. This requires `rf-count` and, on Mac OS, `gtime` to be installed.
