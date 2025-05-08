@@ -5,13 +5,20 @@ static inline void __write_sequences(
     HDF5::File& hdf5,
     const MPI::Manager& mpi
 ) {
+
     if (!hdf5.exist(SEQUENCE_DS)) {
         try {
+            if (mpi.root()) {
+                std::cout << "Tokenizing " << fasta.size() << " sequences.\n";
+            }
             fasta.to_hdf5(hdf5, mpi);
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
         }
+    } else {
+        mpi.err() << "Warning: The file \"" << hdf5.name() << "\" already contains the dataset \"" << SEQUENCE_DS << "\". No tokenization can be done.\n";
     }
+
 }
 
 static inline void __cleanup(
@@ -86,6 +93,12 @@ int main(int argc, char** argv) {
     }
     HTS::FASTA fasta = std::move(_fasta.value());
 
+    size_t total = opt.files.value().size();
+    if (total == 0) {
+        __write_sequences(fasta, hdf5, mpi);
+        return EXIT_SUCCESS;
+    }
+
     // Open the HTS files
     std::optional<HTS::FileGroup> _files;
     try {
@@ -142,14 +155,14 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (mpi.root()) {
+        Utils::cursor_down(1);
+    }
+
     if (processed > 0) {
         __write_sequences(fasta, hdf5, mpi);
     } else {
         __cleanup(mpi, opt);
-    }
-
-    if (mpi.root()) {
-        Utils::cursor_down(2);
     }
 
     if (processed < files.size()) {

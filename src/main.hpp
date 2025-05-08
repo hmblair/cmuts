@@ -6,6 +6,7 @@
 #include "hts.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
+#include <system_error>
 
 const std::string PROGRAM = "cmuts";
 const std::string VERSION = "1.0.0";
@@ -28,6 +29,9 @@ public:
     Arg<bool> fast;
     Arg<bool> spread;
     Arg<int> quality_window;
+    Arg<bool> no_mismatch;
+    Arg<bool> no_insertion;
+    Arg<bool> no_deletion;
 
     cmutsProgram();
 
@@ -37,6 +41,7 @@ public:
 const std::string FILES_SHORT_NAME = "";
 const std::string FILES_LONG_NAME = "files";
 const std::string FILES_HELP = "The input SAM/BAM/CRAM files.";
+const std::vector<std::string> FILES_DEFAULT;
 
 // Variables for "-o", "--output" argument
 const std::string OUTPUT_SHORT_NAME = "-o";
@@ -120,9 +125,21 @@ const std::string QUALITY_WINDOW_LONG_NAME = "--quality-window";
 const int QUALITY_WINDOW_DEFAULT = 2;
 const std::string QUALITY_WINDOW_HELP = "Check the quality of each base in a window of this size around each base.";
 
+const std::string NO_MISMATCH_SHORT_NAME = "";
+const std::string NO_MISMATCH_LONG_NAME = "--no-mismatches";
+const std::string NO_MISMATCH_HELP = "Do not count mismatches as modifications.";
+
+const std::string NO_DELETION_SHORT_NAME = "";
+const std::string NO_DELETION_LONG_NAME = "--no-insertions";
+const std::string NO_DELETION_HELP = "Do not count mismatches as modifications.";
+
+const std::string NO_INSERTION_SHORT_NAME = "";
+const std::string NO_INSERTION_LONG_NAME = "--no-deletions";
+const std::string NO_INSERTION_HELP = "Do not count mismatches as modifications.";
+
 cmutsProgram::cmutsProgram()
     : Program(PROGRAM, VERSION),
-      files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP),
+      files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
       output(_parser, OUTPUT_SHORT_NAME, OUTPUT_LONG_NAME, OUTPUT_HELP),
       fasta(_parser, FASTA_SHORT_NAME, FASTA_LONG_NAME, FASTA_HELP),
       overwrite(_parser, OVERWRITE_SHORT_NAME, OVERWRITE_LONG_NAME, OVERWRITE_HELP),
@@ -136,7 +153,11 @@ cmutsProgram::cmutsProgram()
       joint(_parser, JOINT_SHORT_NAME, JOINT_LONG_NAME, JOINT_HELP),
       fast(_parser, FAST_SHORT_NAME, FAST_LONG_NAME, FAST_HELP),
       spread(_parser, SPREAD_SHORT_NAME, SPREAD_LONG_NAME, SPREAD_HELP),
-      quality_window(_parser, QUALITY_WINDOW_SHORT_NAME, QUALITY_WINDOW_LONG_NAME, QUALITY_WINDOW_HELP, QUALITY_WINDOW_DEFAULT) {}
+      quality_window(_parser, QUALITY_WINDOW_SHORT_NAME, QUALITY_WINDOW_LONG_NAME, QUALITY_WINDOW_HELP, QUALITY_WINDOW_DEFAULT),
+      no_mismatch(_parser, NO_MISMATCH_SHORT_NAME, NO_MISMATCH_LONG_NAME, NO_MISMATCH_HELP),
+      no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
+      no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP)
+{}
 
 
 #endif
