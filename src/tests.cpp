@@ -312,12 +312,8 @@ void _add_insertions(
 
     base_t qbase = _random_base(gen);
     query.push_back(qbase);
-    // if (rpos < reference.size()) {
-    //     arr(rpos, qbase, IX_INS) += mask;
-    // }
-    hts_pos_t _rpos = std::min(rpos, (hts_pos_t)reference.size() - 1);
-    if (_rpos > 0) {
-        arr(_rpos, qbase, IX_INS) += mask;
+    if (rpos < reference.size()) {
+        arr(rpos, qbase, IX_INS) += mask;
     }
 
     qpos++;
@@ -349,7 +345,6 @@ _MUTANT<dtype> _get_mutant(
     HTS::CIGAR cigar;
 
     hts_pos_t ins_length = _random_int(gen, 0, reference.size());
-    ins_length = 0;
     hts_pos_t del_length = _random_int(gen, 0, reference.size() - 1);
     hts_pos_t match_length = reference.size() - del_length;
     hts_pos_t query_length = match_length + ins_length;
