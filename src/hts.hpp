@@ -191,13 +191,15 @@ public:
     CIGAR_op(CIGAR_t type, hts_pos_t length);
     // Get the CIGAR op
     CIGAR_t type() const;
+    // Check if the op is a modification
+    bool is_mod() const;
     // Get the length of the op
     hts_pos_t length() const;
     // Get the length of the reference the op consumes
     hts_pos_t rlength() const;
     // Get the length of the query the op consumes
     hts_pos_t qlength() const;
-    // The op as it would appear in an HTS file
+    // The op as it would appear in a SAM/BAM file
     std::string str() const;
     // Increase the length by val
     void extend(hts_pos_t val);

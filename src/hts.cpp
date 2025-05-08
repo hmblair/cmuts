@@ -69,6 +69,30 @@ std::ostream& operator<<(std::ostream& os, FileType fileType) {
     return os;
 }
 
+static inline bool _is_mod(CIGAR_t type) {
+
+    switch (type) {
+
+        case CIGAR_t::MISMATCH:
+        case CIGAR_t::INS:
+        case CIGAR_t::DEL:     {
+            return true;
+        }
+
+        case CIGAR_t::MATCH:
+        case CIGAR_t::SOFT:
+        case CIGAR_t::HARD:
+        case CIGAR_t::SKIP:
+        case CIGAR_t::PAD:
+        case CIGAR_t::BACK:
+        case CIGAR_t::UNKNOWN: {
+            return false;
+        }
+
+    }
+
+}
+
 static inline bool _is_digit(const std::string& tag, hts_pos_t pos) {
     return pos < tag.size() && std::isdigit(tag[pos]);
 }
@@ -1076,6 +1100,12 @@ CIGAR_op::CIGAR_op(CIGAR_t type, hts_pos_t length) : _type(type), _length(length
 CIGAR_t CIGAR_op::type() const {
 
     return _type;
+
+}
+
+bool CIGAR_op::is_mod() const {
+
+    return _is_mod(_type);
 
 }
 
