@@ -189,7 +189,11 @@ Memspace<dtype, N>::Memspace(
     if (dims.size() != N) {
         throw std::runtime_error("The number of dimensions does not match the template parameter.");
     }
-    _data.resize(dims);
+
+    std::vector<size_t> _buffer_dims = dims;
+    _buffer_dims[0] = file.chunk_size();
+
+    _data.resize(_buffer_dims);
     clear();
 
 }
