@@ -323,6 +323,7 @@ static inline hts_pos_t _length_from_name(const FASTA& fasta, const char* name) 
             "There was an error fetching a sequence from \"" + fasta.name() + "\"."
         );
     }
+    free(sequence);
     return len;
 }
 
