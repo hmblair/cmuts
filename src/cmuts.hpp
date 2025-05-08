@@ -13,6 +13,9 @@ const int64_t N_DELBASES = 6;
 const std::string MODIFICATION_DS = "modifications";
 const std::string JOINT_DS        = "joint";
 
+const hts_pos_t NOMOD = 0;
+const hts_pos_t MOD = 1;
+
 const hts_pos_t MOD_MOD     = 0;
 const hts_pos_t MOD_NOMOD   = 1;
 const hts_pos_t NOMOD_MOD   = 2;
@@ -49,7 +52,7 @@ constexpr size_t _ndims(DetailLevel detail) {
         case DetailLevel::Normal:   { return 4; }
         case DetailLevel::Fast:     { return 3; }
         case DetailLevel::VeryFast: { return 2; }
-        case DetailLevel::Joint:    { return 4; }
+        case DetailLevel::Joint:    { return 5; }
     }
 
 }

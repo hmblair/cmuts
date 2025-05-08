@@ -1,6 +1,4 @@
 #include "cmuts.hpp"
-#include "hts.hpp"
-#include <stdexcept>
 
 namespace cmuts {
 
@@ -19,35 +17,35 @@ static inline void __joint(view_t<dtype, _ndims(DetailLevel::Joint)> arr, hts_po
 
         for (hts_pos_t jx = 0; jx < ix; jx++) {
 
-            dtype nval   = arr.periodic(jx, -1, 0);
+            dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
 
-            arr(ix, jx, NOMOD_MOD)   += mask * nval;
-            arr(jx, ix, NOMOD_MOD)   += mask * nval;
+            arr(ix, jx, NOMOD, MOD)   += mask * nval;
+            arr(jx, ix, NOMOD, MOD)   += mask * nval;
 
-            arr(ix, jx, NOMOD_NOMOD) += mask * nval_c;
-            arr(jx, ix, NOMOD_NOMOD) += mask * nval_c;
+            arr(ix, jx, NOMOD, NOMOD) += mask * nval_c;
+            arr(jx, ix, NOMOD, NOMOD) += mask * nval_c;
 
         }
 
-        arr(ix, ix, NOMOD_NOMOD) += mask;
+        arr(ix, ix, NOMOD, NOMOD) += mask;
 
     } else {
 
         for (hts_pos_t jx = 0; jx < ix; jx++) {
 
-            dtype nval   = arr.periodic(jx, -1, 0);
+            dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
 
-            arr(ix, jx, MOD_MOD)   += mask * nval;
-            arr(jx, ix, MOD_MOD)   += mask * nval;
+            arr(ix, jx, MOD, MOD)   += mask * nval;
+            arr(jx, ix, MOD, MOD)   += mask * nval;
 
-            arr(ix, jx, MOD_NOMOD) += mask * nval_c;
-            arr(jx, ix, MOD_NOMOD) += mask * nval_c;
+            arr(ix, jx, MOD, NOMOD) += mask * nval_c;
+            arr(jx, ix, MOD, NOMOD) += mask * nval_c;
 
         }
 
-        arr(ix, ix, MOD_MOD) += mask;
+        arr(ix, ix, MOD, MOD) += mask;
 
     }
 
@@ -115,8 +113,8 @@ static hts_pos_t _get_ambiguous_end(
     // D[M:K] is a subsequence of S[M:K-1].
 
     // We can find the largest such K in an efficient manner.
-    //  - Check if D[N] is in S[M:N]. While this is so,
-    //    - Advance M to the base after the first position in 
+    //    - Check if D[N] is in S[M:N]. While this is so,
+    //    - Advance M to the base after the first position in
     //      S where D[N] occurs, and
     //    - Update N -> N + 1.
     // The final N is the furthest base in the 3' direction
@@ -174,6 +172,14 @@ static inline std::pair<hts_pos_t, hts_pos_t> _get_ambiguous_region(
 
 }
 
+
+
+//
+// Helpers for spreading deletions
+//
+
+
+
 template <typename dtype, DetailLevel detail>
 static inline dtype _total_muts(
     view_t<dtype, _ndims(detail)> arr,
@@ -209,8 +215,8 @@ static inline dtype _total_muts(
         return arr(ix);
     }
 
-    if constexpr (detail == DetailLevel::VeryFast) {
-        return arr.periodic(ix, -1, 0);
+    if constexpr (detail == DetailLevel::Joint) {
+        return arr.periodic(ix, -1, 0, 0);
     }
 
     return static_cast<dtype>(0);
@@ -262,7 +268,7 @@ static inline std::vector<dtype> _mut_weights(
 
 
 template <DetailLevel detail, typename dtype>
-static inline void __match(
+static inline void __match_core(
     view_t<dtype, _ndims(detail)> arr,
     hts_pos_t rpos,
     base_t rbase,
@@ -283,9 +289,8 @@ static inline void __match(
 
 };
 
-
 template <DetailLevel detail, typename dtype>
-static inline void __mismatch(
+static inline void __mismatch_core(
     view_t<dtype, _ndims(detail)> arr,
     hts_pos_t rpos,
     base_t qbase,
@@ -308,14 +313,14 @@ static inline void __mismatch(
     }
     // Record the position
     if constexpr (detail == DetailLevel::Joint) {
-        arr.periodic(rpos, -1, 0) += mask;
+        arr.periodic(rpos, -1, 0, 0) += mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
 };
 
 template <DetailLevel detail, typename dtype>
-static inline void __del(
+static inline void __del_core(
     view_t<dtype, _ndims(detail)> arr,
     hts_pos_t rpos,
     base_t rbase,
@@ -337,7 +342,7 @@ static inline void __del(
     }
     //
     if constexpr (detail == DetailLevel::Joint) {
-        arr.periodic(rpos, -1, 0) += mask;
+        arr.periodic(rpos, -1, 0, 0) += mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
@@ -359,11 +364,11 @@ static inline void __spread_del(
 
         dtype val = weights[ix - region.first] * mask[ix];
         base_t rbase = aln.rbase(ix);
-        __del<detail, dtype>(arr, ix, rbase, val);
+        __del_core<detail, dtype>(arr, ix, rbase, val);
 
         // Only count coverage within the stated deletion to avoid double-counting
         if (ix >= start && ix < end) {
-            __match<detail, dtype>(arr, ix, rbase, mask[ix] - val);
+            __match_core<detail, dtype>(arr, ix, rbase, mask[ix] - val);
         }
 
     }
@@ -371,7 +376,7 @@ static inline void __spread_del(
 }
 
 template <DetailLevel detail, typename dtype>
-static inline void __ins(
+static inline void __ins_core(
     view_t<dtype, _ndims(detail)> arr,
     hts_pos_t rpos,
     base_t qbase,
@@ -398,6 +403,103 @@ static inline void __ins(
 
 };
 
+template <
+    DetailLevel detail,
+    typename dtype,
+    bool CONSUMES_RPOS,
+    bool CONSUMES_QPOS
+>
+static inline void __match(
+    view_t<dtype, _ndims(detail)> arr,
+    HTS::CIGAR_op& op,
+    hts_pos_t& rpos,
+    hts_pos_t& qpos,
+    const HTS::Alignment& aln,
+    const std::vector<dtype>& mask
+) {
+
+    while (op.advance()) {
+
+        if constexpr (CONSUMES_RPOS) { rpos--; }
+        if constexpr (CONSUMES_QPOS) { qpos--; }
+        base_t rbase = aln.rbase(rpos);
+
+        __match_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+
+    }
+
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __mismatch(
+    view_t<dtype, _ndims(detail)> arr,
+    HTS::CIGAR_op& op,
+    hts_pos_t& rpos,
+    hts_pos_t& qpos,
+    const HTS::Alignment& aln,
+    const std::vector<dtype>& mask
+) {
+
+        rpos--;
+        qpos--;
+        op.advance();
+        base_t rbase = aln.rbase(rpos);
+        base_t qbase = aln.qbase(qpos);
+
+        if (qbase != IX_UNK) {
+            __mismatch_core<detail, dtype>(arr, rpos, qbase, rbase, mask[qpos]);
+        } else {
+            __match_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+        }
+
+        __match<detail, dtype, true, true>(arr, op, rpos, qpos, aln, mask);
+
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __del(
+    view_t<dtype, _ndims(detail)> arr,
+    HTS::CIGAR_op& op,
+    hts_pos_t& rpos,
+    hts_pos_t& qpos,
+    const HTS::Alignment& aln,
+    const std::vector<dtype>& mask
+) {
+
+        rpos--;
+        base_t rbase = aln.rbase(rpos);
+        op.advance();
+
+        __del_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+        __match<detail, dtype, true, false>(arr, op, rpos, qpos, aln, mask);
+
+}
+
+template <DetailLevel detail, typename dtype>
+static inline void __ins(
+    view_t<dtype, _ndims(detail)> arr,
+    HTS::CIGAR_op& op,
+    hts_pos_t& rpos,
+    hts_pos_t& qpos,
+    const HTS::Alignment& aln,
+    const std::vector<dtype>& mask
+) {
+
+        if (rpos >= aln.rlength()) {
+            qpos -= op.length();
+            return;
+        }
+
+        qpos--;
+        base_t qbase = aln.qbase(qpos);
+        if (qbase != IX_UNK) {
+            __ins_core<detail, dtype>(arr, rpos, qbase, mask[qpos]);
+        }
+
+        qpos -= (op.length() - 1);
+
+}
+
 template <DetailLevel detail, typename dtype>
 static inline void __count(
     const HTS::Alignment& aln,
@@ -407,103 +509,91 @@ static inline void __count(
 
     // Matches, mismatches, etc.
     HTS::CIGAR cigar = aln.cigar();
-    // Reference and query positions
-    hts_pos_t rpos = aln.offset(), qpos = 0;
-    // Reference and query bases
-    base_t rbase = IX_UNK, qbase = IX_UNK;
+    // Initial reference and query positions
+    hts_pos_t rpos = aln.rlength(), qpos = aln.qlength();
     // PHRED quality mask
     std::vector<dtype> mask = aln.mask<dtype>(params.min_quality, params.quality_window);
 
-    for (auto& op : cigar) {
+    // Loop backwards (3' -> 5') along the CIGAR
 
-        // Insertions at the end of the sequence are ignored
-        if (rpos >= aln.rlength()) { break; }
+    for (auto& op : std::ranges::reverse_view(cigar)) {
 
         switch (op.type()) {
 
             case HTS::CIGAR_t::MATCH: {
-                while (op.advance()) {
-                    rbase = aln.rbase(rpos);
-                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-                    rpos++;
-                    qpos++;
-                }
+
+                __match<detail, dtype, true, true>(arr, op, rpos, qpos, aln, mask);
                 break;
+
             }
 
             case HTS::CIGAR_t::MISMATCH: {
-                while (op.advance(-1)) {
-                    rbase = aln.rbase(rpos);
-                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-                    rpos++;
-                    qpos++;
-                }
 
-                rbase = aln.rbase(rpos);
-                qbase = aln.qbase(qpos);
-                if (qbase != IX_UNK) {
-                    __mismatch<detail, dtype>(arr, rpos, qbase, rbase, mask[qpos]);
-                } else {
-                    __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-                }
-                rpos++;
-                qpos++;
+                __mismatch<detail, dtype>(arr, op, rpos, qpos, aln, mask);
                 break;
+
             }
 
             case HTS::CIGAR_t::DEL: {
-                if (params.spread_deletions) {
-                    __spread_del<detail, dtype>(rpos, rpos + op.length(), aln, arr, mask);
-                    rpos += op.length();
+
+                if (op.length() > params.max_indel_length) {
+                    __match<detail, dtype, true, false>(arr, op, rpos, qpos, aln, mask);
+                    break;
                 }
 
-                else {
-                    while (op.advance(-1)) {
-                        rbase = aln.rbase(rpos);
-                        __match<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-                        rpos++;
-                    }
-                    rbase = aln.rbase(rpos);
-                    __del<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-                    rpos++;
-                }
+                __del<detail, dtype>(arr, op, rpos, qpos, aln, mask);
                 break;
+
             }
 
             case HTS::CIGAR_t::INS: {
-                qpos += op.length() - 1;
-                qbase = aln.qbase(qpos);
-                if (qbase != IX_UNK) {
-                    __ins<detail, dtype>(arr, rpos, qbase, mask[qpos]);
+
+                if (op.length() > params.max_indel_length) {
+                    qpos -= op.length();
+                    break;
                 }
-                qpos++;
+
+                __ins<detail, dtype>(arr, op, rpos, qpos, aln, mask);
                 break;
+
             }
 
             case HTS::CIGAR_t::SOFT: {
-                qpos += op.length();
+
+                qpos -= op.length();
                 break;
+
             }
 
             case HTS::CIGAR_t::HARD: {
+
                 break;
+
             }
 
             case HTS::CIGAR_t::SKIP: {
-                rpos += op.length();
+
+                rpos -= op.length();
                 break;
+
             }
 
             case HTS::CIGAR_t::PAD: {
+
                 break;
+
             }
 
             case HTS::CIGAR_t::BACK: {
+
                 break;
+
             }
 
             case HTS::CIGAR_t::UNKNOWN: {
+
                 throw std::runtime_error("Unknown CIGAR operation encountered at reference position " + std::to_string(rpos) + ".");
+
             }
 
         }
@@ -586,7 +676,7 @@ static inline std::vector<size_t> __dims(const HTS::File& file, DetailLevel deta
             return {size, length};
         }
         case DetailLevel::Joint: {
-            return {size, length, length + 1, 4};
+            return {size, length, length + 1, 2, 2};
         }
     }
 
