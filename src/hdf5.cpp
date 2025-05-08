@@ -26,7 +26,7 @@ static inline std::string _path(const std::string& name) {
     return path.parent_path().string() + "/" + path.stem().string();
 }
 
-static inline void _throw_if_object_exists(const File& file, const std::string& name) {
+void _throw_if_object_exists(const File& file, const std::string& name) {
     std::string path = _path(name);
     if (file.exist(path)) {
         throw std::runtime_error("The object \"" + path + "\" already exists in the file \"" + file.name() + "\".");
@@ -235,6 +235,17 @@ void Memspace<dtype, N>::resize(const std::vector<size_t> dims) {
 //
 
 
+
+template class Writer<float, 5>;
+template class Memspace<float, 5>;
+template Writer<float, 5> File::writer<float, 5>(
+    const std::vector<size_t>& dims,
+    const std::string& name
+);
+template Memspace<float, 5> File::memspace<float, 5>(
+    const std::vector<size_t>& dims,
+    const std::string& name
+);
 
 template class Writer<float, 4>;
 template class Memspace<float, 4>;

@@ -145,6 +145,7 @@ public:
 
 };
 
+void _throw_if_object_exists(const File& file, const std::string& name);
 void _throw_if_object_exists(const File& file, const std::vector<std::string>& names);
 
 } // namespace HDF5
