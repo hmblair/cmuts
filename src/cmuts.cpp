@@ -463,7 +463,7 @@ static inline void __count(
     // Matches, mismatches, etc.
     HTS::CIGAR cigar = aln.cigar();
     // Initial reference and query positions
-    hts_pos_t rpos = cigar.rlength(), qpos = aln.qlength();
+    hts_pos_t rpos = aln.offset() + cigar.rlength(), qpos = aln.qlength();
     // Position of the most recent (3'-wise) mutation
     hts_pos_t last = rpos + params.collapse;
     // PHRED quality mask
