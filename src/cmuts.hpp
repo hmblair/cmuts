@@ -31,31 +31,38 @@ namespace cmuts {
 
 
 
-enum class DetailLevel {
+enum class Mode {
+
     // Count mutation types, locations, and coverage
     // Size: (N, L, 4, 6)
     Normal,
     // Count mutation locations and coverage only
     // Size: (N, L, 2)
-    Fast,
-    // Count mutation locations only
-    // Size: (N, L)
-    VeryFast,
+    LowMem,
     // Compute the joint distribution of modifications
     // Size: (N, L, L, 4)
     Joint
+
 };
 
-constexpr size_t _ndims(DetailLevel detail) {
+constexpr size_t _ndims(Mode mode) {
 
-    switch (detail) {
-        case DetailLevel::Normal:   { return 4; }
-        case DetailLevel::Fast:     { return 3; }
-        case DetailLevel::VeryFast: { return 2; }
-        case DetailLevel::Joint:    { return 5; }
+    switch (mode) {
+        case Mode::Normal:   { return 4; }
+        case Mode::LowMem:   { return 3; }
+        case Mode::Joint:    { return 5; }
     }
 
 }
+
+enum class Spread{
+
+    None,
+    Uniform,
+    MutationInformed
+
+};
+
 
 
 
@@ -108,16 +115,28 @@ public:
 class Params {
 public:
 
+    Mode mode;
+    Spread spread;
     int64_t min_mapq;
-    int64_t min_quality;
+    int64_t min_phred;
     int64_t min_length;
     int64_t max_length;
     int64_t max_indel_length;
-    bool spread_deletions;
     int64_t quality_window;
-    DetailLevel detail;
+    int64_t collapse;
+    bool mismatches;
+    bool insertions;
+    bool deletions;
 
 };
+
+
+
+//
+// Main
+//
+
+
 
 class __Main {
 protected:
@@ -145,11 +164,11 @@ public:
 
 };
 
-template <typename dtype, DetailLevel detail>
+template <typename dtype, Mode mode, Spread spread>
 class Main : public __Main {
 private:
 
-    HDF5::Memspace<dtype, _ndims(detail)> memspace;
+    HDF5::Memspace<dtype, _ndims(mode)> memspace;
 
 public:
 
@@ -165,7 +184,9 @@ public:
 
 };
 
-DetailLevel detail(bool fast, bool joint);
+Mode mode(bool lowmem, bool joint);
+Spread spread(bool uniform, bool mutation_informed);
+
 std::unique_ptr<__Main> get_main(
     HTS::File& file,
     HDF5::File& hdf5,
