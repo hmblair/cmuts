@@ -433,7 +433,7 @@ static inline void __del(
     hts_pos_t ambig_end = _get_ambiguous_end(start, end, aln.reference());
 
     // TODO: remove this and fix
-    // ambig_end = end + 1;
+    ambig_end = end + 1;
 
     std::vector<dtype> weights = _spread_weights<dtype, mode, spread>(end, ambig_end, arr, mask[qpos]);
 
