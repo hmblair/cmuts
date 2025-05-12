@@ -3,11 +3,16 @@
 set -eo pipefail
 
 DEBUG=0
+MPI_BUILD=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --debug)
       DEBUG=1
+      shift
+      ;;
+    --mpi)
+      MPI_BUILD=1
       shift
       ;;
     *)
@@ -38,6 +43,7 @@ pushd ${BUILD_DIR} > /dev/null
 CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR}"
 [[ -n "${HDF5_DIR}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
 [[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDEBUG=1"
+[[ "${MPI_BUILD:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DMPI_BUILD=1"
 cmake ${CMAKE_OPTIONS} ..
 
 # Build and install project
