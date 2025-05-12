@@ -177,8 +177,10 @@ int main(int argc, char** argv) {
 
     mpi.divide();
 
-    if (processed > 0 && opt.tokenize) {
-        __write_sequences(fasta, hdf5, mpi);
+    if (processed > 0) {
+        if (opt.tokenize) {
+            __write_sequences(fasta, hdf5, mpi);
+        }
     } else {
         __cleanup(mpi, opt);
     }
