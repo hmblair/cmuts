@@ -23,9 +23,7 @@ static inline int _random_int(std::mt19937& gen, int low, int high) {
 static inline int _random_int_excluding(std::mt19937& gen, int low, int high, int n) {
 
     int rand_val = _random_int(gen, low, high - 1);
-    if (rand_val >= n) {
-        ++rand_val;
-    }
+    if (rand_val >= n) { ++rand_val; }
     return rand_val;
 
 }
@@ -70,20 +68,9 @@ static inline int _random_length(std::mt19937& gen, size_t max) {
 
 }
 
-static inline int _random_mapping_quality(std::mt19937& gen) {
+static inline int _random_mapq(std::mt19937& gen) {
 
     return _random_int(gen, 0, MAX_MAPQ);
-
-}
-
-static inline std::vector<int> _random_mapping_qualities(std::mt19937& gen, size_t count) {
-
-    std::vector<int> _mapping_qualities(count);
-    for (auto& val : _mapping_qualities) {
-        val = _random_mapping_quality(gen);
-    }
-
-    return _mapping_qualities;
 
 }
 
@@ -93,42 +80,40 @@ static inline uint8_t _random_phred_quality(std::mt19937& gen) {
 
 }
 
-static inline std::vector<uint8_t> _random_phred_qualities(std::mt19937& gen, size_t count) {
+static inline HTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
 
-    std::vector<uint8_t> _phred_qualities(count);
-    for (auto& val : _phred_qualities) {
+    std::vector<uint8_t> _phred(count);
+    for (auto& val : _phred) {
         val = _random_phred_quality(gen);
     }
 
-    return _phred_qualities;
+    HTS::PHRED phred(_phred);
+    return phred;
 
 }
 
 static inline HTS::CIGAR_op _random_cigar_op(
     std::mt19937& gen,
-    hts_pos_t match_remaining,
-    hts_pos_t ins_remaining,
-    hts_pos_t del_remaining,
+    hts_pos_t match,
+    hts_pos_t ins,
+    hts_pos_t del,
     HTS::CIGAR_t prev
 ) {
 
     HTS::CIGAR_t type;
     hts_pos_t length;
 
-    if (match_remaining == 0 && del_remaining == 0) {
-        type = HTS::CIGAR_t::INS;
-        length = ins_remaining;
-        return HTS::CIGAR_op(type, length);
-    }
-
-    if (match_remaining == 0 && ins_remaining == 0) {
-        type = HTS::CIGAR_t::DEL;
-        length = del_remaining;
-        return HTS::CIGAR_op(type, length);
+    if (match == 0) {
+        if (ins == 0) {
+            return HTS::CIGAR_op(HTS::CIGAR_t::DEL, del);
+        }
+        if (del == 0) {
+            return HTS::CIGAR_op(HTS::CIGAR_t::INS, ins);
+        }
     }
 
     std::vector<HTS::CIGAR_t> samples;
-    if (match_remaining > 0) {
+    if (match > 0) {
         if (prev != HTS::CIGAR_t::MATCH) {
             samples.push_back(HTS::CIGAR_t::MATCH);
         }
@@ -136,384 +121,311 @@ static inline HTS::CIGAR_op _random_cigar_op(
             samples.push_back(HTS::CIGAR_t::MISMATCH);
         }
     }
-    if (ins_remaining > 0) {
+    if (ins > 0) {
         if (prev != HTS::CIGAR_t::INS) {
             samples.push_back(HTS::CIGAR_t::INS);
         }
     }
-    if (del_remaining > 0) {
+    if (del > 0) {
         if (prev != HTS::CIGAR_t::DEL) {
             samples.push_back(HTS::CIGAR_t::DEL);
         }
     }
 
     type = _sample_from_vector<HTS::CIGAR_t>(gen, samples);
-    if (type == HTS::CIGAR_t::MATCH || type == HTS::CIGAR_t::MISMATCH) {
-        length = _random_length(gen, match_remaining);
-    } else if (type == HTS::CIGAR_t::INS) {
-        length = _random_length(gen, ins_remaining);
-    } else if (type == HTS::CIGAR_t::DEL) {
-        length = _random_length(gen, del_remaining);
-    } else {
-        throw std::runtime_error("Error in CIGAR type.");
+
+    switch (type) {
+
+        case HTS::CIGAR_t::MATCH:
+        case HTS::CIGAR_t::MISMATCH: {
+
+            length = _random_length(gen, match);
+            break;
+
+        }
+
+        case HTS::CIGAR_t::INS:      {
+
+            length = _random_length(gen, ins);
+            break;
+
+        }
+
+        case HTS::CIGAR_t::DEL:      {
+
+            length = _random_length(gen, del);
+            break;
+
+        }
+
+        default: {
+
+            throw std::runtime_error("Error in CIGAR type.");
+
+        }
+
     }
 
     return HTS::CIGAR_op(type, length);
 
 }
 
-
-
-
 template <typename dtype>
-void _add_matches(
-    const seq_t& reference,
-    seq_t& query,
-    hts_pos_t& qpos,
-    hts_pos_t& rpos,
-    view_t<dtype, 4> arr,
-    int quality,
-    int min_quality,
-    const HTS::PHRED& phred,
-    size_t window,
-    HTS::CIGAR_op& op,
-    std::mt19937& gen
-) {
+class Record {
+private:
 
+    hts_pos_t _match;
+    hts_pos_t _ins;
+    hts_pos_t _del;
 
-    while (op.advance()) {
+    hts_pos_t _rpos;
+    hts_pos_t _qpos;
+    hts_pos_t _last_mod;
 
-        bool _mapping_mask = (quality >= min_quality);
-        bool _phred_mask = phred.check(qpos, min_quality, window);
-        dtype mask = static_cast<dtype>(_mapping_mask && _phred_mask);
+    std::mt19937& gen;
+    view_t<dtype, 4>& arr;
+    const Params& params;
+    bool _mapq_mask;
 
-        base_t rbase = reference[rpos];
-        query.push_back(rbase);
-        arr(rpos, rbase, rbase) += mask;
+public:
 
-        qpos++;
-        rpos++;
+    const seq_t& reference;
+    seq_t query;
+    HTS::CIGAR cigar;
+    HTS::PHRED phred;
+    int mapq;
+    hts_pos_t pos;
+
+    Record(
+        const seq_t& reference,
+        const Params& params,
+        view_t<dtype, 4>& arr,
+        std::mt19937& gen
+    ) : gen(gen), arr(arr), params(params), reference(reference) {
+
+        hts_pos_t length = reference.size();
+
+        // Generate a random alignment position
+        pos = _random_int(gen, 0, length - 2);
+
+        // Generate random lengths of insertions and deletions
+        _ins = _random_int(gen, 0, length);
+        _del = _random_int(gen, 0, length - pos - 2);
+        _match = length - pos - _del;
+
+        // Start at the 3' end of the sequence
+        _rpos = length;
+        _qpos = _match + _ins;
+        _last_mod = _rpos + params.collapse;
+
+        // Generate a random mapping quality
+        mapq = _random_mapq(gen);
+
+        // Pretend the read is low-quality if it is too short or too long
+        if (_qpos < params.min_length || _qpos > params.max_length) {
+            _mapq_mask = false;
+        } else {
+            _mapq_mask = (mapq >= params.min_mapq);
+        }
+
+        // Generate a random PHRED score per base
+        phred = _random_phred(gen, _qpos);
+
+        // Generate the query sequence
+        while (_match > 0 || _ins > 0 || _del > 0) { extend(); }
+
+        // Reverse as we generated 3' -> 5'
+        std::reverse(query.begin(), query.end());
+        std::reverse(cigar.begin(), cigar.end());
 
     }
 
-}
+    dtype mask(hts_pos_t qpos) const {
 
-template <typename dtype>
-void _add_mismatches(
-    const seq_t& reference,
-    seq_t& query,
-    hts_pos_t& qpos,
-    hts_pos_t& rpos,
-    view_t<dtype, 4> arr,
-    int quality,
-    int min_quality,
-    const HTS::PHRED& phred,
-    size_t window,
-    HTS::CIGAR_op& op,
-    std::mt19937& gen
-) {
+        bool _phred_mask = phred.check(qpos, params.min_phred, params.quality_window);
+        return static_cast<dtype>(_mapq_mask && _phred_mask);
 
-    while (op.advance(-1)) {
+    }
 
-        bool _mapping_mask = (quality >= min_quality);
-        bool _phred_mask = phred.check(qpos, min_quality, window);
-        dtype mask = static_cast<dtype>(_mapping_mask && _phred_mask);
+    void match() {
 
-        base_t rbase = reference[rpos];
+        _qpos--;
+        _rpos--;
+        base_t rbase = reference[_rpos];
+        query.push_back(rbase);
+
+        arr(_rpos, rbase, rbase) += mask(_qpos);
+
+    }
+
+    void mismatch(bool mod = true) {
+
+        _qpos--;
+        _rpos--;
+        base_t rbase = reference[_rpos];
         base_t qbase = _random_base_excluding(gen, rbase);
         query.push_back(qbase);
 
-        arr(rpos, rbase, rbase) += mask;
-
-        qpos++;
-        rpos++;
-    }
-
-    base_t rbase = reference[rpos];
-    base_t qbase = _random_base_excluding(gen, rbase);
-    query.push_back(qbase);
-
-    bool _mapping_mask = (quality >= min_quality);
-    bool _phred_mask = phred.check(qpos, min_quality, window);
-    dtype mask = static_cast<dtype>(_mapping_mask && _phred_mask);
-
-    arr(rpos, rbase, qbase) += mask;
-
-    qpos++;
-    rpos++;
-
-}
-
-template <typename dtype>
-void _add_deletions(
-    const seq_t& reference,
-    seq_t& query,
-    hts_pos_t& qpos,
-    hts_pos_t& rpos,
-    view_t<dtype, 4> arr,
-    int quality,
-    int min_quality,
-    const HTS::PHRED& phred,
-    size_t window,
-    HTS::CIGAR_op& op,
-    std::mt19937& gen,
-    bool _matches_instead
-) {
-
-    bool _mapping_mask = (quality >= min_quality);
-    bool _phred_mask = phred.check(qpos, min_quality, window);
-    dtype mask = static_cast<dtype>(_mapping_mask && _phred_mask);
-
-    while (op.advance(-1)) {
-
-        base_t rbase = reference[rpos];
-        arr(rpos, rbase, rbase) += mask;
-        rpos++;
+        if (mod && _last_mod - _rpos >= params.collapse && params.mismatches) {
+            arr(_rpos, rbase, qbase) += mask(_qpos);
+            _last_mod = _rpos;
+        } else {
+            arr(_rpos, rbase, rbase) += mask(_qpos);
+        }
 
     }
 
-    base_t rbase = reference[rpos];
-    if (_matches_instead) {
-        arr(rpos, rbase, rbase) += mask;
-    } else {
-        arr(rpos, rbase, IX_DEL) += mask;
-    }
+    void ins(bool mod = true) {
 
-    rpos++;
-
-}
-
-template <typename dtype>
-void _add_insertions(
-    const seq_t& reference,
-    seq_t& query,
-    hts_pos_t& qpos,
-    hts_pos_t& rpos,
-    view_t<dtype, 4> arr,
-    int quality,
-    int min_quality,
-    const HTS::PHRED& phred,
-    size_t window,
-    HTS::CIGAR_op& op,
-    std::mt19937& gen
-) {
-
-    while (op.advance(-1)) {
-
+        _qpos--;
         base_t qbase = _random_base(gen);
         query.push_back(qbase);
-        qpos++;
+
+        if (mod && _last_mod - _rpos >= params.collapse && params.insertions) {
+            arr(_rpos, qbase, IX_INS) += mask(_qpos);
+            _last_mod = _rpos;
+        }
 
     }
 
-    bool _mapping_mask = (quality >= min_quality);
-    bool _phred_mask = phred.check(qpos, min_quality, window);
-    dtype mask = static_cast<dtype>(_mapping_mask && _phred_mask);
+    void del(bool mod = true) {
 
-    base_t qbase = _random_base(gen);
-    query.push_back(qbase);
-    if (rpos < reference.size()) {
-        arr(rpos, qbase, IX_INS) += mask;
+        _rpos--;
+        base_t rbase = reference[_rpos];
+
+        if (mod && _last_mod - _rpos >= params.collapse && params.deletions) {
+            arr(_rpos, rbase, IX_DEL) += mask(_qpos);
+            _last_mod = _rpos;
+        } else {
+            arr(_rpos, rbase, rbase)  += mask(_qpos);
+        }
+
     }
 
-    qpos++;
+    void extend() {
 
-}
+        HTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
+        cigar.extend(op);
 
-template <typename dtype>
-struct _MUTANT {
-    seq_t query;
-    HTS::CIGAR cigar;
-    std::string phred;
-};
-
-template <typename dtype>
-_MUTANT<dtype> _get_mutant(
-    const seq_t& reference,
-    view_t<dtype, 4> arr,
-    int quality,
-    int min_quality,
-    hts_pos_t min_length,
-    int max_indel_length,
-    size_t window,
-    std::mt19937& gen
-) {
-
-    seq_t query;
-    hts_pos_t qpos = 0, rpos = 0;
-    HTS::CIGAR_op curr, prev;
-    HTS::CIGAR cigar;
-
-    hts_pos_t ins_length = _random_int(gen, 0, reference.size());
-    hts_pos_t del_length = _random_int(gen, 0, reference.size() - 1);
-    hts_pos_t match_length = reference.size() - del_length;
-    hts_pos_t query_length = match_length + ins_length;
-
-    if (query_length < min_length) { quality = -1; }
-
-    hts_pos_t curr_ins = 0, curr_del = 0, curr_match = 0;
-
-    std::vector<uint8_t> __phred = _random_phred_qualities(gen, query_length);
-    HTS::PHRED phred(__phred);
-
-    while (curr_match < match_length || curr_ins < ins_length || curr_del < del_length) {
-
-        hts_pos_t match_remaining = match_length - curr_match;
-        hts_pos_t ins_remaining = ins_length - curr_ins;
-        hts_pos_t del_remaining = del_length - curr_del;
-        curr = _random_cigar_op(gen, match_remaining, ins_remaining, del_remaining, prev.type());
-
-        switch (curr.type()) {
+        switch (op.type()) {
 
             case HTS::CIGAR_t::MATCH: {
 
-                _add_matches<dtype>(
-                    reference,
-                    query,
-                    qpos,
-                    rpos,
-                    arr,
-                    quality,
-                    min_quality,
-                    phred,
-                    window,
-                    curr,
-                    gen
-                );
-                prev = curr;
-                cigar.extend(curr);
-                curr_match += curr.length();
+                while (op.advance()) { match(); }
+
+                _match -= op.length();
                 break;
 
             }
 
             case HTS::CIGAR_t::MISMATCH: {
 
-                _add_mismatches<dtype>(
-                    reference,
-                    query,
-                    qpos,
-                    rpos,
-                    arr,
-                    quality,
-                    min_quality,
-                    phred,
-                    window,
-                    curr,
-                    gen
-                );
-                prev = curr;
-                // Convert the mismatch to a match as they are the same in the CIGAR str
-                cigar.extend(curr.match());
-                curr_match += curr.length();
+                mismatch();
+                op.advance();
+                while (op.advance()) { mismatch(false); }
+
+                _match -= op.length();
                 break;
 
             }
 
             case HTS::CIGAR_t::DEL: {
 
-                bool _matches_instead = false;
-                if (curr.length() > max_indel_length) { _matches_instead = true; }
+                if (op.length() <= params.max_indel_length) {
+                    del();
+                    op.advance();
+                }
+                while (op.advance()) { del(false); }
 
-                _add_deletions<dtype>(
-                    reference,
-                    query,
-                    qpos,
-                    rpos,
-                    arr,
-                    quality,
-                    min_quality,
-                    phred,
-                    window,
-                    curr,
-                    gen,
-                    _matches_instead
-                );
-                prev = curr;
-                cigar.extend(curr);
-                curr_del += curr.length();
+                _del -= op.length();
                 break;
 
             }
 
             case HTS::CIGAR_t::INS: {
 
-                int __quality = quality;
-                if (curr.length() > max_indel_length) { __quality = -1; }
-                _add_insertions<dtype>(
-                    reference,
-                    query,
-                    qpos,
-                    rpos,
-                    arr,
-                    __quality,
-                    min_quality,
-                    phred,
-                    window,
-                    curr,
-                    gen
-                );
-                prev = curr;
-                cigar.extend(curr);
-                curr_ins += curr.length();
+                if (op.length() <= params.max_indel_length && _rpos < reference.size()) {
+                    ins();
+                    op.advance();
+                }
+                while (op.advance()) { ins(false); }
+
+                _ins -= op.length();
                 break;
 
             }
 
             default: {
+
                 throw std::runtime_error("Error generating test case.");
+
             }
 
         }
 
     }
 
-    _MUTANT<dtype> mutant;
-    mutant.query = query;
-    mutant.cigar = cigar;
-    mutant.phred = phred.str();
+    std::string str(const std::string& ref_name) const {
 
-    return mutant;
+        int flag = 0;
+        std::string rnext = "*";
+        int pnext = 0;
+        int tlen = 0;
+        std::string read_name = "read";
+
+        std::stringstream ss;
+        ss << read_name << "\t" << flag << "\t" << ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << HTS::_to_str(query) << "\t" << phred.str();
+
+        return ss.str();
+
+    }
+
+};
+
+
+template <typename dtype>
+std::vector<Record<dtype>> _random_records(
+    const seq_t& reference,
+    const Params& params,
+    view_t<dtype, 4>& arr,
+    hts_pos_t count,
+    std::mt19937& gen
+) {
+
+    std::vector<Record<dtype>> records;
+
+    for (hts_pos_t ix = 0; ix < count; ix++) {
+        Record<dtype> record(reference, params, arr, gen);
+        records.push_back(record);
+    }
+
+    return records;
 
 }
 
 
-void _write_to_sam(
-    std::vector<std::string> references,
-    std::vector<std::vector<std::string>> queries,
-    std::vector<std::vector<int>> mapping_qualities,
-    std::vector<std::vector<std::string>> phreds,
-    std::vector<std::vector<std::string>> cigars,
-    std::string filename
-) {
+static inline std::string __sam_header_sorted() {
 
-    std::ofstream f(filename);
+    return "@HD\tVN:1.6\tSO:unsorted";
 
-    // SAM header
-    f << "@HD\tVN:1.6\tSO:coordinate\n";
-    for (size_t n = 0; n < references.size(); ++n) {
-        f << "@SQ\tSN:ref" << n << "\tLN:" << references[n].length() << "\n";
+}
+
+static inline std::string __sam_header_ref(size_t n, size_t length) {
+
+    std::stringstream ss;
+    ss << "@SQ\tSN:ref" << n << "\tLN:" << length;
+
+    return ss.str();
+
+}
+
+static inline void _write_header(size_t references, size_t length, std::ostream& file) {
+
+    file << __sam_header_sorted() << "\n";
+    for (size_t ix = 0; ix < references; ix++) {
+        file << __sam_header_ref(ix, length) << "\n";
     }
 
-    // SAM body
-    for (size_t n = 0; n < references.size(); ++n) {
-        for (size_t i = 0; i < queries[n].size(); ++i) {
-
-            std::string read_name = "read" + std::to_string(i + 1);
-            int flag = 0;
-            std::string rname = "ref" + std::to_string(n);
-            int pos = 1;
-            int mapq = mapping_qualities[n][i];
-            std::string cigar = cigars[n][i];
-            std::string rnext = "*";
-            int pnext = 0;
-            int tlen = 0;
-            std::string qual = phreds[n][i];
-            std::string query = queries[n][i];
-            f << read_name << "\t" << flag << "\t" << rname << "\t" << pos << "\t" << mapq << "\t" << cigar << "\t"
-              << rnext << "\t" << pnext << "\t" << tlen << "\t" << query << "\t" << qual << "\n";
-        }
-    }
 }
 
 static inline std::string _path(const std::string& name) {
@@ -528,13 +440,10 @@ static inline std::string _path(const std::string& name) {
 
 void __run_tests(
     const MPI::Manager& mpi,
-    size_t nrefs,
-    size_t nqueries,
-    hts_pos_t length,
-    hts_pos_t min_length,
-    int min_quality,
-    int max_indel_length,
-    size_t window,
+    size_t references,
+    size_t queries,
+    size_t length,
+    Params params,
     std::string out_sam,
     std::string out_fasta,
     std::string out_h5
@@ -544,54 +453,36 @@ void __run_tests(
 
     std::optional<HDF5::File> _hdf5;
     try {
-        _hdf5.emplace(out_h5, HDF5::RWC, mpi, nrefs, 3);
+        _hdf5.emplace(out_h5, HDF5::RWC, mpi, references, 3);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
     }
     HDF5::File hdf5 = std::move(_hdf5.value());
 
+    std::ofstream sam(out_sam);
+    _write_header(references, length, sam);
 
-    std::vector<size_t> dims = {nrefs, static_cast<size_t>(length), 4, 6};
+    HTS::FASTA fasta(out_fasta);
+
+    std::vector<size_t> dims = {references, static_cast<size_t>(length), 4, 6};
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(out_sam));
 
+    std::vector<Record<float>> records;
+    for (size_t ix = 0; ix < references; ix++) {
 
-    std::vector<std::string> references;
-    std::vector<std::vector<std::string>> queries;
-    std::vector<std::vector<int>> mapping_qualities;
-    std::vector<std::vector<std::string>> phreds;
-    std::vector<std::vector<std::string>> cigars;
-
-    for (size_t ix = 0; ix < nrefs; ix++) {
+        seq_t reference = _random_sequence(length, gen);
+        std::string name = "ref" + std::to_string(ix);
+        fasta.write(name, HTS::_to_str(reference));
 
         view_t<float, 4> arr = memspace.view(ix);
+        std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
 
-        seq_t _reference = _random_sequence(length, gen);
-        references.push_back(HTS::_to_str(_reference));
-
-        std::vector<int> _mapping_qualties = _random_mapping_qualities(gen, nqueries);
-        mapping_qualities.push_back(_mapping_qualties);
-
-        std::vector<std::string> _queries;
-        std::vector<std::string> _cigars;
-        std::vector<std::string> _phreds;
-        for (size_t jx = 0; jx < nqueries; jx++) {
-
-            _MUTANT<float> mut = _get_mutant<float>(_reference, arr, _mapping_qualties[jx], min_quality, min_length, max_indel_length, window, gen);
-
-            _queries.push_back(HTS::_to_str(mut.query));
-            _cigars.push_back(mut.cigar.str());
-            _phreds.push_back(mut.phred);
-
+        for (const auto& record : records) {
+            sam << record.str(name) << "\n";
         }
-
-        queries.push_back(_queries);
-        cigars.push_back(_cigars);
-        phreds.push_back(_phreds);
 
     }
 
-    HTS::_default_write_to_fasta(out_fasta, references);
-    _write_to_sam(references, queries, mapping_qualities, phreds, cigars, out_sam);
     memspace.safe_write(0);
 
 }
@@ -615,9 +506,22 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    Params params = {
+        opt.min_mapq,
+        opt.min_phred,
+        opt.min_length,
+        opt.max_length,
+        opt.max_indel_length,
+        opt.quality_window,
+        opt.collapse,
+        !opt.no_mismatch,
+        !opt.no_insertion,
+        !opt.no_deletion
+    };
+
     try {
-        __run_tests(mpi, opt.references, opt.queries, opt.length, opt.min_length, opt.min_quality, opt.max_indel_length, opt.window, opt.out_sam, opt.out_fasta, opt.out_h5);
-        } catch (const std::exception& err) {
+        __run_tests(mpi, opt.references, opt.queries, opt.length, params, opt.out_sam, opt.out_fasta, opt.out_h5);
+    } catch (const std::exception& err) {
         mpi.err() << "Error: " << err.what() << "\n";
         return EXIT_FAILURE;
     }
