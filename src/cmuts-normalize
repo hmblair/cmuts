@@ -196,7 +196,10 @@ if __name__ == '__main__':
 
     BLANK_OUT5 = getattr(args, "5p_primer_length")
     BLANK_OUT3 = -getattr(args, "3p_primer_length")
-    UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
+    if (BLANK_OUT3 == 0):
+        UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
+    else:
+        UNBLANKED = slice(BLANK_OUT5)
 
     with h5py.File(args.file, 'r') as f:
 
