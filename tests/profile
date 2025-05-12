@@ -1,0 +1,319 @@
+#!/bin/bash
+
+# set -euo pipefail
+
+# Check if dependencies are installed
+command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
+command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
+
+__time() {
+    if [[ $(uname) == Darwin ]]; then
+        gtime -f "%E %M KB" "$@"
+    else
+        /usr/bin/time -f "%E %M MB" "$@"
+    fi
+}
+
+generate() {
+    local REFERENCES=$1
+    local QUERIES=$2
+    local LENGTH=$3
+    local OUTPUT=$4
+    local MIN_MAPQ=$5
+    local MIN_PHRED=$6
+    local MIN_LENGTH=$7
+    local MAX_LENGTH=$8
+    local MAX_INDEL=$9
+    local WINDOW=${10}
+    local COLLAPSE=${11}
+    local THREADS=${12}
+
+    local SAM="aln_${REFERENCES}_${QUERIES}_${LENGTH}.sam"
+    local BAM="aln_${REFERENCES}_${QUERIES}_${LENGTH}.bam"
+    local BAM_TMP="aln_${REFERENCES}_${QUERIES}_${LENGTH}_tmp.bam"
+    local FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
+
+    if [ ! -f ${BAM} ]; then
+
+        cmuts-generate-tests \
+            --length ${LENGTH} \
+            --queries ${QUERIES} \
+            --references ${REFERENCES} \
+            --out-fasta ${FASTA} \
+            --out-sam ${SAM} \
+            --out-h5 ${OUTPUT} \
+            --min-mapq ${MIN_MAPQ} \
+            --min-phred ${MIN_PHRED} \
+            --min-length ${MIN_LENGTH} \
+            --max-length ${MAX_LENGTH} \
+            --max-indel-length ${MAX_INDEL} \
+            --quality-window ${WINDOW} \
+            --collapse ${COLLAPSE}
+
+        samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP} 
+        samtools sort -@${THREADS} -o ${BAM} ${BAM_TMP} > /dev/null 2>&1
+        samtools index -@${THREADS} ${BAM} > /dev/null 2>&1
+
+        rm -rf ${SAM} ${BAM_TMP} ${OUTPUT}
+
+    fi
+}
+
+profile() {
+    local RUNS=$1
+    local FASTA=$2
+    local OUTPUT=$3
+    local MIN_MAPQ=$4
+    local MIN_PHRED=$5
+    local WINDOW=$6
+    local MIN_LENGTH=$7
+    local MAX_LENGTH=$8
+    local MAX_INDEL=$9
+    local BAM=${10}
+    local RF_DIR=${11}
+    local THREADS=${12}
+
+
+    total_time=0
+    min_mem=""
+
+    for ((i=0; i<RUNS; i++)); do
+
+        result=$(__time mpirun -np ${THREADS} cmuts \
+            --fasta ${FASTA} \
+            --output ${OUTPUT} \
+            --min-mapq ${MIN_MAPQ} \
+            --min-phred ${MIN_PHRED} \
+            --quality-window ${WINDOW} \
+            --min-length ${MIN_LENGTH} \
+            --max-length ${MAX_LENGTH} \
+            --max-indel-length ${MAX_INDEL} \
+            --overwrite \
+            ${BAM} 2>&1 >/dev/null)
+            rm -rf ${CMUTS_H5}
+
+        exec_time=$(echo $result | awk '{print $1}')
+        mem_usage=$(echo $result | awk '{print $2}')
+
+        minutes=$(echo $exec_time | cut -d: -f1)
+        seconds=$(echo $exec_time | cut -d: -f2)
+        total_time=$(echo "$total_time + $minutes * 60 + $seconds" | bc)
+
+        if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
+            min_mem=$mem_usage
+        fi
+
+    done
+
+    average_time=$(echo "scale=2; $total_time / $RUNS" | bc)
+
+    echo "   cmuts:"
+    echo "    Average execution time: $average_time seconds"
+    echo "    Minimum memory usage: $min_mem KB"
+
+    total_time=0
+    min_mem=""
+
+    for ((i=0; i<RUNS; i++)); do
+
+        rm -rf ${RF_DIR}
+        mkdir ${RF_DIR}
+        cd ${RF_DIR}
+
+        result=$(__time rf-count -m \
+            -wt ${THREADS} \
+            -f ../${FASTA} \
+            --fast \
+            ../${BAM} 2>&1 > /dev/null)
+
+        cd ..
+
+        exec_time=$(echo $result | awk '{print $1}')
+        mem_usage=$(echo $result | awk '{print $2}')
+
+        minutes=$(echo $exec_time | cut -d: -f1)
+        seconds=$(echo $exec_time | cut -d: -f2)
+        total_time=$(echo "$total_time + $minutes * 60 + $seconds" | bc)
+
+        if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
+            min_mem=$mem_usage
+        fi
+
+    done
+
+    average_time=$(echo "scale=2; $total_time / $RUNS" | bc)
+
+    echo "   rf-count:"
+    echo "    Average execution time: $average_time seconds"
+    echo "    Minimum memory usage: $min_mem KB"
+
+}
+
+RUNS=1
+THREADS=1
+
+QUERIES_SET=false
+REFERENCES_SET=false
+LENGTHS_SET=false
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --runs) shift
+                RUNS=${1:-1}
+                ;;
+        --threads) shift
+                   THREADS=${1:-1}
+                   ;;
+        --queries) QUERIES_SET=true
+                   ;;
+        --references) REFERENCES_SET=true
+                      ;;
+        --lengths) LENGTHS_SET=true
+                   ;;
+        *) echo "Unknown option: $1"
+           exit 1
+           ;;
+    esac
+    shift
+done
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CASES_DIR=${SCRIPT_DIR}"/.cases"
+mkdir -p ${CASES_DIR}
+
+MIN_MAPQ=20
+MIN_PHRED=20
+WINDOW=2
+MIN_LENGTH=2
+MAX_LENGTH=$((2 * LENGTH))
+MAX_INDEL=100
+COLLAPSE=2
+
+EXP_H5="expected.h5"
+CMUTS_H5="cmuts.h5"
+RF_DIR="_rf_count"
+
+
+pushd ${CASES_DIR} > /dev/null
+
+
+
+#
+# Profile based on query count
+#
+
+
+
+if ${QUERIES_SET}; then
+
+    LENGTH=200
+    REFERENCES=1024
+
+    echo ""
+    echo " ─────────────────────────────"
+    echo "   THREADS:          $THREADS"
+    echo "   REFERENCES:       $REFERENCES"
+    echo "   REFERENCE LENGTH: $LENGTH"
+    echo " ─────────────────────────────"
+
+
+    for QUERIES in $((2 ** 6)) $((2 ** 8)) $((2 ** 10)) $((2 ** 12)) $((2 ** 14)) $((2 ** 16)) $((2 ** 18)) $((2 ** 20)); do
+
+        echo "   QUERIES:          $QUERIES"
+        echo " ─────────────────────────────"
+
+        SAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".sam"
+        BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
+        FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
+
+        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+
+        echo " ─────────────────────────────"
+
+    done
+
+fi
+
+
+
+#
+# Profile based on reference count
+#
+
+
+
+if ${REFERENCES_SET}; then
+
+    LENGTH=200
+    QUERIES=1024
+
+    echo ""
+    echo " ─────────────────────────────"
+    echo "   THREADS:          $THREADS"
+    echo "   QUERIES:          $QUERIES"
+    echo "   REFERENCE LENGTH: $LENGTH"
+    echo " ─────────────────────────────"
+
+
+    for REFERENCES in $((2 ** 6)) $((2 ** 8)) $((2 ** 10)) $((2 ** 12)) $((2 ** 14)) $((2 ** 16)) $((2 ** 18)) $((2 ** 20)); do
+
+        echo "   REFERENCES:       $REFERENCES"
+        echo " ─────────────────────────────"
+
+        SAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".sam"
+        BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
+        FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
+
+        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+
+        echo " ─────────────────────────────"
+
+    done
+
+fi
+
+
+
+#
+# Profile based on reference length
+#
+
+
+
+if ${LENGTHS_SET}; then
+
+    REFERENCES=1024
+    QUERIES=1024
+
+    echo ""
+    echo " ─────────────────────────────"
+    echo "   THREADS:          $THREADS"
+    echo "   QUERIES:          $QUERIES"
+    echo "   REFERENCES:       $REFERENCES"
+    echo " ─────────────────────────────"
+
+
+    for LENGTH in $((2 ** 4)) $((2 ** 5)) $((2 ** 6)) $((2** 7)) $((2 ** 8)) $((2 ** 9)) $((2 ** 10)); do
+
+        echo "   REFERENCE LENGTH: $LENGTH"
+        echo " ─────────────────────────────"
+
+        SAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".sam"
+        BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
+        FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
+
+        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+
+        echo " ─────────────────────────────"
+
+    done
+
+fi
+
+
+
+popd > /dev/null
+
