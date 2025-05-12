@@ -1,16 +1,20 @@
 #ifndef MPI_HEADER
 #define MPI_HEADER
 
+#include <filesystem>
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <sstream>
-#include <iostream>
-#include <filesystem>
+
+#ifdef MPI_BUILD
 extern "C" {
     #include <mpi.h>
 }
+#else
+#include <chrono>
+#endif
 
-const int MS     = 1000;
 const int MINUTE = 60;
 const int HOUR   = 3600;
 
@@ -46,9 +50,13 @@ class Manager {
 private:
 
     int _rank = 0;
-    int _size = 0;
+    int _size = 1;
+
+    #ifdef MPI_BUILD
     MPI_Info _info = nullptr;
     MPI_Comm _comm = MPI_COMM_WORLD;
+    #endif
+
     Timer timer;
 
 public:
@@ -60,18 +68,47 @@ public:
 
     int rank() const;
     int size() const;
+
+    #ifdef MPI_BUILD
     MPI_Comm comm() const;
     MPI_Info info() const;
+    #endif
 
     int64_t reduce(const int64_t& value) const;
     int64_t broadcast(int64_t& value) const;
     bool root() const;
     bool null() const;
-    void barrier() const;
+    void barrier(bool debug = false) const;
     void remove(const std::string& file) const;
     void print(const std::string& str) const;
     double time() const;
     std::string time_str() const;
+    void up(int lines = 1) const;
+    void down(int lines = 1) const;
+    void divide() const;
+
+    class OutStream {
+    public:
+        OutStream(const Manager& manager) : manager(manager) {}
+        ~OutStream() {
+            if (manager.root() && !oss.str().empty()) {
+                std::cout << oss.str();
+            }
+        }
+
+        template <typename T>
+        OutStream& operator<<(const T& val) {
+            oss << val;
+            return *this;
+        }
+
+    private:
+        const Manager& manager;
+        std::ostringstream oss;
+    };
+    OutStream out() const {
+        return OutStream(*this);
+    }
 
     class ErrStream {
     public:
@@ -80,7 +117,6 @@ public:
             if (manager.root() && !oss.str().empty()) {
                 std::cerr << oss.str();
             }
-            manager.barrier();
         }
 
         template <typename T>
