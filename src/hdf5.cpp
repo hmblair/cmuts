@@ -1,17 +1,12 @@
 #include "hdf5.hpp"
-#include <stdexcept>
 
 namespace HDF5 {
 
 namespace H5 = HighFive;
 
-static inline void __disable_logging() {
-    H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
-}
+static inline void __disable_logging() { H5Eset_auto2(H5E_DEFAULT, NULL, NULL); }
 
-Manager::Manager() {
-    __disable_logging();
-}
+Manager::Manager() { __disable_logging(); }
 
 Manager::~Manager() { H5close(); }
 
@@ -40,10 +35,16 @@ void _throw_if_object_exists(const File& file, const std::vector<std::string>& n
 }
 
 static inline H5::FileAccessProps _create_fapl(const MPI::Manager& mpi) {
+
     H5::FileAccessProps fapl;
+
+    #ifdef MPI_BUILD
     fapl.add(H5::MPIOFileAccess{mpi.comm(), mpi.info()});
     fapl.add(H5::MPIOCollectiveMetadata{});
+    #endif
+
     return fapl;
+
 }
 
 File::File(
@@ -103,7 +104,9 @@ static inline H5::DataSetCreateProps __get_dsprops(
 
 static inline H5::PropertyList<(H5::PropertyType)4> __get_wprops() {
     H5::PropertyList<(H5::PropertyType)4> wprops = H5::DataTransferProps{};
+    #ifdef MPI_BUILD
     wprops.add(H5::UseCollectiveIO{});
+    #endif
     return wprops;
 }
 
