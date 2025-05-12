@@ -1,17 +1,23 @@
 #include "main.hpp"
 
+static inline void _print_title(const MPI::Manager& mpi) {
+
+    mpi.down();
+    if (mpi.root()) { Utils::version(); }
+    mpi.divide();
+
+}
+
 static inline void __write_sequences(
-    const HTS::FASTA& fasta,
+    HTS::BinaryFASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi
 ) {
 
     if (!hdf5.exist(SEQUENCE_DS)) {
         try {
-            if (mpi.root()) {
-                std::cout << "Tokenizing " << fasta.size() << " sequences.\n";
-            }
             fasta.to_hdf5(hdf5, mpi);
+            mpi.out() << "        Tokenized " << fasta.size() << " sequences.\n";
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
         }
@@ -55,6 +61,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    // Print the program title
+    _print_title(mpi);
+
     // Delete the exiting output file if specified
     try {
         if (opt.overwrite) {
@@ -83,19 +92,24 @@ int main(int argc, char** argv) {
     }
 
     // Open the reference FASTA
-    std::optional<HTS::FASTA> _fasta;
+    std::optional<HTS::BinaryFASTA> _fasta;
     try {
-        _fasta.emplace(opt.fasta);
+        _fasta.emplace(opt.fasta, mpi);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
-    HTS::FASTA fasta = std::move(_fasta.value());
+    HTS::BinaryFASTA fasta = std::move(_fasta.value());
 
     size_t total = opt.files.value().size();
     if (total == 0) {
-        __write_sequences(fasta, hdf5, mpi);
+        if (opt.tokenize) {
+            __write_sequences(fasta, hdf5, mpi);
+        } else {
+            mpi.out() << "        Nothing to do.\n";
+        }
+        mpi.down();
         return EXIT_SUCCESS;
     }
 
@@ -111,10 +125,12 @@ int main(int argc, char** argv) {
     HTS::FileGroup files = std::move(_files.value());
     mpi.barrier();
 
-    // Get the desired operation mode
-    cmuts::DetailLevel detail;
+    // Get the desired operation modes
+    cmuts::Mode mode;
+    cmuts::Spread spread;
     try {
-        detail = cmuts::detail(opt.fast, opt.joint);
+        mode   = cmuts::mode(opt.lowmem, opt.joint);
+        spread = cmuts::spread(opt.uniform_spread, opt.mutation_spread);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
@@ -123,14 +139,18 @@ int main(int argc, char** argv) {
 
     // Initialise the parameters for the main counting function
     cmuts::Params params = {
+        mode,
+        spread,
         opt.min_mapq,
         opt.min_quality,
         opt.min_length,
         opt.max_length,
         opt.max_indel_length,
-        opt.spread,
         opt.quality_window,
-        detail,
+        opt.collapse,
+        !opt.no_mismatch,
+        !opt.no_insertion,
+        !opt.no_deletion
     };
 
     // Initialise the stats tracker, and print the header
@@ -155,15 +175,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (mpi.root()) {
-        Utils::cursor_down(1);
-    }
+    mpi.divide();
 
-    if (processed > 0) {
+    if (processed > 0 && opt.tokenize) {
         __write_sequences(fasta, hdf5, mpi);
     } else {
         __cleanup(mpi, opt);
     }
+
+    mpi.down();
 
     if (processed < files.size()) {
         mpi.err() << "WARNING: only " << processed << " of " << files.size() << " files were processed.\n";
