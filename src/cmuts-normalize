@@ -15,10 +15,12 @@ PBAR_WIDTH = 10
 
 REACTIVITY_DS = 'reactivity'
 READS_DS = 'reads'
-SEQUENCE_DS = 'sequence'
+ERROR_DS = "error"
+NORM_DS = "norm"
 ROI_DS = "ROI"
+SEQUENCE_DS = 'sequence'
 
-NORM_CUTOFF = 500
+NORM_CUTOFF = 50
 NORM_PERCENTILE = 90
 
 
@@ -81,61 +83,10 @@ parser.add_argument(
 )
 
 
-def get_reads_and_reactivity(arr: da.Array) -> tuple[da.Array, da.Array]:
-    # Compute the coverage as the sum of all mutated, non-mutated, and
-    # deleted bases
-    coverage = da.sum(arr[..., :-1], axis=(-2, -1))
-    # Compute the trace to get the non-mutated bases only
-    trace = da.trace(arr, axis1=2, axis2=3)
-    # Compute the insertions
-    ins = da.sum(arr[..., -1], axis=-1)
-    # Subtract the trace to get the mutation and deletion rates
-    mut_rates = coverage + ins - trace
-    # Divide by the coverage to get the un-normalised reactivity
-    reactivity = da.divide(
-        mut_rates,
-        coverage,
-        where=(coverage > 0),
-        out=np.zeros_like(mut_rates),
-    )
-    # Blank out the ends of the sequence
-    reactivity[:, :BLANK_OUT5] = 0
-    reactivity[:, BLANK_OUT3:] = 0
-    # Get the read counts
-    reads = da.max(coverage, axis=(-1,))
-
-    return reactivity, reads
-
-
-def normalise(
-    reactivity: da.Array,
-    reads: da.Array,
-) -> da.Array:
-    high_reactivity = reactivity[reads > NORM_CUTOFF]
-    # Find the 90th percentile of the reactivity values among the high-read sequences
-    norm = da.percentile(
-        high_reactivity[:, UNBLANKED].flatten(),
-        NORM_PERCENTILE,
-    )
-    # Normalise the reactivity by this value
-    return reactivity / norm
-
-
-def _process(file: h5py.File, group: str) -> tuple[da.Array, da.Array]:
-    # Lazily load the HDF5 files into dask arrays
-    arr = da.from_array(file[group], chunks='auto')
-    # Compute the un-normalised reactivity and the read counts
-    return get_reads_and_reactivity(arr)
-
-
-def _get_sequences(file: h5py.File):
-    return da.from_array(file[SEQUENCE_DS], chunks='auto')
-
-
 def _remove_if_exists(
     path: str,
     overwrite: bool = False
-):
+) -> None:
     if os.path.exists(path):
         if overwrite:
             os.remove(path)
@@ -150,7 +101,7 @@ def _throw_if_bad_names(
     mod_ds: list[str],
     nomod_ds: list[str] | None,
     out_groups: list[str],
-):
+) -> None:
     if len(mod_ds) != len(out_groups):
         raise ValueError(
             "There must be an equal number of input datasets "
@@ -165,6 +116,72 @@ def _throw_if_bad_names(
 
     if not _all_unique(out_groups):
         raise ValueError("Each output group must be distinct.")
+
+
+def _reactivity(modifications: da.Array, coverage: da.Array) -> da.Array:
+    return da.divide(
+        modifications,
+        coverage,
+        where=(coverage > 0),
+        out=da.zeros_like(modifications),
+    )
+
+
+def _error(reactivity: da.Array, coverage: da.Array) -> da.Array:
+    return da.divide(
+        da.sqrt(reactivity * (1 - reactivity)),
+        da.sqrt(coverage),
+        where=(coverage > 0),
+        out=da.ones_like(reactivity),
+    )
+
+
+def _process(file: h5py.File, group: str) -> tuple[da.Array, da.Array, da.Array]:
+    # Lazily load the HDF5 files into dask arrays
+    arr = da.from_array(file[group], chunks='auto')
+    # Compute the coverage as the sum of all mutated, non-mutated, and
+    # deleted bases
+    coverage = da.sum(arr[..., :-1], axis=(2, 3))
+    # Compute the trace to get the non-modified rates only
+    trace = da.trace(arr, axis1=2, axis2=3)
+    # Compute the insertions
+    ins = da.sum(arr[..., -1], axis=-1)
+    # Subtract the trace to get the modifications
+    modifications = coverage + ins - trace
+    # Divide by the coverage to get the un-normalised reactivity
+    reactivity = _reactivity(modifications, coverage)
+    # SEM of a Bernoulli random variable
+    err = _error(reactivity, coverage)
+    # Blank out the ends of the sequence
+    reactivity[:, :BLANK_OUT5] = 0
+    reactivity[:, BLANK_OUT3:] = 0
+    err[:, :BLANK_OUT5] = 0
+    err[:, BLANK_OUT3:] = 0
+    # Get the read counts
+    reads = da.max(coverage, axis=(-1,))
+
+    return reactivity, reads, err
+
+
+def normalise(
+    reactivity: da.Array,
+    reads: da.Array,
+) -> da.Array:
+    # Get the reactivity of all high-read sequences
+    high_reactivity = reactivity[reads > NORM_CUTOFF]
+    # Find the 90th percentile of these reactivity values
+    return da.percentile(
+        high_reactivity[:, UNBLANKED].flatten(),
+        NORM_PERCENTILE,
+    )
+
+
+def _get_sequences(file: h5py.File) -> da.Array | None:
+    # Get the tokenized sequences if they exist
+    if SEQUENCE_DS in file:
+        return da.from_array(file[SEQUENCE_DS], chunks='auto')
+
+    return None
 
 
 if __name__ == '__main__':
@@ -183,17 +200,18 @@ if __name__ == '__main__':
 
     with h5py.File(args.file, 'r') as f:
 
-        _names = zip(
+        names = zip(
             args.mod_ds,
             args.nomod_ds,
             args.out_groups
         )
-        for mod_ds, nomod_ds, out_group in _names:
+        for mod_ds, nomod_ds, out_group in names:
 
-            mod_reactivity, mod_reads = _process(f, mod_ds)
+            mod_reactivity, mod_reads, mod_err = _process(f, mod_ds)
             reads = mod_reads
-            if nomod_ds:
-                nomod_reactivity, nomod_reads = _process(f, nomod_ds)
+            if nomod_ds is not None:
+                nomod_reactivity, nomod_reads, no_mod_err = _process(
+                    f, nomod_ds)
                 reads += nomod_reads
 
             with ProgressBar(width=PBAR_WIDTH):
@@ -201,34 +219,35 @@ if __name__ == '__main__':
                 # find all sequences with more than NORM_CUTOFF reads
                 _reads = reads.compute()
                 # Normalise the reactivity
-                norm_mod_reactivity = normalise(mod_reactivity, _reads)
-                if nomod_ds:
-                    norm_nomod_reactivity = normalise(nomod_reactivity, _reads)
-                    reactivity = norm_mod_reactivity - norm_nomod_reactivity
+                norm = normalise(mod_reactivity, _reads)
+                # Background subtract
+                if nomod_ds is not None:
+                    reactivity = (mod_reactivity - nomod_reactivity) / norm
                 else:
-                    reactivity = norm_mod_reactivity
+                    reactivity = mod_reactivity / norm
                 # Clip the reactivity if requested
                 if args.clip_reactivity:
                     reactivity = da.clip(reactivity, 0, 1)
 
-                # Get the embedded sequences
-                sequences = _get_sequences(f)
-                # Track the region of interest
-                roi = da.array([BLANK_OUT5, sequences.shape[1] + BLANK_OUT3])
+                # Find the region of interest
+                roi = da.array([BLANK_OUT5, reactivity.shape[1] + BLANK_OUT3])
+
                 # Save to file
                 data = {
                     out_group + '/' + REACTIVITY_DS: reactivity,
                     out_group + '/' + READS_DS: reads,
+                    out_group + '/' + NORM_DS: norm,
+                    out_group + '/' + ROI_DS: roi,
+                    out_group + '/' + ERROR_DS: mod_err,
                 }
                 da.to_hdf5(args.out, data)
 
         # Get the embedded sequences
         sequences = _get_sequences(f)
-        # Track the region of interest
-        roi = da.array([BLANK_OUT5, sequences.shape[1] + BLANK_OUT3])
-        # Save to file
-        aux_data = {
-            SEQUENCE_DS: sequences,
-            ROI_DS: roi
-        }
-        da.to_hdf5(args.out, aux_data)
+        if sequences is not None:
+            # Track the region of interest
+            # Save to file
+            aux_data = {
+                SEQUENCE_DS: sequences,
+            }
+            da.to_hdf5(args.out, aux_data)
