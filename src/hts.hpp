@@ -12,9 +12,8 @@
 extern "C" {
     #include <htslib/sam.h>
     #include <htslib/hts.h>
-    #include <htslib/faidx.h>
     #include <htslib/hts_log.h>
-    #include <htslib/kstring.h>
+    #include <htslib/bgzf.h>
 }
 #include "mpi.hpp"
 #include "hdf5.hpp"
@@ -32,6 +31,13 @@ const uint8_t HTS_C = 2;
 const uint8_t HTS_G = 4;
 const uint8_t HTS_T = 8;
 const uint8_t HTS_N = 15;
+// Indices of the bases in binary files
+const uint8_t BIN_A   = 0x0;
+const uint8_t BIN_C   = 0x1;
+const uint8_t BIN_G   = 0x2;
+const uint8_t BIN_T   = 0x3;
+const uint8_t BIN_UNK = 0x4;
+const hts_pos_t EOH = -1;
 // Internal types used to represent bases and sequences
 using base_t = int8_t;
 using seq_t  = std::vector<base_t>;
@@ -44,10 +50,15 @@ const base_t IX_T   = 3;
 const base_t IX_DEL = 4;
 const base_t IX_INS = 5;
 const base_t IX_UNK = -1;
-// Index file extensions
-const std::string FASTA_INDEX = ".fai";
+// BGZF/header constants
+const int32_t     BGZF_BUFFER     = 8192;
+const std::string BGZF_SORTED     = "coordinate";
+const std::string HEADER_SORT_KEY = "SO:";
+const std::string HEADER_LEN_KEY  = "LN:";
+// File extensions
 const std::string BAM_INDEX   = ".bai";
 const std::string CRAM_INDEX  = ".crai";
+const std::string CMUTS_FASTA = ".binfa";
 // MD tag constants
 const char MD_DEL  = '^';
 const char MD_NULL = '0';
@@ -144,36 +155,56 @@ class FASTA {
 private:
 
     std::string _name;
-    faidx_t* _hts_fai = nullptr;
-    hts_pos_t _size   = 0;
+    std::ofstream _out_file;
 
 public:
 
-    explicit FASTA(const std::string& filename);
-    FASTA(FASTA&& other) noexcept;
-    FASTA& operator=(FASTA&& other) noexcept;
-    FASTA(const FASTA&);
-    FASTA& operator=(const FASTA&) = delete;
-    ~FASTA();
-    // Get a pointer to the fai object
-    faidx_t* ptr() const;
-    // Get the filename
-    std::string name() const;
-    // Get the number of sequences
-    size_t size() const;
-    // Get the length of the sequence at position ix
-    hts_pos_t length(hts_pos_t ix) const;
-    // Get the sequence at position ix
-    std::string sequence(hts_pos_t ix) const;
-    // Get the sequence at position ix as a vector of integers
-    seq_t operator[](hts_pos_t ix) const;
-    // Get the sequence at position ix as a vector of integers, inserted into the buffer
-    void as_int(hts_pos_t ix, view_t<base_t, DS_DIMS> buffer) const;
-    // Get the length of the longest sequence in the file
-    hts_pos_t max_length() const;
-    // Save in the dataset SEQUENCE_DS inside the given HDF5 file
-    void to_hdf5(HDF5::File& hdf5, const MPI::Manager& mpi) const;
+    FASTA(const std::string& filename);
+    void write(const std::string& name, const std::string& sequence);
 
+};
+
+
+
+//
+// Binary FASTA
+//
+
+
+
+struct HeaderUnit{
+
+    hts_pos_t length    = 0;
+    hts_pos_t sequences = 0;
+
+};
+
+class BinaryFASTA {
+private:
+
+    std::string _name;
+    std::vector<HeaderUnit> units;
+    std::ifstream file;
+    size_t _offset = 0;
+
+    std::pair<size_t, size_t> offset(hts_pos_t ix) const;
+
+public:
+
+    BinaryFASTA() = default;
+    BinaryFASTA(const std::string& name, const MPI::Manager& mpi);
+    BinaryFASTA(BinaryFASTA&& other) noexcept;
+    BinaryFASTA& operator=(BinaryFASTA&& other) noexcept;
+    BinaryFASTA(const BinaryFASTA&);
+    BinaryFASTA& operator=(const BinaryFASTA&) = delete;
+
+    std::string name() const;
+    size_t length(hts_pos_t ix) const;
+    size_t size() const;
+    seq_t operator[](hts_pos_t ix);
+    void put(hts_pos_t ix, view_t<base_t, DS_DIMS> buffer);
+    hts_pos_t max_length() const;
+    void to_hdf5(HDF5::File& hdf5, const MPI::Manager& mpi);
 
 };
 
@@ -265,6 +296,8 @@ public:
     void append(CIGAR_op cigar);
     // Get the op at position ix
     CIGAR_op operator[](size_t ix) const;
+    // Get the final op, or UNKNOWN if empty
+    CIGAR_op back() const;
     // The CIGAR as it would appear in an HTS file
     std::string str() const;
     // Iterator stuff
@@ -327,15 +360,14 @@ private:
 
     htsFile*   _hts_file   = nullptr;
     hts_idx_t* _hts_index  = nullptr;
-    bam_hdr_t* _hts_header = nullptr;
 
     std::string _name;
-    FASTA _fasta;
+    BinaryFASTA _fasta;
     const MPI::Manager& _mpi;
 
 public:
 
-    File(const std::string& filename, const FASTA& fasta, const MPI::Manager& mpi);
+    File(const std::string& filename, const BinaryFASTA& fasta, const MPI::Manager& mpi);
     File(File&& other) noexcept;
     File& operator=(File&& other) = delete;
     File(const File&) = delete;
@@ -347,14 +379,12 @@ public:
     // Pointers to the various HTS objects
     htsFile* ptr() const;
     hts_idx_t* index() const;
-    bam_hdr_t* header() const;
 
     // Get another file handle to the same file
 
     htsFile* handle() const;
 
-    const FASTA& fasta() const;
-
+    BinaryFASTA& fasta();
 
     // Iterator over sequence ix
 
@@ -367,16 +397,16 @@ public:
     std::string stem() const;
     std::string path() const;
 
-    seq_t reference(hts_pos_t ix) const;
+    seq_t reference(hts_pos_t ix);
     int64_t size() const;
     int64_t reads(hts_pos_t ix) const;
     int64_t reads() const;
     int64_t unaligned_reads() const;
 
-    hts_pos_t length(int64_t ix) const;
+    std::vector<hts_pos_t> lengths() const;
     hts_pos_t max_length() const;
 
-    Alignment alignment(hts_pos_t ix) const;
+    Alignment alignment(hts_pos_t ix);
 
 };
 
@@ -390,7 +420,7 @@ public:
 
     FileGroup(
         const std::vector<std::string>& filenames,
-        const FASTA& fasta,
+        const BinaryFASTA& fasta,
         const MPI::Manager& mpi
     );
 

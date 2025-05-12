@@ -1,13 +1,105 @@
 #include "hts.hpp"
-#include "mpi.hpp"
-#include <random>
-#include <stdexcept>
 
 namespace HTS {
 
 void __disable_logging() {
 
     hts_set_log_level(htsLogLevel::HTS_LOG_OFF);
+
+}
+
+static inline void _throw_if_exists(const std::string& filename) {
+    if (std::filesystem::exists(filename)) {
+        throw std::runtime_error("The file \"" + filename + "\" already exists.");
+    }
+}
+
+static inline void _throw_if_not_exists(const std::string& filename) {
+    if (!std::filesystem::exists(filename)) {
+        throw std::runtime_error("The file \"" + filename + "\" does not exist.");
+    }
+}
+
+static inline void _safe_move(const std::string& src, const std::string& dst) {
+    _throw_if_not_exists(src);
+    _throw_if_exists(dst);
+    std::filesystem::rename(src, dst);
+}
+
+static inline std::string _stem(const std::string& name) {
+    std::filesystem::path path(name);
+    return path.stem().string();
+}
+
+static inline std::string _path(const std::string& name) {
+    std::filesystem::path path(name);
+    std::string stem = path.stem().string();
+    std::string parent = path.parent_path().string();
+    if (parent.empty()) {
+        return stem;
+    }
+    return parent + "/" + stem;
+}
+
+static inline bool _has_duplicates(const std::vector<std::string>& paths) {
+
+    std::unordered_set<std::string> seen;
+    for (const auto& path : paths) {
+        std::string transformedPath = _path(path);
+        if (seen.find(transformedPath) != seen.end()) {
+            return true;
+        }
+        seen.insert(transformedPath);
+    }
+    return false;
+
+}
+
+static inline void _throw_if_has_duplicates(const std::vector<std::string>& paths) {
+    if (_has_duplicates(paths)) {
+        throw std::runtime_error("Duplicate input paths (modulo extensions) are not allowed.");
+    }
+}
+
+
+
+
+
+
+static inline base_t _to_int(char base) {
+    switch (base) {
+        case A:   { return IX_A;   }
+        case C:   { return IX_C;   }
+        case G:   { return IX_G;   }
+        case T:   { return IX_T;   }
+        case U:   { return IX_U;   }
+        default:  { return IX_UNK; }
+    }
+}
+
+static inline seq_t _to_int(
+    const std::string& sequence
+) {
+    int64_t length = sequence.length();
+    seq_t result(length);
+    for (int64_t i = 0; i < length; i++) {
+        result[i] = _to_int(sequence[i]);
+    }
+    return result;
+}
+
+static inline void _to_int(
+    const std::string& sequence,
+    view_t<base_t, DS_DIMS> buffer
+) {
+    for (int64_t i = 0; i < sequence.length(); i++) {
+        buffer(i) = _to_int(sequence[i]);
+    }
+}
+
+static inline size_t _bytes_from_seq(size_t n) {
+
+    return (n + 3) / 4;
 
 }
 
@@ -35,6 +127,450 @@ std::string _to_str(const seq_t& sequence) {
     return str;
 
 }
+
+
+
+//
+// Simple FASTA tools
+//
+
+
+
+
+static inline void _write_fasta_record(const std::string& name, const std::string& sequence, std::ofstream& file) {
+
+    file << ">" << name << "\n";
+    file << sequence << "\n";
+
+}
+
+FASTA::FASTA(const std::string& filename) : _name(filename), _out_file(filename) {}
+
+void FASTA::write(const std::string& name, const std::string& sequence) {
+
+    _write_fasta_record(name, sequence, _out_file);
+
+}
+
+
+
+//
+// Binary FASTA tools
+//
+
+
+
+static inline std::vector<uint8_t> _to_binary(const std::string& sequence) {
+
+    size_t len = sequence.length();
+    size_t bytes = _bytes_from_seq(len);
+    std::vector<uint8_t> binary(bytes);
+
+    for (size_t i = 0; i < len; i++) {
+
+        base_t nuc = _to_int(sequence[i]);
+        if (nuc == IX_UNK) {
+            throw std::runtime_error("Invalid nucleotide \"" + std::to_string(sequence[i]) + "\" encountered.");
+        }
+
+        binary[i / 4] |= (nuc << ((3 - (i % 4)) * 2));
+
+    }
+
+    return binary;
+
+}
+
+static inline uint8_t _from_binary(uint8_t binary, hts_pos_t j) {
+
+    return (binary >> ((3 - j) * 2)) & 0x3;
+
+}
+
+hts_pos_t _mod_round_up(hts_pos_t val, hts_pos_t div) {
+
+    hts_pos_t out = val % div;
+    if (out == 0) { out = div; }
+    return out;
+
+}
+
+static inline seq_t _from_binary(const std::vector<uint8_t>& binary, size_t length) {
+
+    seq_t sequence(length);
+
+    hts_pos_t ix, jx;
+    for (ix = 0; ix < binary.size() - 1; ix++) {
+        for (jx = 0; jx < 4; jx++) {
+            sequence[4 * ix + jx] = _from_binary(binary[ix], jx);
+        }
+    }
+
+    hts_pos_t end = _mod_round_up(length, 4);
+    for (jx = 0; jx < end; jx++) {
+        sequence[4 * ix + jx] = _from_binary(binary[ix], jx);
+    }
+
+    return sequence;
+
+}
+
+static inline bool _is_fasta_header(const std::string& line) {
+
+    return !line.empty() && line[0] == '>';
+
+}
+
+static inline std::string _get_fasta_sequence(std::ifstream& file) {
+
+    std::string line, sequence;
+    while (std::getline(file, line) && !_is_fasta_header(line)) {
+        sequence += line;
+    }
+
+    return sequence;
+
+}
+
+
+
+
+static inline HeaderUnit _read_header_unit(std::ifstream& file) {
+
+    HeaderUnit unit;
+    file.read(reinterpret_cast<char*>(&unit.length), sizeof(hts_pos_t));
+    file.read(reinterpret_cast<char*>(&unit.sequences), sizeof(hts_pos_t));
+    return unit;
+
+}
+
+static inline std::vector<HeaderUnit> _read_header(const std::string& name) {
+
+    std::ifstream file(name);
+    std::vector<HeaderUnit> units;
+    HeaderUnit unit;
+
+    while (unit.length != EOH) {
+        unit = _read_header_unit(file);
+        if (unit.length > 0) {
+            units.push_back(unit);
+        }
+    }
+
+    file.close();
+    return units;
+
+}
+
+
+static inline void _write_header_unit(std::ofstream& file, const HeaderUnit& unit) {
+
+    if (unit.sequences > 0) {
+        file.write(reinterpret_cast<const char*>(&unit.length), sizeof(hts_pos_t));
+        file.write(reinterpret_cast<const char*>(&unit.sequences), sizeof(hts_pos_t));
+    }
+
+}
+
+static inline void _write_eoh(std::ofstream& file) {
+
+    file.write(reinterpret_cast<const char*>(&EOH), sizeof(hts_pos_t));
+
+}
+
+static inline void _write_header(const std::string& name, const std::vector<HeaderUnit>& units) {
+
+    // _throw_if_exists(name);
+    std::ofstream file(name);
+
+    for (const auto& unit : units) {
+        _write_header_unit(file, unit);
+    }
+    _write_eoh(file);
+
+    file.close();
+
+}
+
+static inline void _write_sequence(std::ofstream& file, const std::string& sequence) {
+
+    std::vector<uint8_t> binary = _to_binary(sequence);
+    file.write(reinterpret_cast<const char*>(binary.data()), binary.size() * sizeof(uint8_t));
+
+}
+
+static inline void _write_sequences(const std::string& fasta, const std::string& out) {
+
+    if (fasta == out) {
+        throw std::runtime_error("The input and output files must be different.");
+    }
+    _throw_if_not_exists(fasta);
+    // _throw_if_exists(out);
+
+    std::ifstream ifile(fasta);
+    std::ofstream ofile(out, std::ios::binary | std::ios::app);
+
+    std::string line;
+    std::getline(ifile, line);
+    std::string sequence = _get_fasta_sequence(ifile);
+
+    if (sequence.empty()) { return; }
+    _write_sequence(ofile, sequence);
+
+    while (!sequence.empty()) {
+        sequence = _get_fasta_sequence(ifile);
+        _write_sequence(ofile, sequence);
+    }
+
+    ifile.close();
+    ofile.close();
+
+}
+
+static inline seq_t _read_sequence(std::ifstream& file, size_t length, size_t offset) {
+
+    size_t bytes = _bytes_from_seq(length);
+    std::vector<uint8_t> binary(bytes);
+
+    file.seekg(offset);
+    file.read(reinterpret_cast<char*>(binary.data()), bytes * sizeof(uint8_t));
+
+    return _from_binary(binary, length);
+
+}
+
+static inline std::vector<HeaderUnit> _get_header(const std::string& name) {
+
+    _throw_if_not_exists(name);
+    std::ifstream file(name, std::ios::in);
+    std::vector<HeaderUnit> units;
+    HeaderUnit unit;
+
+    std::string line;
+    std::getline(file, line);
+    std::string sequence = _get_fasta_sequence(file);
+    if (sequence.empty()) { return units; }
+
+    size_t length = sequence.length();
+    unit.length = length;
+    unit.sequences = 1;
+
+    while (!sequence.empty()) {
+
+        sequence = _get_fasta_sequence(file);
+        size_t length = sequence.length();
+        if (length == unit.length) {
+            unit.sequences++;
+        } else {
+            units.push_back(unit);
+            unit.length = length;
+            unit.sequences = 1;
+        }
+
+    }
+
+    if (unit.sequences > 0 && unit.length > 0) {
+        units.push_back(unit);
+    }
+
+    return units;
+
+}
+
+template <typename dtype>
+static inline HDF5::Memspace<dtype, DS_DIMS> __memspace(
+    const HTS::BinaryFASTA& fasta,
+    HDF5::File& hdf5
+) {
+    std::vector<size_t> dims = {fasta.size(), static_cast<size_t>(fasta.max_length())};
+    return hdf5.memspace<dtype, DS_DIMS>(dims, SEQUENCE_DS);
+}
+
+template <typename dtype>
+static inline void _fasta_to_hdf5(
+    HTS::BinaryFASTA& fasta,
+    HDF5::File& hdf5,
+    const MPI::Manager& mpi
+) {
+
+    HDF5::Memspace<dtype, DS_DIMS> memspace = __memspace<dtype>(fasta, hdf5);
+    MPI::Chunk chunk = mpi.chunk(
+        hdf5.chunk_size(),
+        fasta.size()
+    );
+
+    for (int64_t ix = chunk.low; ix < chunk.high; ix+= chunk.step) {
+        for (int64_t jx = 0; jx < chunk.size; jx++) {
+            if (ix + jx < fasta.size()) {
+                view_t<dtype, DS_DIMS> arr = memspace.view(jx);
+                fasta.put(ix + jx, arr);
+            }
+        }
+        memspace.safe_write(ix);
+        memspace.clear();
+    }
+
+}
+
+
+
+static inline void _generate_binary_index(const std::string& name) {
+
+    std::string _name = _path(name) + CMUTS_FASTA;
+    std::ofstream file(_name);
+    std::vector<HeaderUnit> units = _get_header(name);
+    _write_header(_name, units);
+    _write_sequences(name, _name);
+    file.close();
+
+}
+
+
+
+
+BinaryFASTA::BinaryFASTA(const std::string& name, const MPI::Manager& mpi) {
+
+    if (mpi.root()) { _generate_binary_index(name); }
+    mpi.barrier();
+    _name = _path(name) + CMUTS_FASTA;
+
+    units   = _read_header(_name);
+    _offset = (units.size() * 2 + 1) * sizeof(hts_pos_t);
+    file = std::ifstream(_name);
+
+}
+
+BinaryFASTA::BinaryFASTA(BinaryFASTA&& other) noexcept
+    : _name(std::move(other._name)),
+      units(std::move(other.units)),
+      file(std::move(other.file)),
+      _offset(other._offset) {}
+
+BinaryFASTA& BinaryFASTA::operator=(BinaryFASTA&& other) noexcept {
+
+    if (this != &other) {
+        _name = other._name;
+        units = other.units;
+        file = std::move(other.file);
+        _offset = other._offset;
+    }
+
+    return *this;
+
+}
+
+BinaryFASTA::BinaryFASTA(const BinaryFASTA& other)
+    : _name(other._name),
+      units(other.units),
+      file(other._name),
+      _offset(other._offset) {}
+
+std::string BinaryFASTA::name() const {
+
+    return _name;
+
+}
+
+size_t BinaryFASTA::length(hts_pos_t ix) const {
+
+    hts_pos_t count = 0;
+    for (const auto& unit : units) {
+        if (count + unit.sequences > ix) {
+            return unit.length;
+        }
+        count += unit.sequences;
+    }
+
+    return -1;
+
+}
+
+size_t BinaryFASTA::size() const {
+
+    size_t _sequences = 0;
+    for (const auto& unit : units) {
+        _sequences += unit.sequences;
+    }
+
+    return _sequences;
+
+}
+
+std::pair<size_t, size_t> BinaryFASTA::offset(hts_pos_t ix) const {
+
+    size_t val = 0;
+    size_t length;
+    hts_pos_t count = 0;
+    for (const auto& unit : units) {
+
+        size_t bytes = _bytes_from_seq(unit.length);
+
+        if (count + unit.sequences > ix) {
+            val += static_cast<size_t>(ix - count) * bytes;
+            length = unit.length;
+            break;
+        } else {
+            val += unit.sequences * bytes;
+            count += unit.sequences;
+        }
+
+    }
+
+    // Account for the header
+    size_t __offset = val * sizeof(uint8_t) + _offset;
+    return std::pair<size_t, size_t>(__offset, length);
+
+}
+
+seq_t BinaryFASTA::operator[](hts_pos_t ix) {
+
+    auto [val, length] = offset(ix);
+    return _read_sequence(file, length, val);
+
+}
+
+void BinaryFASTA::put(hts_pos_t ix, view_t<base_t, DS_DIMS> buffer) {
+
+    seq_t _seq = operator[](ix);
+    for (hts_pos_t jx = 0; jx < _seq.size(); jx++) {
+        buffer(jx) = _seq[jx];
+    }
+
+}
+
+hts_pos_t BinaryFASTA::max_length() const {
+
+    hts_pos_t _max_length = 0;
+    for (size_t ix = 0; ix < size(); ix++) {
+        hts_pos_t len = length(ix);
+        if (len > _max_length) {
+            _max_length = len;
+        }
+    }
+
+    return _max_length;
+
+}
+
+void BinaryFASTA::to_hdf5(HDF5::File& hdf5, const MPI::Manager& mpi) {
+
+    _fasta_to_hdf5<base_t>(*this, hdf5, mpi);
+
+}
+
+
+
+
+
+
+
+// Other
+
+
+
+
+
+
 
 static inline FileType _filetype_from_hts(int fmt) {
 
@@ -206,161 +742,6 @@ CIGAR_op MD::advance(hts_pos_t max) {
 
 // Helper functions
 
-static inline void _throw_if_exists(const std::string& filename) {
-    if (std::filesystem::exists(filename)) {
-        throw std::runtime_error("The file \"" + filename + "\" already exists.");
-    }
-}
-
-static inline void _throw_if_not_exists(const std::string& filename) {
-    if (!std::filesystem::exists(filename)) {
-        throw std::runtime_error("The file \"" + filename + "\" does not exist.");
-    }
-}
-
-static inline void _safe_move(const std::string& src, const std::string& dst) {
-    _throw_if_not_exists(src);
-    _throw_if_exists(dst);
-    std::filesystem::rename(src, dst);
-}
-
-static inline std::string _stem(const std::string& name) {
-    std::filesystem::path path(name);
-    return path.stem().string();
-}
-
-static inline std::string _path(const std::string& name) {
-    std::filesystem::path path(name);
-    std::string stem = path.stem().string();
-    std::string parent = path.parent_path().string();
-    if (parent.empty()) {
-        return stem;
-    }
-    return parent + "/" + stem;
-}
-
-static inline bool _has_duplicates(const std::vector<std::string>& paths) {
-
-    std::unordered_set<std::string> seen;
-    for (const auto& path : paths) {
-        std::string transformedPath = _path(path);
-        if (seen.find(transformedPath) != seen.end()) {
-            return true;
-        }
-        seen.insert(transformedPath);
-    }
-    return false;
-
-}
-
-static inline void _throw_if_has_duplicates(const std::vector<std::string>& paths) {
-    if (_has_duplicates(paths)) {
-        throw std::runtime_error("Duplicate input paths (modulo extensions) are not allowed.");
-    }
-}
-
-static inline base_t _as_int(char base) {
-    switch (base) {
-        case A:   { return IX_A;   }
-        case C:   { return IX_C;   }
-        case G:   { return IX_G;   }
-        case T:   { return IX_T;   }
-        case U:   { return IX_U;   }
-        default:  { return IX_UNK; }
-    }
-}
-
-static inline seq_t _as_int(
-    const std::string& sequence
-) {
-    int64_t length = sequence.length();
-    seq_t result(length);
-    for (int64_t i = 0; i < length; i++) {
-        result[i] = _as_int(sequence[i]);
-    }
-    return result;
-}
-
-static inline void _as_int(
-    const std::string& sequence,
-    view_t<base_t, DS_DIMS> buffer
-) {
-    for (int64_t i = 0; i < sequence.length(); i++) {
-        buffer(i) = _as_int(sequence[i]);
-    }
-}
-
-static inline faidx_t* _open_fai(const std::string& name) {
-    faidx_t* _hts_fai = fai_load(name.c_str());
-    if (_hts_fai == nullptr) {
-        throw std::runtime_error("Failed to load the .fai index associated with \"" + name + "\".");
-    }
-    return _hts_fai;
-}
-
-static inline void _close_fai(faidx_t*& _hts_fai) {
-    if (_hts_fai != nullptr) {
-        fai_destroy(_hts_fai);
-        _hts_fai = nullptr;
-    }
-}
-
-static inline const char* _get_name(const FASTA& fasta, hts_pos_t ix) {
-    const char *name = faidx_iseq(fasta.ptr(), ix);
-    if (name == nullptr) {
-        throw std::runtime_error(
-            "There was an error retrieving the name of sequence " + std::to_string(ix) + " in \"" + fasta.name() + "\"."
-        );
-    }
-    return name;
-}
-
-static inline hts_pos_t _length_from_name(const FASTA& fasta, const char* name) {
-    int len = 0;
-    char *sequence = fai_fetch(fasta.ptr(), name, &len);
-    if (sequence == nullptr || len < 0) {
-        throw std::runtime_error(
-            "There was an error fetching a sequence from \"" + fasta.name() + "\"."
-        );
-    }
-    free(sequence);
-    return len;
-}
-
-static inline hts_pos_t _get_length(const FASTA& fasta, hts_pos_t ix) {
-    const char* name = _get_name(fasta, ix);
-    return _length_from_name(fasta, name);
-}
-
-static inline std::string _sequence_from_name(const FASTA& fasta, const char* name) {
-    int len = 0;
-    char *sequence = fai_fetch(fasta.ptr(), name, &len);
-    if (sequence == nullptr || len < 0) {
-        throw std::runtime_error(
-            "There was an error fetching a sequence from \"" + fasta.name() + "\"."
-        );
-    }
-    std::string result(sequence, len);
-    free(sequence);
-    return result;
-}
-
-static inline std::string _get_sequence(const FASTA& fasta, hts_pos_t ix) {
-    const char* name = _get_name(fasta, ix);
-    return _sequence_from_name(fasta, name);
-}
-
-static inline void _verify_index(const FASTA& fasta, hts_pos_t ix) {
-    if (ix < 0 || ix >= fasta.size()) {
-        throw std::runtime_error(
-            "The index (" + std::to_string(ix) + 
-            ") is not valid given the number of sequences in the FASTA file \"" + 
-            fasta.name() + "\" (" + std::to_string(fasta.size()) + ")."
-        );
-    }
-}
-
-
 static inline bool _has_index(FileType type, const std::string& name) {
     switch (type) {
         case FileType::SAM:
@@ -404,57 +785,155 @@ static inline void _close_file(htsFile*& _hts_file) {
 }
 
 
-static inline bam_hdr_t* _open_header(htsFile* _hts_file, const std::string& name) {
+static inline void _close_bgzf(BGZF*& _bgzf_file) {
 
-    bam_hdr_t* _hts_header = sam_hdr_read(_hts_file);
-    if (_hts_header == nullptr) {
-        throw std::runtime_error("Failed to read the header for \"" + name + "\".");
-    }
-
-    return _hts_header;
-
-}
-
-static inline void _close_header(bam_hdr_t*& _hts_header) {
-
-    if (_hts_header != nullptr) {
-        bam_hdr_destroy(_hts_header);
-        _hts_header = nullptr;
+    if (_bgzf_file != nullptr) {
+        bgzf_close(_bgzf_file);
+        _bgzf_file = nullptr;
     }
 
 }
 
-static inline bool _is_sorted(bam_hdr_t* _hts_header) {
+static inline void _validate_bgzf(BGZF* _bgzf_file) {
 
-    if (_hts_header == nullptr) {
-        throw std::runtime_error("The header must be opened to check if the file is sorted.");
+    char magic[4];
+    if (bgzf_read(_bgzf_file, magic, 4) != 4 || strncmp(magic, "BAM\1", 4) != 0) {
+        _close_bgzf(_bgzf_file);
+        throw std::runtime_error("Magic check failed -- invalid BAM file.");
     }
-
-    kstring_t ks = {0, 0, NULL};
-    return sam_hdr_find_line_id(_hts_header, "HD", "SO", "coordinate", &ks) == 0;
 
 }
 
-static inline void _throw_if_not_sorted(bam_hdr_t* _hts_header, const std::string& name) {
+static inline BGZF* _open_bgzf(const std::string& name) {
 
-    if (!_is_sorted(_hts_header)) {
+    BGZF* _bgzf_file = bgzf_open(name.c_str(), "r");
+    if (_bgzf_file == nullptr) {
+        throw std::runtime_error("Failed to open the file \"" + name + "\" using BGZF.");
+    }
+
+    _validate_bgzf(_bgzf_file);
+    return _bgzf_file;
+
+}
+
+static inline hts_pos_t _get_header_length(BGZF* _bgzf_file) {
+
+    int32_t length;
+    if (bgzf_read(_bgzf_file, &length, sizeof(length)) != sizeof(length)) {
+        _close_bgzf(_bgzf_file);
+        throw std::runtime_error("Failed to get the length of the header.");
+    }
+
+    return static_cast<hts_pos_t>(length);
+
+}
+
+static inline std::string _read_bgzf_line(
+    BGZF* _bgzf_file,
+    char* buffer,
+    hts_pos_t& ix,
+    hts_pos_t length
+) {
+
+    int len = 0;
+    while (len < BGZF_BUFFER - 1 && ix < length) {
+        if (bgzf_read(_bgzf_file, &buffer[len], 1) != 1) { break; }
+        ix++;
+        if (buffer[len] == '\n') { break; }
+        len++;
+    }
+
+    return std::string(buffer, len);
+
+}
+
+static inline bool _is_sorted_rec(const std::string& str) {
+
+    size_t pos = str.find(HEADER_SORT_KEY) + HEADER_SORT_KEY.length();
+    std::string value = str.substr(pos);
+
+    if (value == BGZF_SORTED) {
+        return true;
+    }
+    return false;
+
+}
+
+static inline bool _is_sorted(const std::string& name) {
+
+    BGZF* _bgzf_file = _open_bgzf(name);
+
+    char buffer[BGZF_BUFFER];
+    hts_pos_t ix = 0;
+    hts_pos_t length = _get_header_length(_bgzf_file);
+    std::string line = _read_bgzf_line(_bgzf_file, buffer, ix, length);
+
+    _close_bgzf(_bgzf_file);
+    return _is_sorted_rec(line);
+
+}
+
+static inline hts_pos_t _length_from_rec(const std::string& str) {
+
+    size_t pos = str.find(HEADER_LEN_KEY) + HEADER_LEN_KEY.length();
+    std::string value = str.substr(pos);
+    return static_cast<hts_pos_t>(std::stoi(value));
+
+}
+
+static inline bool _is_seq_rec(const std::string& line) {
+
+    return line.starts_with("@SQ");
+
+}
+
+static inline std::vector<hts_pos_t> _get_reference_lengths(const std::string& name) {
+
+    BGZF* _bgzf_file = _open_bgzf(name);
+    hts_pos_t length = _get_header_length(_bgzf_file);
+
+    std::vector<hts_pos_t> sizes;
+
+    // Read header line by line
+    char buffer[BGZF_BUFFER];
+    hts_pos_t ix = 0;
+    while (ix < length) {
+        std::string line = _read_bgzf_line(_bgzf_file, buffer, ix, length);
+        if (_is_seq_rec(line)) {
+            sizes.push_back(_length_from_rec(line));
+        }
+    }
+
+    _close_bgzf(_bgzf_file);
+    return sizes;
+
+}
+
+static inline void _throw_if_not_sorted(const std::string& name) {
+
+    if (!_is_sorted(name)) {
         throw std::runtime_error("The input file \"" + name + "\" is not sorted.");
     }
 
 }
 
-static inline void _sort_core(const std::string& name, bam_hdr_t* _hts_header, const MPI::Manager& mpi) {
+static inline void _sort(const std::string& name, const MPI::Manager& mpi) {
 
-    if (mpi.root() && !_is_sorted(_hts_header)) {
+    mpi.barrier();
+
+    if (mpi.root() && !_is_sorted(name)) {
+
+        mpi.out() << "        Sorting \"" << name << "\".\n";
 
         std::string unsorted_name = _path(name) + "_UNSORTED.bam";
         _safe_move(name, unsorted_name);
 
-        std::string command = "samtools sort -o " + name + " " + unsorted_name;
+        std::string command = "samtools sort -o " + name + " -@ " + std::to_string(mpi.size()) + " " + unsorted_name + " > cmuts.log 2>&1";
         if (system(command.c_str()) != 0) {
             _safe_move(unsorted_name, name);
             throw std::runtime_error("There was an error sorting the file \"" + name + "\".");
         }
+        mpi.divide();
 
     }
 
@@ -462,19 +941,9 @@ static inline void _sort_core(const std::string& name, bam_hdr_t* _hts_header, c
 
 }
 
-static inline void _sort(const std::string& name, const MPI::Manager& mpi) {
-
-    htsFile* _hts_file = _open_file(name);
-    bam_hdr_t* _hts_header = _open_header(_hts_file, name);
-    _sort_core(name, _hts_header, mpi);
-    _close_file(_hts_file);
-    _close_header(_hts_header);
-
-}
-
 static inline hts_idx_t* _open_index(const File& file) {
 
-    _throw_if_not_sorted(file.header(), file.name());
+    _throw_if_not_sorted(file.name());
 
     if (file.mpi().root()) {
         _build_index(file.type(), file.name());
@@ -592,16 +1061,20 @@ static inline void _close_iter(hts_itr_t*& _hts_iter) {
 
 }
 
-void _throw_if_bad_lengths(const File& file) {
-    const FASTA& fasta = file.fasta();
+void _throw_if_bad_lengths(File& file) {
+
+    BinaryFASTA& fasta = file.fasta();
     if (file.size() != fasta.size()) {
         throw std::runtime_error("The number of references in the header for the file \"" + file.name() + "\" (" + std::to_string(file.size()) + ") does not match the number of sequences in the FASTA (" + std::to_string(fasta.size()) + ").");
     }
+
+    std::vector<hts_pos_t> _lengths = file.lengths();
     for (hts_pos_t ix = 0; ix < file.size(); ix++) {
-        if (file.length(ix) != fasta.length(ix)) {
+        if (_lengths[ix] != fasta.length(ix)) {
             throw std::runtime_error("The sequence lengths in the header for the file \"" + file.name() + "\" and the FASTA file do not match.");
         }
     }
+
 }
 
 // Convert from HTS format (1,2,4,8) to standard
@@ -864,6 +1337,8 @@ void _default_write_to_fasta(
 
 }
 
+
+
 static inline std::string _phred_as_str(const std::vector<uint8_t>& qualities) {
 
     size_t _length = qualities.size();
@@ -926,147 +1401,6 @@ bool PHRED::check(size_t ix, uint8_t min, size_t window) const {
 
 
 
-template <typename dtype>
-static inline HDF5::Memspace<dtype, DS_DIMS> __memspace(
-    const HTS::FASTA& fasta,
-    HDF5::File& hdf5
-) {
-    std::vector<size_t> dims = {fasta.size(), static_cast<size_t>(fasta.max_length())};
-    return hdf5.memspace<dtype, DS_DIMS>(dims, SEQUENCE_DS);
-}
-
-template <typename dtype>
-static inline void _fasta_to_hdf5(
-    const HTS::FASTA& fasta,
-    HDF5::File& hdf5,
-    const MPI::Manager& mpi
-) {
-
-    HDF5::Memspace<dtype, DS_DIMS> memspace = __memspace<dtype>(fasta, hdf5);
-    MPI::Chunk chunk = mpi.chunk(
-        hdf5.chunk_size(),
-        fasta.size()
-    );
-
-    for (int64_t ix = chunk.low; ix < chunk.high; ix+= chunk.step) {
-        for (int64_t jx = 0; jx < chunk.size; jx++) {
-            if (ix + jx < fasta.size()) {
-                view_t<dtype, DS_DIMS> arr = memspace.view(jx);
-                fasta.as_int(ix + jx, arr);
-            }
-        }
-        memspace.safe_write(ix);
-        memspace.clear();
-    }
-
-}
-
-FASTA::FASTA(const std::string& filename) : _name(filename) {
-
-    _throw_if_not_exists(filename);
-    _hts_fai = _open_fai(filename);
-    _size    = faidx_nseq(_hts_fai);
-
-}
-
-FASTA::FASTA(FASTA&& other) noexcept
-    : _name(other._name),
-      _hts_fai(other._hts_fai),
-      _size(other._size) {
-    other._hts_fai = nullptr;
-}
-
-FASTA& FASTA::operator=(FASTA&& other) noexcept {
-
-    if (this != &other) {
-        _hts_fai = other._hts_fai;
-        _size    = other._size;
-        other._hts_fai = nullptr;
-    }
-
-    return *this;
-
-}
-
-FASTA::FASTA(const FASTA& other)
-    : _name(other._name),
-      _hts_fai(_open_fai(other._name)),
-      _size(other._size) {}
-
-FASTA::~FASTA() {
-
-    _close_fai(_hts_fai);
-
-}
-
-faidx_t* FASTA::ptr() const {
-
-    return _hts_fai;
-
-}
-
-std::string FASTA::name() const {
-
-    return _name;
-
-}
-
-size_t FASTA::size() const {
-
-    return _size;
-
-}
-
-hts_pos_t FASTA::length(hts_pos_t ix) const {
-
-    _verify_index(*this, ix);
-    return _get_length(*this, ix);
-
-}
-
-std::string FASTA::sequence(hts_pos_t ix) const {
-
-    _verify_index(*this, ix);
-    return _get_sequence(*this, ix);
-
-}
-
-seq_t FASTA::operator[](hts_pos_t ix) const {
-
-    std::string _sequence = sequence(ix);
-    return _as_int(_sequence);
-
-}
-
-void FASTA::as_int(hts_pos_t ix, view_t<base_t, DS_DIMS> buffer) const {
-
-    std::string _sequence = sequence(ix);
-    _as_int(_sequence, buffer);
-
-}
-
-hts_pos_t FASTA::max_length() const {
-
-    hts_pos_t _max_length = 0;
-    for (size_t ix = 0; ix < size(); ix++) {
-        hts_pos_t len = length(ix);
-        if (len > _max_length) {
-            _max_length = len;
-        }
-    }
-
-    return _max_length;
-
-}
-
-void FASTA::to_hdf5(HDF5::File& hdf5, const MPI::Manager& mpi) const {
-
-    _fasta_to_hdf5<base_t>(*this, hdf5, mpi);
-
-}
-
-
-
 //
 // CIGAR
 //
@@ -1076,18 +1410,10 @@ void FASTA::to_hdf5(HDF5::File& hdf5, const MPI::Manager& mpi) const {
 static inline std::string _cigar_hts_format(CIGAR_t type) {
 
     switch (type) {
-        case CIGAR_t::MATCH: {
-            return "M";
-        }
-        case CIGAR_t::INS:   {
-            return "I";
-        }
-        case CIGAR_t::DEL:   {
-            return "D";
-        }
-        default:             {
-            return "?";
-        }
+        case CIGAR_t::MATCH: { return "M"; }
+        case CIGAR_t::INS:   { return "I"; }
+        case CIGAR_t::DEL:   { return "D"; }
+        default:             { return "?"; }
     }
 
 }
@@ -1235,9 +1561,25 @@ hts_pos_t CIGAR::rlength() const {
 std::string CIGAR::str() const {
 
     std::string _out_str;
+    CIGAR_op prev(CIGAR_t::MATCH, 0);
 
     for (const auto& op: _str) {
+
+        if (op.type() == CIGAR_t::MATCH || op.type() == CIGAR_t::MISMATCH) {
+            prev.extend(op.length());
+            continue;
+        } 
+
+        if (!prev.empty()) {
+            _out_str += prev.str();
+            prev = CIGAR_op(CIGAR_t::MATCH, 0);
+        }
         _out_str += op.str();
+
+    }
+
+    if (!prev.empty()) {
+        _out_str += prev.str();
     }
 
     return _out_str;
@@ -1283,6 +1625,14 @@ CIGAR_op CIGAR::operator[](size_t ix) const {
     return _str[ix];
 
 }
+
+CIGAR_op CIGAR::back() const {
+
+    if (!_str.empty()) { return _str.back(); }
+    return CIGAR_op();
+
+}
+
 
 auto CIGAR::begin() -> decltype(_str.begin()) {
 
@@ -1474,7 +1824,7 @@ bool Alignment::empty() const {
 
 File::File(
     const std::string& filename,
-    const FASTA& fasta,
+    const BinaryFASTA& fasta,
     const MPI::Manager& mpi
 ) : _name(filename), _fasta(fasta), _mpi(mpi) {
 
@@ -1485,7 +1835,6 @@ File::File(
 File::File(File&& other) noexcept
     : _hts_file(other._hts_file),
       _hts_index(other._hts_index),
-      _hts_header(other._hts_header),
       _name(std::move(other._name)),
       _fasta(std::move(other._fasta)),
       _mpi(std::move(other._mpi))
@@ -1493,7 +1842,6 @@ File::File(File&& other) noexcept
 
     other._hts_file   = nullptr;
     other._hts_index  = nullptr;
-    other._hts_header = nullptr;
 
 }
 
@@ -1501,7 +1849,6 @@ File::~File() {
 
     _close_file(_hts_file);
     _close_index(_hts_index);
-    _close_header(_hts_header);
 
 }
 
@@ -1518,12 +1865,6 @@ htsFile* File::ptr() const {
 hts_idx_t* File::index() const {
 
     return _hts_index;
-
-}
-
-bam_hdr_t* File::header() const {
-
-    return _hts_header;
 
 }
 
@@ -1552,7 +1893,7 @@ FileType File::type() const {
 
 }
 
-const FASTA& File::fasta() const {
+BinaryFASTA& File::fasta() {
 
     return _fasta;
 
@@ -1561,14 +1902,12 @@ const FASTA& File::fasta() const {
 void File::reset() {
 
     _close_file(_hts_file);
-    _close_header(_hts_header);
     _close_index(_hts_index);
 
     _throw_if_not_exists(_name);
     _sort(_name, _mpi);
 
     _hts_file   = _open_file(_name);
-    _hts_header = _open_header(_hts_file, _name);
     _hts_index  = _open_index(*this);
 
     _throw_if_bad_lengths(*this);
@@ -1589,7 +1928,7 @@ std::string File::path() const {
 
 }
 
-seq_t File::reference(hts_pos_t ix) const {
+seq_t File::reference(hts_pos_t ix) {
 
     return _fasta[ix];
 
@@ -1614,7 +1953,8 @@ int64_t File::reads(hts_pos_t ix) const {
 int64_t File::reads() const {
 
     if (type() == FileType::CRAM) {
-        return _cram_aligned(_hts_file, _hts_header);
+        throw std::runtime_error("Not implemented yet.");
+        // return _cram_aligned(_hts_file, _hts_header);
     } else {
         return _sam_bam_aligned(_hts_index);
     }
@@ -1627,27 +1967,20 @@ int64_t File::unaligned_reads() const {
 
 }
 
-hts_pos_t File::length(int64_t ix) const {
+std::vector<hts_pos_t> File::lengths() const {
 
-    return _hts_header->target_len[ix];
+    return _get_reference_lengths(_name);
 
 }
 
 hts_pos_t File::max_length() const {
 
-    hts_pos_t _max_length = 0;
-    for (hts_pos_t ix = 0; ix < size(); ix++) {
-        hts_pos_t len = length(ix);
-        if (len > _max_length) {
-            _max_length = len;
-        }
-    }
-
-    return _max_length;
+    std::vector<hts_pos_t> _lengths = lengths();
+    return *std::max_element(_lengths.begin(), _lengths.end());
 
 }
 
-Alignment File::alignment(hts_pos_t ix) const {
+Alignment File::alignment(hts_pos_t ix) {
 
     // htsFile* _aln_hts_file = _open_file(_name);
     hts_itr_t* _aln_hts_iter = iter(ix);
@@ -1667,7 +2000,7 @@ Alignment File::alignment(hts_pos_t ix) const {
 
 FileGroup::FileGroup(
     const std::vector<std::string>& filenames,
-    const HTS::FASTA& fasta,
+    const HTS::BinaryFASTA& fasta,
     const MPI::Manager& mpi
 ) {
 
