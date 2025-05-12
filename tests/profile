@@ -72,6 +72,7 @@ profile() {
     local BAM=${10}
     local RF_DIR=${11}
     local THREADS=${12}
+    local LOWMEM=${13}
 
 
     total_time=0
@@ -89,6 +90,7 @@ profile() {
             --max-length ${MAX_LENGTH} \
             --max-indel-length ${MAX_INDEL} \
             --overwrite \
+            ${LOWMEM} \
             ${BAM} 2>&1 >/dev/null)
             rm -rf ${CMUTS_H5}
 
@@ -155,6 +157,7 @@ THREADS=1
 QUERIES_SET=false
 REFERENCES_SET=false
 LENGTHS_SET=false
+LOWMEM=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -169,6 +172,8 @@ while [[ "$#" -gt 0 ]]; do
         --references) REFERENCES_SET=true
                       ;;
         --lengths) LENGTHS_SET=true
+                   ;;
+        --low-mem) LOWMEM="--low-mem"
                    ;;
         *) echo "Unknown option: $1"
            exit 1
@@ -227,7 +232,7 @@ if ${QUERIES_SET}; then
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
         generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
 
         echo " ─────────────────────────────"
 
@@ -266,7 +271,7 @@ if ${REFERENCES_SET}; then
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
         generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
 
         echo " ─────────────────────────────"
 
@@ -305,7 +310,7 @@ if ${LENGTHS_SET}; then
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
         generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS}
+        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
 
         echo " ─────────────────────────────"
 
