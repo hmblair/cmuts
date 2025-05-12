@@ -3,18 +3,23 @@
 `cmuts` is a program for counting mutations and computing reactivity profiles in MaP-seq experiments. It features
 * Fast, compiled C++ code with native multithreading support
 * Streamed IO and direct output to compressed HDF5 files
-* Handling of arbitrary-length ambiguous deletions, including deletion spreading
+* Handling of arbitrary-length ambiguous deletions, including mutation-informed deletion spreading
 
 
-## Installation
+# Installation
 
-To build, you will need installed copies of
-   1. `samtools` and `HTSlib`.
-   2. `HDF5` with parallel support enabled.
-   3. `OpenMPI`.
-   4. `cmake >= 3.29`
+## cmuts
 
-The former must be visible `cmake`. Stanford users: if you are running on Sherlock, then
+To build single-threaded `cmuts`, you will need installed copies of
+   1. `cmake >= 3.29`.
+   2. `samtools` and `HTSlib`
+   3. `HDF5`
+
+The easiest way to install these dependencies is via `brew`, where they are available under `cmake`, `samtools`, and `hdf5` respectively.
+
+If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
+
+Stanford users: if you are running on Sherlock, then
 ```
 ml load hdf5/1.14.4
 ml load biology samtools/1.16.1
@@ -30,7 +35,10 @@ cd cmuts
 ```
 Don't forget to add the `./bin` directory to your path.
 
-If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
+
+## cmuts MPI
+
+Running `./configure --mpi` will build the parallel version of `cmuts`. This requires `OpenMPI` and a copy of `HDF5` with parallel support enabled. This is available under `brew` as `hdf5-mpi`.
 
 
 # Usage
@@ -39,7 +47,7 @@ To run, you will need:
    1. A FASTA file of reference sequences, as specified by the `-f` option.
    2. One or more SAM/BAM/CRAM files of aligned reads.
 
-Note that an index (.fai, .bai, or .crai) for each of these files will be built automatically. If the file is not sorted, `samtools sort` will be called.
+Note that an index (.bai or .crai) for the SAM/BAM/CRAM file will be created. If the file is not sorted, `samtools sort` will be called to facilitate this. A custom binary .binfa file will be created from the FASTA file.
 
 
 ## Modification Counting
@@ -48,7 +56,7 @@ Counting the modifications present in a single aligned HTS file can be achieved 
 ```
 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
-To use multiple threads, invoke `mpirun -np THREADS` first:
+If build with MPI, invoke `mpirun -np THREADS` first to use multiple threads:
 ```
 mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
@@ -60,17 +68,23 @@ The output file will contain one dataset per input, with name given by the path 
 
 The following lists all additional commands available:
 
-`--overwrite`: Overwrite an existing HDF5 file.
+`--overwrite`: Overwrite any existing HDF5 file.
 
 `--compression`: Compression level of the HDF5 output (0-9). Default: 3
 
-`--min-phred`: PHRED score threshold for base processing. Default: 20
+`--chunk-size`: The size of the internal buffer (in references) per thread. Default: 128
+
+`--tokenize`: Tokenize the reference sequences. See below.
+
+`--joint`: Compute the joint distribution of mutations. See below.
+
+`--low-mem`: Compute modification locations and coverage only (i.e. modification type is not recorded). Decreases memory usage by at least 2x.
 
 `--min-mapq`: Mapping quality threshold for alignment processing. Default: 20
 
-`--max-indel-length`: The longest indels to consider. Default: 10
+`--min-phred`: PHRED score threshold for base processing. Default: 20
 
-`--chunk-size`: The number of references to process at a time per thread. Default: 128
+`--max-indel-length`: The longest indels to consider as modifications. Default: 10
 
 `--min-length`: Minimum length for alignment processing. Default: 2
 
@@ -78,13 +92,17 @@ The following lists all additional commands available:
 
 `--quality-window`: Check the quality of each base in a window of this size around each base. Default: 2
 
-`--joint`: Compute the joint distribution of mutations. See below.
+`--collapse`: Collapse modifications within this distance of each other in a given read. Default: 2
 
-`--fast`: Compute modification locations and coverage only.
+`--uniform-spread`: Uniformly spread out ambiguous deletions.
 
-`--very-fast`: Compute modification locations only.
+`--mutation-spread`: Spread out ambiguous deletions according to the existing mutation profile.
 
-`--spread`: Spread out ambiguous deletions.
+`--no-mismatches`: Do not count mismatches as modifications.
+
+`--no-insertions`: Do not count insertions as modifications.
+
+`--no-deletions`: Do not count deletions as modifications.
 
 
 ## Normalization
@@ -108,9 +126,9 @@ Additional flags which may be useful are:
 
 ## Tokenization
 
-`cmuts` will automatically tokenize the reference sequences and place them in a `sequence` dataset in the output HDF5 file. This can be done even in the absence of a SAM/BAM file, i.e.
+If the `--tokenize` flag is provided, `cmuts` will tokenize the reference sequences and place them in the `sequence` dataset of the output HDF5 file. This can be done even in the absence of a SAM/BAM/CRAM file, i.e.
 ```
-cmuts -f seq.fasta -o out.h5
+cmuts --tokenize -f seq.fasta -o out.h5
 ```
 will fill the `sequence` dataset in `out.h5`.
 
@@ -126,6 +144,6 @@ The output file will contain one dataset per input with the same naming scheme a
 
 ## Tests
 
-`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/accuracy/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions.
+`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions.
 
-There is also a command to assess the performance of `cmuts`, in `./tests/performance`. This requires `rf-count` and, on Mac OS, `gtime` to be installed.
+There is also a command to assess the performance of `cmuts`, `./tests/profile`. This requires `rf-count` and, on Mac OS, `gtime` to be installed.
