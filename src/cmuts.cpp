@@ -1,4 +1,5 @@
 #include "cmuts.hpp"
+#include <stdexcept>
 
 namespace cmuts {
 
@@ -11,7 +12,7 @@ namespace cmuts {
 
 
 template <typename dtype, bool match>
-static inline void __joint(view_t<dtype, _ndims(DetailLevel::Joint)> arr, hts_pos_t ix, dtype mask) {
+static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, hts_pos_t ix, dtype mask) {
 
     if constexpr (match) {
 
@@ -66,34 +67,17 @@ static inline hts_pos_t _first_match(
     hts_pos_t N
 ) {
 
-    for (hts_pos_t i = M; i < N; i++) {
-        if (seq[i] == base) {
-            return i+1;
-        }
+    for (hts_pos_t i = M; i <= N; i++) {
+
+        if (seq[i] == base) { return i+1; }
+
     }
 
     return -1;
 
 }
 
-static inline hts_pos_t _last_match(
-    base_t base,
-    const seq_t& seq,
-    hts_pos_t M,
-    hts_pos_t N
-) {
-
-    for (hts_pos_t i = N; i >= M; i--) {
-        if (seq[i] == base) {
-            return i-1;
-        }
-    }
-
-    return -1;
-
-}
-
-static hts_pos_t _get_ambiguous_end(
+static inline hts_pos_t _get_ambiguous_end(
     hts_pos_t start,
     hts_pos_t end,
     const seq_t& sequence
@@ -124,51 +108,13 @@ static hts_pos_t _get_ambiguous_end(
 
     hts_pos_t M = start, N = end;
 
-    M = _first_match(sequence[N], sequence, M, N);
-    while (M != -1 && N != size - 1) {
+    while (M != -1 && N != size) {
+        M = _first_match(sequence[N + 1], sequence, M, N);
         N++;
-        M = _first_match(sequence[N], sequence, M, N);
     }
 
+    // This is the position of the base _after_ the final base that can be deleted.
     return N;
-
-}
-
-static hts_pos_t _get_ambiguous_start(
-    hts_pos_t start,
-    hts_pos_t end,
-    const seq_t& sequence
-) {
-
-    if (start <= 0) {
-        return 0;
-    }
-
-    // The algorithm for finding the first base that could
-    // be feasilby deleted is dual to that for finding the
-    // last such base.
-    hts_pos_t M = start, N = end;
-
-    N = _last_match(sequence[M-1], sequence, M, N);
-    while (N != -1 && M != 0) {
-        M--;
-        N = _last_match(sequence[M-1], sequence, M, N);
-    }
-
-    return M;
-
-}
-
-static inline std::pair<hts_pos_t, hts_pos_t> _get_ambiguous_region(
-    hts_pos_t start,
-    hts_pos_t end,
-    const seq_t& sequence
-) {
-
-    hts_pos_t ambig_s = _get_ambiguous_start(start, end, sequence);
-    hts_pos_t ambig_e = _get_ambiguous_end(start, end, sequence);
-
-    return std::pair<hts_pos_t, hts_pos_t>(ambig_s, ambig_e);
 
 }
 
@@ -180,13 +126,13 @@ static inline std::pair<hts_pos_t, hts_pos_t> _get_ambiguous_region(
 
 
 
-template <typename dtype, DetailLevel detail>
+template <typename dtype, Mode mode>
 static inline dtype _total_muts(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     hts_pos_t ix
 ) {
 
-    if constexpr (detail == DetailLevel::Normal) {
+    if constexpr (mode == Mode::Normal) {
         dtype total = 0;
         // From A
         total += arr(ix, IX_A, IX_C);
@@ -207,15 +153,11 @@ static inline dtype _total_muts(
         return total;
     }
 
-    if constexpr (detail == DetailLevel::Fast) {
+    if constexpr (mode == Mode::LowMem) {
         return arr(ix, 0);
     }
 
-    if constexpr (detail == DetailLevel::VeryFast) {
-        return arr(ix);
-    }
-
-    if constexpr (detail == DetailLevel::Joint) {
+    if constexpr (mode == Mode::Joint) {
         return arr.periodic(ix, -1, 0, 0);
     }
 
@@ -227,33 +169,55 @@ template <typename dtype>
 static inline void _normalize(std::vector<dtype>& arr) {
 
     dtype total = 0;
-    for (const dtype& val : arr) {
-        total += val;
-    }
+    for (const dtype& val : arr) { total += val; }
+
     if (total == 0) {
-        for (dtype& val : arr) {
-            val = 1 / arr.size();
-        }
+
+        for (dtype& val : arr) { val = 1 / arr.size(); }
+
     } else {
-        for (dtype& val : arr) {
-            val /= total;
-        }
+
+        for (dtype& val : arr) { val /= total; }
+
     }
 
 }
 
-template <typename dtype, DetailLevel detail>
-static inline std::vector<dtype> _mut_weights(
+template <typename dtype, Mode mode, Spread spread>
+static inline std::vector<dtype> _spread_weights(
     hts_pos_t start,
     hts_pos_t end,
-    view_t<dtype, _ndims(detail)> arr
+    view_t<dtype, _ndims(mode)> arr,
+    dtype mask
 ) {
 
-    std::vector<dtype> weights(end - start, 0);
-    for (hts_pos_t ix = start; ix < end; ix++) {
-        weights[ix - start] = _total_muts<dtype, detail>(arr, ix);
+    hts_pos_t length = end - start;
+    std::vector<dtype> weights(length, 0);
+
+    if constexpr (spread == Spread::None) {
+
+        weights[length - 1] = mask;
+
     }
-    _normalize<dtype>(weights);
+
+    if constexpr (spread == Spread::Uniform) {
+
+        for (hts_pos_t ix = start; ix < end; ix++) {
+            weights[ix - start] = _total_muts<dtype, mode>(arr, ix) * mask;
+        }
+
+        _normalize<dtype>(weights);
+
+    }
+
+    if constexpr (spread == Spread::Uniform) {
+
+        for (hts_pos_t ix = start; ix < end; ix++) {
+            weights[ix - start] = mask / length;
+        }
+
+    }
+
 
     return weights;
 
@@ -267,31 +231,32 @@ static inline std::vector<dtype> _mut_weights(
 
 
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode>
 static inline void __match_core(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     hts_pos_t rpos,
     base_t rbase,
     dtype mask
 ) {
 
     // Count the base type and position
-    if constexpr (detail == DetailLevel::Normal) {
+    if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, rbase) += mask;
     }
     // Count the base position
-    if constexpr (detail == DetailLevel::Fast) {
+    if constexpr (mode == Mode::LowMem) {
         arr(rpos, 1) += mask;
     }
-    if constexpr (detail == DetailLevel::Joint) {
+    // Invoke the joint counter
+    if constexpr (mode == Mode::Joint) {
         __joint<dtype, true>(arr, rpos, mask);
     }
 
 };
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode>
 static inline void __mismatch_core(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     hts_pos_t rpos,
     base_t qbase,
     base_t rbase,
@@ -299,118 +264,79 @@ static inline void __mismatch_core(
 ) {
 
     // Record the original base, new base, and position
-    if constexpr (detail == DetailLevel::Normal) {
+    if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, qbase) += mask;
     }
     // Record the position and an associated match
-    if constexpr (detail == DetailLevel::Fast) {
+    if constexpr (mode == Mode::LowMem) {
         arr(rpos, 0) += mask;
         arr(rpos, 1) += mask;
     }
-    // Record the position
-    if constexpr (detail == DetailLevel::VeryFast) {
-        arr(rpos) += mask;
-    }
-    // Record the position
-    if constexpr (detail == DetailLevel::Joint) {
+    // Store the modification in the temp dim and invoke the joint counter
+    if constexpr (mode == Mode::Joint) {
         arr.periodic(rpos, -1, 0, 0) += mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
 };
 
-template <DetailLevel detail, typename dtype>
-static inline void __del_core(
-    view_t<dtype, _ndims(detail)> arr,
-    hts_pos_t rpos,
-    base_t rbase,
-    dtype mask
-) {
-
-    // Record the original base and position
-    if constexpr (detail == DetailLevel::Normal) {
-        arr(rpos, rbase, IX_DEL) += mask;
-    }
-    // Record the position and an associated match
-    if constexpr (detail == DetailLevel::Fast) {
-        arr(rpos, 0) += mask;
-        arr(rpos, 1) += mask;
-    }
-    // Record the position
-    if constexpr (detail == DetailLevel::VeryFast) {
-        arr(rpos) += mask;
-    }
-    //
-    if constexpr (detail == DetailLevel::Joint) {
-        arr.periodic(rpos, -1, 0, 0) += mask;
-        __joint<dtype, false>(arr, rpos, mask);
-    }
-
-};
-
-template <DetailLevel detail, typename dtype>
-static inline void __spread_del(
-    hts_pos_t start,
-    hts_pos_t end,
-    const HTS::Alignment& aln,
-    view_t<dtype, _ndims(detail)> arr,
-    const std::vector<dtype>& mask
-) {
-
-    auto region = _get_ambiguous_region(start, end, aln.reference());
-    std::vector<dtype> weights = _mut_weights<dtype, detail>(region.first, region.second, arr);
-
-    for (hts_pos_t ix = region.first; ix < region.second; ix++) {
-
-        dtype val = weights[ix - region.first] * mask[ix];
-        base_t rbase = aln.rbase(ix);
-        __del_core<detail, dtype>(arr, ix, rbase, val);
-
-        // Only count coverage within the stated deletion to avoid double-counting
-        if (ix >= start && ix < end) {
-            __match_core<detail, dtype>(arr, ix, rbase, mask[ix] - val);
-        }
-
-    }
-
-}
-
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode>
 static inline void __ins_core(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     hts_pos_t rpos,
     base_t qbase,
     dtype mask
 ) {
 
     // Record the new base and position
-    if constexpr (detail == DetailLevel::Normal) {
+    if constexpr (mode == Mode::Normal) {
         arr(rpos, qbase, IX_INS) += mask;
     }
     // Record the position; no associated match
-    if constexpr (detail == DetailLevel::Fast) {
+    if constexpr (mode == Mode::LowMem) {
         arr(rpos, 0) += mask;
     }
-    // Record the position
-    if constexpr (detail == DetailLevel::VeryFast) {
-        arr(rpos) += mask;
-    }
-    //
-    if constexpr (detail == DetailLevel::Joint) {
+    // Store the modification in the temp dim and invoke the joint counter
+    if constexpr (mode == Mode::Joint) {
         arr.periodic(rpos, -1, 0) += mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
 };
 
+template <typename dtype, Mode mode>
+static inline void __del_core(
+    view_t<dtype, _ndims(mode)> arr,
+    hts_pos_t rpos,
+    base_t rbase,
+    dtype mask
+) {
+
+    // Record the original base and position
+    if constexpr (mode == Mode::Normal) {
+        arr(rpos, rbase, IX_DEL) += mask;
+    }
+    // Record the position and an associated match
+    if constexpr (mode == Mode::LowMem) {
+        arr(rpos, 0) += mask;
+        arr(rpos, 1) += mask;
+    }
+    // Store the modification in the temp dim and invoke the joint counter
+    if constexpr (mode == Mode::Joint) {
+        arr.periodic(rpos, -1, 0, 0) += mask;
+        __joint<dtype, false>(arr, rpos, mask);
+    }
+
+};
+
 template <
-    DetailLevel detail,
     typename dtype,
+    Mode mode,
     bool CONSUMES_RPOS,
     bool CONSUMES_QPOS
 >
 static inline void __match(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     HTS::CIGAR_op& op,
     hts_pos_t& rpos,
     hts_pos_t& qpos,
@@ -424,86 +350,113 @@ static inline void __match(
         if constexpr (CONSUMES_QPOS) { qpos--; }
         base_t rbase = aln.rbase(rpos);
 
-        __match_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
+        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
 
     }
 
 }
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode>
 static inline void __mismatch(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     HTS::CIGAR_op& op,
     hts_pos_t& rpos,
     hts_pos_t& qpos,
+    hts_pos_t& last,
     const HTS::Alignment& aln,
-    const std::vector<dtype>& mask
+    const std::vector<dtype>& mask,
+    const Params& params
 ) {
 
-        rpos--;
-        qpos--;
-        op.advance();
-        base_t rbase = aln.rbase(rpos);
-        base_t qbase = aln.qbase(qpos);
+    rpos--;
+    qpos--;
+    op.advance();
+    base_t rbase = aln.rbase(rpos);
+    base_t qbase = aln.qbase(qpos);
 
-        if (qbase != IX_UNK) {
-            __mismatch_core<detail, dtype>(arr, rpos, qbase, rbase, mask[qpos]);
-        } else {
-            __match_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-        }
+    if (params.mismatches && last - rpos >= params.collapse && qbase != IX_UNK) {
+        __mismatch_core<dtype, mode>(arr, rpos, qbase, rbase, mask[qpos]);
+        last = rpos;
+    } else {
+        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
+    }
 
-        __match<detail, dtype, true, true>(arr, op, rpos, qpos, aln, mask);
+    __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, mask);
 
 }
 
-template <DetailLevel detail, typename dtype>
-static inline void __del(
-    view_t<dtype, _ndims(detail)> arr,
-    HTS::CIGAR_op& op,
-    hts_pos_t& rpos,
-    hts_pos_t& qpos,
-    const HTS::Alignment& aln,
-    const std::vector<dtype>& mask
-) {
-
-        rpos--;
-        base_t rbase = aln.rbase(rpos);
-        op.advance();
-
-        __del_core<detail, dtype>(arr, rpos, rbase, mask[qpos]);
-        __match<detail, dtype, true, false>(arr, op, rpos, qpos, aln, mask);
-
-}
-
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode>
 static inline void __ins(
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     HTS::CIGAR_op& op,
     hts_pos_t& rpos,
     hts_pos_t& qpos,
+    hts_pos_t& last,
     const HTS::Alignment& aln,
-    const std::vector<dtype>& mask
+    const std::vector<dtype>& mask,
+    const Params& params
 ) {
 
-        if (rpos >= aln.rlength()) {
-            qpos -= op.length();
-            return;
-        }
+    if (rpos >= aln.rlength()) {
+        qpos -= op.length();
+        return;
+    }
 
-        qpos--;
-        base_t qbase = aln.qbase(qpos);
-        if (qbase != IX_UNK) {
-            __ins_core<detail, dtype>(arr, rpos, qbase, mask[qpos]);
-        }
+    qpos--;
+    base_t qbase = aln.qbase(qpos);
+    if (params.insertions && last - rpos >= params.collapse && qbase != IX_UNK) {
+        __ins_core<dtype, mode>(arr, rpos, qbase, mask[qpos]);
+        last = rpos;
+    }
 
-        qpos -= (op.length() - 1);
+    qpos -= (op.length() - 1);
 
 }
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode, Spread spread>
+static inline void __del(
+    view_t<dtype, _ndims(mode)> arr,
+    HTS::CIGAR_op& op,
+    hts_pos_t& rpos,
+    hts_pos_t& qpos,
+    hts_pos_t& last,
+    const HTS::Alignment& aln,
+    const std::vector<dtype>& mask,
+    const Params& params
+) {
+
+    rpos--;
+    op.advance();
+
+    hts_pos_t start     = rpos - op.length() + 1;
+    hts_pos_t end       = rpos;
+    hts_pos_t ambig_end = _get_ambiguous_end(start, end, aln.reference());
+
+    // TODO: remove this and fix
+    // ambig_end = end + 1;
+
+    std::vector<dtype> weights = _spread_weights<dtype, mode, spread>(end, ambig_end, arr, mask[qpos]);
+
+    for (hts_pos_t ix = ambig_end - 1; ix >= end; ix--) {
+
+        base_t rbase = aln.rbase(ix);
+        if (params.deletions && last - ix >= params.collapse) {
+            __del_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
+            last = ix;
+        } else {
+            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
+        }
+
+    }
+
+    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, mask);
+
+}
+
+template <typename dtype, Mode mode, Spread spread>
 static inline void __count(
     const HTS::Alignment& aln,
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     const Params& params
 ) {
 
@@ -511,8 +464,10 @@ static inline void __count(
     HTS::CIGAR cigar = aln.cigar();
     // Initial reference and query positions
     hts_pos_t rpos = aln.rlength(), qpos = aln.qlength();
+    // Position of the most recent (3'-wise) mutation
+    hts_pos_t last = rpos + params.collapse;
     // PHRED quality mask
-    std::vector<dtype> mask = aln.mask<dtype>(params.min_quality, params.quality_window);
+    std::vector<dtype> mask = aln.mask<dtype>(params.min_phred, params.quality_window);
 
     // Loop backwards (3' -> 5') along the CIGAR
 
@@ -522,14 +477,14 @@ static inline void __count(
 
             case HTS::CIGAR_t::MATCH: {
 
-                __match<detail, dtype, true, true>(arr, op, rpos, qpos, aln, mask);
+                __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, mask);
                 break;
 
             }
 
             case HTS::CIGAR_t::MISMATCH: {
 
-                __mismatch<detail, dtype>(arr, op, rpos, qpos, aln, mask);
+                __mismatch<dtype, mode>(arr, op, rpos, qpos, last, aln, mask, params);
                 break;
 
             }
@@ -537,11 +492,11 @@ static inline void __count(
             case HTS::CIGAR_t::DEL: {
 
                 if (op.length() > params.max_indel_length) {
-                    __match<detail, dtype, true, false>(arr, op, rpos, qpos, aln, mask);
+                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, mask);
                     break;
                 }
 
-                __del<detail, dtype>(arr, op, rpos, qpos, aln, mask);
+                __del<dtype, mode, spread>(arr, op, rpos, qpos, last, aln, mask, params);
                 break;
 
             }
@@ -553,7 +508,7 @@ static inline void __count(
                     break;
                 }
 
-                __ins<detail, dtype>(arr, op, rpos, qpos, aln, mask);
+                __ins<dtype, mode>(arr, op, rpos, qpos, last, aln, mask, params);
                 break;
 
             }
@@ -610,14 +565,14 @@ static inline bool __check_quality(
         aln.aligned() &&
         aln.mapq()    >= params.min_mapq   &&
         aln.qlength() >= params.min_length &&
-        aln.qlength() <  params.max_length
+        aln.qlength() <=  params.max_length
     );
 }
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode, Spread spread>
 static inline void __count_with_quality_check(
     const HTS::Alignment& aln,
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     const Params& params,
     Stats& stats
 ) {
@@ -625,26 +580,26 @@ static inline void __count_with_quality_check(
     if (!__check_quality(aln, params)) {
         stats.skipped();
     } else {
-        __count<detail, dtype>(aln, arr, params);
+        __count<dtype, mode, spread>(aln, arr, params);
         stats.processed();
     }
 
 }
 
-template <DetailLevel detail, typename dtype>
+template <typename dtype, Mode mode, Spread spread>
 static inline void __count_reference(
     HTS::Alignment& aln,
-    view_t<dtype, _ndims(detail)> arr,
+    view_t<dtype, _ndims(mode)> arr,
     const Params& params,
     Stats& stats
 ) {
 
     while (aln.next()) {
 
-        __count_with_quality_check<detail, dtype>(aln, arr, params, stats);
+        __count_with_quality_check<dtype, mode, spread>(aln, arr, params, stats);
 
         // Zero out the temp portion of the array
-        if constexpr (detail == DetailLevel::Joint) {
+        if constexpr (mode == Mode::Joint) {
             xt::view(arr, xt::all(), -1, 0).fill(0.0);
         }
 
@@ -660,22 +615,19 @@ static inline void __count_reference(
 
 
 
-static inline std::vector<size_t> __dims(const HTS::File& file, DetailLevel detail) {
+static inline std::vector<size_t> __dims(const HTS::File& file, Mode mode) {
 
     size_t size   = file.size();
     size_t length = file.max_length();
 
-    switch (detail) {
-        case DetailLevel::Normal: {
+    switch (mode) {
+        case Mode::Normal: {
             return {size, length, N_BASES, N_DELBASES};
         }
-        case DetailLevel::Fast: {
+        case Mode::LowMem: {
             return {size, length, 2};
         }
-        case DetailLevel::VeryFast: {
-            return {size, length};
-        }
-        case DetailLevel::Joint: {
+        case Mode::Joint: {
             return {size, length, length + 1, 2, 2};
         }
     }
@@ -686,37 +638,37 @@ template<typename dtype, size_t N>
 static inline HDF5::Memspace<dtype, N> __memspace(
     HTS::File& htsfile,
     HDF5::File& hdf5,
-    DetailLevel detail
+    Mode mode
 ) {
 
     std::string name = htsfile.path();
-    std::vector<size_t> dims = __dims(htsfile, detail);
+    std::vector<size_t> dims = __dims(htsfile, mode);
 
     return hdf5.memspace<dtype, N>(dims, name);
 
 }
 
-template <typename dtype, DetailLevel detail>
+template <typename dtype, Mode mode, Spread spread>
 static inline void __fill_at_offset(
     HTS::Alignment& aln,
-    HDF5::Memspace<dtype, _ndims(detail)>& memspace,
+    HDF5::Memspace<dtype, _ndims(mode)>& memspace,
     const Params& params,
     Stats& stats,
     int64_t offset
 ) {
 
-    view_t<dtype, _ndims(detail)> arr = memspace.view(offset);
-    return __count_reference<detail, dtype>(aln, arr, params, stats);
+    view_t<dtype, _ndims(mode)> arr = memspace.view(offset);
+    return __count_reference<dtype, mode, spread>(aln, arr, params, stats);
 
 }
 
-template <typename dtype, DetailLevel detail>
+template <typename dtype, Mode mode, Spread spread>
 static inline void __process(
     HTS::File& file,
     HDF5::File& hdf5,
     const Params& params,
     Stats& stats,
-    HDF5::Memspace<dtype, _ndims(detail)>& memspace,
+    HDF5::Memspace<dtype, _ndims(mode)>& memspace,
     int64_t min
 ) {
 
@@ -728,7 +680,7 @@ static inline void __process(
     for (int64_t ix = min; ix < max; ix++) {
         HTS::Alignment aln = file.alignment(ix);
         int64_t offset = ix - min;
-        __fill_at_offset<dtype, detail>(aln, memspace, params, stats, offset);
+        __fill_at_offset<dtype, mode, spread>(aln, memspace, params, stats, offset);
     }
 
     memspace.safe_write(min);
@@ -744,23 +696,23 @@ __Main::__Main(
     Stats& stats
 ) : file(file), hdf5(hdf5), mpi(mpi), params(params), chunk(mpi.chunk(hdf5.chunk_size(), file.size())), stats(stats) { };
 
-template <typename dtype, DetailLevel detail>
-Main<dtype, detail>::Main(
+template <typename dtype, Mode mode, Spread spread>
+Main<dtype, mode, spread>::Main(
     HTS::File& file,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
     Stats& stats
-) : __Main(file, hdf5, mpi, params, stats), memspace(__memspace<dtype, _ndims(detail)>(file, hdf5, detail)) {}
+) : __Main(file, hdf5, mpi, params, stats), memspace(__memspace<dtype, _ndims(mode)>(file, hdf5, mode)) {}
 
-template <typename dtype, DetailLevel detail>
-void Main<dtype, detail>::run() {
+template <typename dtype, Mode mode, Spread spread>
+void Main<dtype, mode, spread>::run() {
 
     stats.body();
 
     for (int64_t ix = chunk.low; ix < chunk.high; ix += chunk.step) {
 
-        __process<dtype, detail>(
+        __process<dtype, mode, spread>(
             file,
             hdf5,
             params,
@@ -775,23 +727,39 @@ void Main<dtype, detail>::run() {
 
 }
 
-template class Main<float, DetailLevel::Normal>;
-template class Main<float, DetailLevel::Fast>;
-template class Main<float, DetailLevel::VeryFast>;
-template class Main<float, DetailLevel::Joint>;
+template class Main<float, Mode::Normal, Spread::None>;
+template class Main<float, Mode::Normal, Spread::Uniform>;
+template class Main<float, Mode::Normal, Spread::MutationInformed>;
 
-DetailLevel detail(bool fast, bool joint) {
+template class Main<float, Mode::LowMem, Spread::None>;
+template class Main<float, Mode::LowMem, Spread::Uniform>;
+template class Main<float, Mode::LowMem, Spread::MutationInformed>;
 
-    if (fast && joint) {
-        throw std::runtime_error("Can't use both fast and joint.");
+template class Main<float, Mode::Joint, Spread::None>;
+template class Main<float, Mode::Joint, Spread::Uniform>;
+template class Main<float, Mode::Joint, Spread::MutationInformed>;
+
+Mode mode(bool lowmem, bool joint) {
+
+    if (lowmem && joint) {
+        throw std::runtime_error("--low-mem and --joint are mutully exclusive.");
     }
-    if (fast) {
-        return DetailLevel::Fast;
+
+    if (lowmem) { return Mode::LowMem; }
+    if (joint) { return Mode::Joint; }
+    return Mode::Normal;
+
+}
+
+Spread spread(bool uniform, bool mutation_informed) {
+
+    if (uniform && mutation_informed) {
+        throw std::runtime_error("--uniform-spread and --mutation-spread are mutually exclusive.");
     }
-    if (joint) {
-        return DetailLevel::Joint;
-    }
-    return DetailLevel::Normal;
+
+    if (uniform) { return Spread::Uniform; }
+    if (mutation_informed) { return Spread::MutationInformed; }
+    return Spread::None;
 
 }
 
@@ -803,27 +771,61 @@ std::unique_ptr<__Main> get_main(
     Stats& stats
 ) {
 
-    switch (params.detail) {
+    switch (params.mode) {
 
-        case DetailLevel::Normal: {
-            return std::make_unique<Main<float, DetailLevel::Normal>>(file, hdf5, mpi, params, stats);
+        case Mode::Normal: {
+            switch (params.spread) {
+                case Spread::None: {
+                    return std::make_unique<Main<float, Mode::Normal, Spread::None>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::Uniform: {
+                    return std::make_unique<Main<float, Mode::Normal, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::MutationInformed: {
+                    return std::make_unique<Main<float, Mode::Normal, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                }
+            }
         }
 
-        case DetailLevel::Fast: {
-            return std::make_unique<Main<float, DetailLevel::Fast>>(file, hdf5, mpi, params, stats);
+        case Mode::LowMem: {
+            switch (params.spread) {
+                case Spread::None: {
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::None>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::Uniform: {
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::MutationInformed: {
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                }
+            }
         }
 
-        case DetailLevel::VeryFast: {
-            return std::make_unique<Main<float, DetailLevel::VeryFast>>(file, hdf5, mpi, params, stats);
-        }
-
-        case DetailLevel::Joint: {
-            return std::make_unique<Main<float, DetailLevel::Joint>>(file, hdf5, mpi, params, stats);
+        case Mode::Joint: {
+            switch (params.spread) {
+                case Spread::None: {
+                    return std::make_unique<Main<float, Mode::Joint, Spread::None>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::Uniform: {
+                    return std::make_unique<Main<float, Mode::Joint, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                }
+                case Spread::MutationInformed: {
+                    return std::make_unique<Main<float, Mode::Joint, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                }
+            }
         }
 
     }
 
 }
+
+
+
+//
+// Stats
+//
+
+
 
 static inline double _percent(int64_t a, int64_t b) {
     double a_double = static_cast<double>(a);
@@ -832,13 +834,11 @@ static inline double _percent(int64_t a, int64_t b) {
 }
 
 static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t references) {
+
     Utils::Line _print_references("References");
     Utils::Line _print_aligned("Aligned reads");
     Utils::Line _print_unaligned("Unaligned reads");
 
-    Utils::cursor_down(1);
-    Utils::version();
-    Utils::divider();
     _print_references.print(references);
     _print_aligned.print(aligned);
     _print_unaligned.print(unaligned);
@@ -846,6 +846,7 @@ static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t ref
     Utils::cursor_down(3);
     Utils::cursor_down(2);
     Utils::cursor_up(2);
+
 }
 
 
@@ -898,4 +899,5 @@ void Stats::body() const {
 }
 
 
-}
+
+} // namespace cmuts
