@@ -178,12 +178,33 @@ void cursor_down(int num_lines) {
     }
 }
 
+std::string SPACE = " ";
+std::string DIV   = "─";
+
+static inline std::string __repeat(const std::string& str, size_t count) {
+
+    std::string result;
+    result.reserve(str.size() * count);
+    for (size_t ix = 0; ix < count; ++ix) { result += str; }
+    return result;
+
+}
+
+#ifdef MPI_BUILD
+const std::string PROGRAM = "cmuts MPI";
+#else
+const std::string PROGRAM = "cmuts";
+#endif
+
+const std::string VERSION = "1.0.0";
+
+
 void version() {
-    std::cout << "        cmuts version 1.0.0\n";
+    std::cout << __repeat(SPACE, 8) + PROGRAM + " version 1.0.0\n";
 }
 
 void divider() {
-    std::cout << "      ────────────────────────────────────\n";
+    std::cout << __repeat(SPACE, 6) + __repeat(DIV, 35) + "\n";
 }
 
 Line::Line(const std::string& text) : text(text) {}
