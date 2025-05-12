@@ -194,13 +194,6 @@ if __name__ == '__main__':
     if args.nomod_ds is None:
         args.nomod_ds = len(args.mod_ds) * [None]
 
-    BLANK_OUT5 = getattr(args, "5p_primer_length")
-    BLANK_OUT3 = -getattr(args, "3p_primer_length")
-    if (BLANK_OUT3 == 0):
-        UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
-    else:
-        UNBLANKED = slice(BLANK_OUT5)
-
     with h5py.File(args.file, 'r') as f:
 
         names = zip(
@@ -209,6 +202,10 @@ if __name__ == '__main__':
             args.out_groups
         )
         for mod_ds, nomod_ds, out_group in names:
+
+            BLANK_OUT5 = getattr(args, "5p_primer_length")
+            BLANK_OUT3 = f[mod_ds].shape[1] - getattr(args, "3p_primer_length")
+            UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
 
             mod_reactivity, mod_reads, mod_err = _process(f, mod_ds)
             reads = mod_reads
