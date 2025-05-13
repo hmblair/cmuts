@@ -78,7 +78,7 @@ profile() {
     total_time=0
     min_mem=""
 
-    for ((i=0; i<RUNS; i++)); do
+    for ((i=0; i<${RUNS}; i++)); do
 
         result=$(__time mpirun -np ${THREADS} cmuts \
             --fasta ${FASTA} \
@@ -116,7 +116,7 @@ profile() {
     total_time=0
     min_mem=""
 
-    for ((i=0; i<RUNS; i++)); do
+    for ((i=0; i<${RUNS}; i++)); do
 
         rm -rf ${RF_DIR}
         mkdir ${RF_DIR}
