@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -euo pipefail
+set -euo pipefail
 
 # Check if dependencies are installed
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
@@ -190,7 +190,6 @@ MIN_MAPQ=20
 MIN_PHRED=20
 WINDOW=2
 MIN_LENGTH=2
-MAX_LENGTH=$((2 * LENGTH))
 MAX_INDEL=100
 COLLAPSE=2
 
@@ -212,6 +211,7 @@ pushd ${CASES_DIR} > /dev/null
 if ${QUERIES_SET}; then
 
     LENGTH=200
+    MAX_LENGTH=$((2 * LENGTH))
     REFERENCES=1024
 
     echo ""
@@ -231,8 +231,8 @@ if ${QUERIES_SET}; then
         BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
-        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
+        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
 
         echo " ─────────────────────────────"
 
@@ -251,6 +251,7 @@ fi
 if ${REFERENCES_SET}; then
 
     LENGTH=200
+    MAX_LENGTH=$((2 * LENGTH))
     QUERIES=1024
 
     echo ""
@@ -270,8 +271,8 @@ if ${REFERENCES_SET}; then
         BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
-        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
+        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
 
         echo " ─────────────────────────────"
 
@@ -308,9 +309,10 @@ if ${LENGTHS_SET}; then
         SAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".sam"
         BAM="aln_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".bam"
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
+        MAX_LENGTH=$((2 * LENGTH))
 
-        generate ${REFERENCES} ${QUERIES} ${LENGTH} ${EXP_H5} ${MIN_MAPQ} ${MIN_PHRED} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${WINDOW} ${COLLAPSE} ${THREADS}
-        profile ${RUNS} ${FASTA} ${CMUTS_H5} ${MIN_MAPQ} ${MIN_PHRED} ${WINDOW} ${MIN_LENGTH} ${MAX_LENGTH} ${MAX_INDEL} ${BAM} ${RF_DIR} ${THREADS} ${LOWMEM}
+        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
 
         echo " ─────────────────────────────"
 
