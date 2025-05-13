@@ -10,7 +10,7 @@ __time() {
     if [[ $(uname) == Darwin ]]; then
         gtime -f "%E %M KB" "$@"
     else
-        /usr/bin/time -f "%E %M MB" "$@"
+        /usr/bin/time -f "%E %M KB" "$@"
     fi
 }
 
@@ -182,7 +182,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(pwd)
 CASES_DIR=${SCRIPT_DIR}"/.cases"
 mkdir -p ${CASES_DIR}
 

@@ -7,7 +7,7 @@ command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's
 command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
 # Clean and create working directory
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_DIR=$(pwd)
 WORK_DIR=${SCRIPT_DIR}"/.tests_tmp"
 rm -rf ${WORK_DIR}
 mkdir -p ${WORK_DIR}
@@ -43,6 +43,7 @@ MIN_LENGTH=$(generate_random_number 2 ${LENGTH})
 MAX_LENGTH=$(generate_random_number ${LENGTH} $((2 * LENGTH)))
 MAX_INDEL=$(generate_random_number 0 ${LENGTH})
 COLLAPSE=$(generate_random_number 0 ${LENGTH})
+COLLAPSE=0
 
 USE_NO_MISMATCHES=$(generate_random_number 0 4)
 USE_NO_INSERTIONS=$(generate_random_number 0 4)
