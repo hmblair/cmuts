@@ -72,6 +72,33 @@ void _add_arg<int>(
 }
 
 template<>
+void _add_arg<float>(
+    Parser& parser,
+    const std::string& short_name,
+    const std::string& long_name,
+    const std::string& help
+) {
+    parser.add_argument(short_name, long_name)
+        .required()
+        .scan<'g', float>()
+        .help(help);
+}
+
+template<>
+void _add_arg<float>(
+    Parser& parser,
+    const std::string& short_name,
+    const std::string& long_name,
+    const std::string& help,
+    float default_value
+) {
+    parser.add_argument(short_name, long_name)
+        .scan<'g', float>()
+        .default_value(default_value)
+        .help(help);
+}
+
+template<>
 void _add_arg<std::string>(
     Parser& parser,
     const std::string& short_name,
@@ -155,6 +182,7 @@ Arg<T>::operator T() const {
 }
 
 template class Arg<int>;
+template class Arg<float>;
 template class Arg<bool>;
 template class Arg<std::string>;
 template class Arg<std::vector<std::string>>;
