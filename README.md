@@ -56,7 +56,7 @@ Counting the modifications present in a single aligned HTS file can be achieved 
 ```
 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
-If build with MPI, invoke `mpirun -np THREADS` first to use multiple threads:
+If built with MPI, invoke `mpirun -np THREADS` first to use multiple threads:
 ```
 mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted.bam
 ```
@@ -103,6 +103,8 @@ The following lists all additional commands available:
 `--no-insertions`: Do not count insertions as modifications.
 
 `--no-deletions`: Do not count deletions as modifications.
+
+`--subsample`: Randomly accept each read with this probability, to simulate lower-read experiments. Default: 1.0
 
 
 ## Normalization
