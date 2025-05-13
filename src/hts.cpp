@@ -1,4 +1,5 @@
 #include "hts.hpp"
+#include <stdexcept>
 
 namespace HTS {
 
@@ -80,24 +81,31 @@ static inline base_t _to_int(char base) {
 static inline seq_t _to_int(
     const std::string& sequence
 ) {
-    int64_t length = sequence.length();
+
+    hts_pos_t length = sequence.length();
     seq_t result(length);
-    for (int64_t i = 0; i < length; i++) {
+
+    for (hts_pos_t i = 0; i < length; i++) {
         result[i] = _to_int(sequence[i]);
     }
+
     return result;
+
 }
 
 static inline void _to_int(
     const std::string& sequence,
     view_t<base_t, DS_DIMS> buffer
 ) {
-    for (int64_t i = 0; i < sequence.length(); i++) {
+
+    hts_pos_t length = sequence.length();
+    for (hts_pos_t i = 0; i < length; i++) {
         buffer(i) = _to_int(sequence[i]);
     }
+
 }
 
-static inline size_t _bytes_from_seq(size_t n) {
+static inline hts_pos_t _bytes_from_seq(size_t n) {
 
     return (n + 3) / 4;
 
@@ -162,11 +170,11 @@ void FASTA::write(const std::string& name, const std::string& sequence) {
 
 static inline std::vector<uint8_t> _to_binary(const std::string& sequence) {
 
-    size_t len = sequence.length();
-    size_t bytes = _bytes_from_seq(len);
+    hts_pos_t len = sequence.length();
+    hts_pos_t bytes = _bytes_from_seq(len);
     std::vector<uint8_t> binary(bytes);
 
-    for (size_t i = 0; i < len; i++) {
+    for (hts_pos_t i = 0; i < len; i++) {
 
         base_t nuc = _to_int(sequence[i]);
         if (nuc == IX_UNK) {
@@ -195,12 +203,13 @@ hts_pos_t _mod_round_up(hts_pos_t val, hts_pos_t div) {
 
 }
 
-static inline seq_t _from_binary(const std::vector<uint8_t>& binary, size_t length) {
+static inline seq_t _from_binary(const std::vector<uint8_t>& binary, hts_pos_t length) {
 
+    hts_pos_t bytes = binary.size();
     seq_t sequence(length);
 
     hts_pos_t ix, jx;
-    for (ix = 0; ix < binary.size() - 1; ix++) {
+    for (ix = 0; ix < bytes - 1; ix++) {
         for (jx = 0; jx < 4; jx++) {
             sequence[4 * ix + jx] = _from_binary(binary[ix], jx);
         }
@@ -329,7 +338,7 @@ static inline void _write_sequences(const std::string& fasta, const std::string&
 
 static inline seq_t _read_sequence(std::ifstream& file, size_t length, size_t offset) {
 
-    size_t bytes = _bytes_from_seq(length);
+    hts_pos_t bytes = _bytes_from_seq(length);
     std::vector<uint8_t> binary(bytes);
 
     file.seekg(offset);
@@ -351,14 +360,14 @@ static inline std::vector<HeaderUnit> _get_header(const std::string& name) {
     std::string sequence = _get_fasta_sequence(file);
     if (sequence.empty()) { return units; }
 
-    size_t length = sequence.length();
+    hts_pos_t length = sequence.length();
     unit.length = length;
     unit.sequences = 1;
 
     while (!sequence.empty()) {
 
         sequence = _get_fasta_sequence(file);
-        size_t length = sequence.length();
+        length = sequence.length();
         if (length == unit.length) {
             unit.sequences++;
         } else {
@@ -498,12 +507,12 @@ size_t BinaryFASTA::size() const {
 
 std::pair<size_t, size_t> BinaryFASTA::offset(hts_pos_t ix) const {
 
-    size_t val = 0;
-    size_t length;
+    hts_pos_t val = 0;
+    hts_pos_t length = -1;
     hts_pos_t count = 0;
     for (const auto& unit : units) {
 
-        size_t bytes = _bytes_from_seq(unit.length);
+        hts_pos_t bytes = _bytes_from_seq(unit.length);
 
         if (count + unit.sequences > ix) {
             val += static_cast<size_t>(ix - count) * bytes;
@@ -532,7 +541,8 @@ seq_t BinaryFASTA::operator[](hts_pos_t ix) {
 void BinaryFASTA::put(hts_pos_t ix, view_t<base_t, DS_DIMS> buffer) {
 
     seq_t _seq = operator[](ix);
-    for (hts_pos_t jx = 0; jx < _seq.size(); jx++) {
+    hts_pos_t _length = _seq.size();
+    for (hts_pos_t jx = 0; jx < _length; jx++) {
         buffer(jx) = _seq[jx];
     }
 
@@ -630,19 +640,19 @@ static inline bool _is_mod(CIGAR_t type) {
 }
 
 static inline bool _is_digit(const std::string& tag, hts_pos_t pos) {
-    return pos < tag.size() && std::isdigit(tag[pos]);
+    return pos < static_cast<hts_pos_t>(tag.size()) && std::isdigit(tag[pos]);
 }
 
 static inline bool _is_alpha(const std::string& tag, hts_pos_t pos) {
-    return pos < tag.size() && std::isalpha(tag[pos]);
+    return pos < static_cast<hts_pos_t>(tag.size()) && std::isalpha(tag[pos]);
 }
 
 static inline bool _is_deletion(const std::string& tag, hts_pos_t pos) {
-    return pos < tag.size() && tag[pos] == MD_DEL;
+    return pos < static_cast<hts_pos_t>(tag.size()) && tag[pos] == MD_DEL;
 }
 
 static inline bool _is_null(const std::string& tag, hts_pos_t pos) {
-    return pos < tag.size() && tag[pos] == MD_NULL;
+    return pos < static_cast<hts_pos_t>(tag.size()) && tag[pos] == MD_NULL;
 }
 
 static inline void _skip_null(const std::string& tag, hts_pos_t& pos) {
@@ -985,6 +995,26 @@ static inline void _close_aln(bam1_t*& _hts_aln) {
 
 }
 
+static inline hts_itr_t* _open_iter(hts_idx_t* _hts_index, hts_pos_t ix) {
+
+    hts_itr_t* _hts_iter = sam_itr_queryi(_hts_index, ix, 0, HTS_POS_MAX);
+    if (_hts_iter == nullptr) {
+        throw std::runtime_error("Failed to get the iterator for sequence " + std::to_string(ix) + ".");
+    }
+
+    return _hts_iter;
+
+}
+
+static inline void _close_iter(hts_itr_t*& _hts_iter) {
+
+    if (_hts_iter != nullptr) {
+        hts_itr_destroy(_hts_iter);
+        _hts_iter = nullptr;
+    }
+
+}
+
 static inline int64_t _sam_bam_aligned(hts_idx_t* _hts_index, hts_pos_t ix) {
 
     uint64_t mapped = 0, unmapped = 0;
@@ -1010,18 +1040,34 @@ static inline int64_t _sam_bam_aligned(hts_idx_t* _hts_index) {
 
 }
 
-static inline int64_t _cram_aligned(htsFile* _hts_file, bam_hdr_t* _hts_header) {
+static inline int64_t _cram_aligned(htsFile* _hts_file, hts_itr_t* _hts_iter, bam1_t* _hts_aln) {
 
-    bam1_t* _hts_aln = _open_aln();
     int64_t _reads = 0;
 
-    while (sam_read1(_hts_file, _hts_header, _hts_aln) > 0) {
-        if (_hts_aln->core.tid >= 0) {
-            _reads++;
-        }
+    while (sam_itr_next(_hts_file, _hts_iter, _hts_aln) >= 0) {
+        if (_hts_aln->core.tid >= 0) { _reads++; }
     }
 
     return _reads;
+
+}
+
+static inline int64_t _cram_aligned(htsFile* _hts_file, hts_idx_t* _hts_index) {
+
+    int64_t reads = 0;
+    hts_pos_t length = hts_idx_nseq(_hts_index);
+    bam1_t* _hts_aln = _open_aln();
+
+    for (hts_pos_t ix = 0; ix < length; ix++) {
+
+        hts_itr_t* _hts_iter = _open_iter(_hts_index, ix);
+        reads += _cram_aligned(_hts_file, _hts_iter, _hts_aln);
+        _close_iter(_hts_iter);
+
+    }
+
+    _close_aln(_hts_aln);
+    return reads;
 
 }
 
@@ -1037,26 +1083,6 @@ static inline void _set_reference(const File& file, const std::string& fasta) {
 
     if (hts_set_fai_filename(file.ptr(), fasta.c_str()) < 0) {
         throw std::runtime_error("Failed to attach the reference FASTA to the file \"" + file.name() + "\".");
-    }
-
-}
-
-static inline hts_itr_t* _open_iter(const File& file, hts_pos_t ix) {
-
-    hts_itr_t* _hts_iter = sam_itr_queryi(file.index(), ix, 0, HTS_POS_MAX);
-    if (_hts_iter == nullptr) {
-        throw std::runtime_error("Failed to get the iterator for sequence " + std::to_string(ix) + " in \"" + file.name() + "\".");
-    }
-
-    return _hts_iter;
-
-}
-
-static inline void _close_iter(hts_itr_t*& _hts_iter) {
-
-    if (_hts_iter != nullptr) {
-        hts_itr_destroy(_hts_iter);
-        _hts_iter = nullptr;
     }
 
 }
@@ -1705,7 +1731,6 @@ Alignment::~Alignment() {
 
     _close_aln(_hts_aln);
     _close_iter(_hts_iter);
-    // _close_file(_hts_file);
 
 }
 
@@ -1877,7 +1902,7 @@ htsFile* File::handle() const {
 
 hts_itr_t* File::iter(hts_pos_t ix) const {
 
-    return _open_iter(*this, ix);
+    return _open_iter(_hts_index, ix);
 
 }
 
@@ -1953,8 +1978,7 @@ int64_t File::reads(hts_pos_t ix) const {
 int64_t File::reads() const {
 
     if (type() == FileType::CRAM) {
-        throw std::runtime_error("Not implemented yet.");
-        // return _cram_aligned(_hts_file, _hts_header);
+        return _cram_aligned(_hts_file, _hts_index);
     } else {
         return _sam_bam_aligned(_hts_index);
     }
