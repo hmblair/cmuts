@@ -41,7 +41,7 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
         cmuts[..., 3, 3]
     )
     cmuts_cov = cmuts[..., :-1].sum((2, 3))
-    cmuts_muts = cmuts_cov - cmuts_matches
+    cmuts_muts = cmuts.sum((2, 3)) - cmuts_matches
 
     exp_matches = (
         exp[..., 0, 0] +
@@ -50,7 +50,7 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
         exp[..., 3, 3]
     )
     exp_cov = exp[..., :-1].sum((2, 3))
-    exp_muts = exp_cov - exp_matches
+    exp_muts = exp.sum((2, 3)) - exp_matches
 
     if (np.abs(diff_with_exp).sum() < TOLERANCE):
         if (exp_cov.sum() < TOLERANCE):
@@ -67,7 +67,7 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
         print(f"   EXP MUT:   {exp_muts.sum().item()}")
         print(f"   CMUTS COV: {cmuts_cov.sum().item()}")
         print(f"   CMUTS MUT: {cmuts_muts.sum().item()}")
-
+        print("   MUTATION TABLE:")
         print(diff_with_exp.sum((0, 1)))
         print()
         sys.exit(1)
