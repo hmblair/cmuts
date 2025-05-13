@@ -74,10 +74,24 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    // Open the reference FASTA
+    std::optional<HTS::BinaryFASTA> _fasta;
+    try {
+        _fasta.emplace(opt.fasta, mpi);
+    } catch (const std::exception& e) {
+        mpi.err() << "Error: " << e.what() << "\n";
+        __cleanup(mpi, opt);
+        return EXIT_FAILURE;
+    }
+    HTS::BinaryFASTA fasta = std::move(_fasta.value());
+
+    // Get the optimal chunksize given the number of processes
+    int64_t _chunksize = mpi.chunksize(opt.chunk_size, fasta.size());
+
     // Create the HDF5 file
     std::optional<HDF5::File> _hdf5;
     try {
-        _hdf5.emplace(opt.output, HDF5::RWC, mpi, opt.chunk_size, opt.compression);
+        _hdf5.emplace(opt.output, HDF5::RWC, mpi, _chunksize, opt.compression);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
@@ -90,17 +104,6 @@ int main(int argc, char** argv) {
         mpi.err() << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
-
-    // Open the reference FASTA
-    std::optional<HTS::BinaryFASTA> _fasta;
-    try {
-        _fasta.emplace(opt.fasta, mpi);
-    } catch (const std::exception& e) {
-        mpi.err() << "Error: " << e.what() << "\n";
-        __cleanup(mpi, opt);
-        return EXIT_FAILURE;
-    }
-    HTS::BinaryFASTA fasta = std::move(_fasta.value());
 
     size_t total = opt.files.value().size();
     if (total == 0) {
@@ -150,7 +153,8 @@ int main(int argc, char** argv) {
         opt.collapse,
         !opt.no_mismatch,
         !opt.no_insertion,
-        !opt.no_deletion
+        !opt.no_deletion,
+        opt.subsample
     };
 
     // Initialise the stats tracker, and print the header

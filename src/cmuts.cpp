@@ -569,13 +569,22 @@ static inline bool __check_quality(
     );
 }
 
-template <typename dtype, Mode mode, Spread spread>
+std::random_device rd;
+std::mt19937 gen(rd());
+std::uniform_real_distribution<> dis(0.0, 1.0);
+static inline float __sample() { return dis(gen); }
+
+template <typename dtype, Mode mode, Spread spread, bool subsample>
 static inline void __count_with_quality_check(
     const HTS::Alignment& aln,
     view_t<dtype, _ndims(mode)> arr,
     const Params& params,
     Stats& stats
 ) {
+
+    if constexpr (subsample) {
+        if (params.subsample < __sample()) { return; }
+    }
 
     if (!__check_quality(aln, params)) {
         stats.skipped();
@@ -586,7 +595,7 @@ static inline void __count_with_quality_check(
 
 }
 
-template <typename dtype, Mode mode, Spread spread>
+template <typename dtype, Mode mode, Spread spread, bool subsample>
 static inline void __count_reference(
     HTS::Alignment& aln,
     view_t<dtype, _ndims(mode)> arr,
@@ -596,7 +605,7 @@ static inline void __count_reference(
 
     while (aln.next()) {
 
-        __count_with_quality_check<dtype, mode, spread>(aln, arr, params, stats);
+        __count_with_quality_check<dtype, mode, spread, subsample>(aln, arr, params, stats);
 
         // Zero out the temp portion of the array
         if constexpr (mode == Mode::Joint) {
@@ -658,7 +667,11 @@ static inline void __fill_at_offset(
 ) {
 
     view_t<dtype, _ndims(mode)> arr = memspace.view(offset);
-    return __count_reference<dtype, mode, spread>(aln, arr, params, stats);
+    if (params.subsample < 1.0) {
+        return __count_reference<dtype, mode, spread, true>(aln, arr, params, stats);
+    } else {
+        return __count_reference<dtype, mode, spread, false>(aln, arr, params, stats);
+    }
 
 }
 

@@ -127,6 +127,7 @@ public:
     bool mismatches;
     bool insertions;
     bool deletions;
+    float subsample;
 
 };
 

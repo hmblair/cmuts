@@ -53,39 +53,34 @@ public:
     Arg<bool> no_insertion;
     Arg<bool> no_deletion;
     Arg<bool> tokenize;
+    Arg<float> subsample;
 
     cmutsProgram();
 
 };
 
-// Variables for "files" argument
 const std::string FILES_SHORT_NAME = "";
 const std::string FILES_LONG_NAME = "files";
 const std::string FILES_HELP = "The input SAM/BAM/CRAM files.";
 const std::vector<std::string> FILES_DEFAULT;
 
-// Variables for "-o", "--output" argument
 const std::string OUTPUT_SHORT_NAME = "-o";
 const std::string OUTPUT_LONG_NAME = "--output";
 const std::string OUTPUT_HELP = "The output HDF5 file.";
 
-// Variables for "-f", "--fasta" argument
 const std::string FASTA_SHORT_NAME = "-f";
 const std::string FASTA_LONG_NAME = "--fasta";
 const std::string FASTA_HELP = "The reference FASTA file.";
 
-// Variables for "--overwrite" argument
 const std::string OVERWRITE_SHORT_NAME = "";
 const std::string OVERWRITE_LONG_NAME = "--overwrite";
 const std::string OVERWRITE_HELP = "Overwrite an existing HDF5 file.";
 
-// Variables for "-c", "--compression" argument
 const std::string COMPRESSION_SHORT_NAME = "-c";
 const std::string COMPRESSION_LONG_NAME = "--compression";
 const int COMPRESSION_DEFAULT = 3;
 const std::string COMPRESSION_HELP = "Compression level of the HDF5 output (0-9).";
 
-// Variables for "--min-phred" argument
 const std::string MIN_PHRED_SHORT_NAME = "";
 const std::string MIN_PHRED_LONG_NAME = "--min-phred";
 const int MIN_PHRED_DEFAULT = 20;
@@ -96,31 +91,26 @@ const std::string MIN_MAPQ_LONG_NAME = "--min-mapq";
 const int MIN_MAPQ_DEFAULT = 20;
 const std::string MIN_MAPQ_HELP = "Mapping quality threshold for alignment processing.";
 
-// Variables for "--max-indel-length" argument
 const std::string MAX_INDEL_LENGTH_SHORT_NAME = "";
 const std::string MAX_INDEL_LENGTH_LONG_NAME = "--max-indel-length";
 const int MAX_INDEL_LENGTH_DEFAULT = 10;
 const std::string MAX_INDEL_LENGTH_HELP = "The longest indels to consider.";
 
-// Variables for "--chunk-size" argument
 const std::string CHUNK_SIZE_SHORT_NAME = "";
 const std::string CHUNK_SIZE_LONG_NAME = "--chunk-size";
 const int CHUNK_SIZE_DEFAULT = 128;
 const std::string CHUNK_SIZE_HELP = "The number of references to process at a time per thread.";
 
-// Variables for "--min-length" argument
 const std::string MIN_LENGTH_SHORT_NAME = "";
 const std::string MIN_LENGTH_LONG_NAME = "--min-length";
 const int MIN_LENGTH_DEFAULT = 2;
 const std::string MIN_LENGTH_HELP = "Minimum length for alignment processing.";
 
-// Variables for "--max-length" argument
 const std::string MAX_LENGTH_SHORT_NAME = "";
 const std::string MAX_LENGTH_LONG_NAME = "--max-length";
 const int MAX_LENGTH_DEFAULT = 10000;
 const std::string MAX_LENGTH_HELP = "Maximum length for alignment processing.";
 
-// Variables for "--joint" argument
 const std::string JOINT_SHORT_NAME = "";
 const std::string JOINT_LONG_NAME = "--joint";
 const std::string JOINT_HELP = "Compute the joint distribution of mutations.";
@@ -137,7 +127,6 @@ const std::string MUTATION_SPREAD_SHORT_NAME = "";
 const std::string MUTATION_SPREAD_LONG_NAME = "--mutation-spread";
 const std::string MUTATION_SPREAD_HELP = "Spread out ambiguous deletions according to the current mutation profile.";
 
-// Variables for "--quality-window" argument
 const std::string QUALITY_WINDOW_SHORT_NAME = "";
 const std::string QUALITY_WINDOW_LONG_NAME = "--quality-window";
 const int QUALITY_WINDOW_DEFAULT = 2;
@@ -164,6 +153,11 @@ const std::string TOKENIZE_SHORT_NAME = "";
 const std::string TOKENIZE_LONG_NAME = "--tokenize";
 const std::string TOKENIZE_HELP = "Tokenize the reference sequences.";
 
+const std::string SUBSAMPLE_SHORT_NAME = "";
+const std::string SUBSAMPLE_LONG_NAME = "--subsample";
+const float SUBSAMPLE_DEFAULT = 1.0;
+const std::string SUBSAMPLE_HELP = "Randomly choose to use a read with this probability.";
+
 cmutsProgram::cmutsProgram()
     : Program(PROGRAM, PROGRAM + " " + VERSION),
       files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
@@ -186,7 +180,8 @@ cmutsProgram::cmutsProgram()
       no_mismatch(_parser, NO_MISMATCH_SHORT_NAME, NO_MISMATCH_LONG_NAME, NO_MISMATCH_HELP),
       no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP),
       no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
-      tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP)
+      tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
+      subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT)
 {}
 
 
