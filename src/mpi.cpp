@@ -234,6 +234,12 @@ void Manager::divide() const {
 
 }
 
+int64_t Manager::chunksize(int64_t curr_size, int64_t total) const {
+
+    return std::min(curr_size, total / _size);
+
+}
+
 Chunk Manager::chunk(int64_t _size, int64_t _total) const {
 
     Chunk chunk;

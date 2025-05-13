@@ -86,6 +86,7 @@ public:
     void up(int lines = 1) const;
     void down(int lines = 1) const;
     void divide() const;
+    int64_t chunksize(int64_t size, int64_t total) const;
 
     class OutStream {
     public:
