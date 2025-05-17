@@ -8,6 +8,7 @@
 #include <fstream>
 #include <unordered_set>
 #include <span>
+#include <filesystem>
 extern "C" {
     #include <htslib/sam.h>
     #include <htslib/hts.h>
