@@ -5,18 +5,22 @@ namespace cmuts {
 
 
 
+
+
 //
 // Helpers for joint
 //
 
 
 
+
+
 template <typename dtype, bool match>
-static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, hts_pos_t ix, dtype mask) {
+static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int64_t ix, dtype mask) {
 
     if constexpr (match) {
 
-        for (hts_pos_t jx = 0; jx < ix; jx++) {
+        for (int64_t jx = 0; jx < ix; jx++) {
 
             dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
@@ -33,7 +37,7 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, hts_pos_t ix,
 
     } else {
 
-        for (hts_pos_t jx = 0; jx < ix; jx++) {
+        for (int64_t jx = 0; jx < ix; jx++) {
 
             dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
@@ -60,14 +64,14 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, hts_pos_t ix,
 
 
 
-static inline hts_pos_t _first_match(
+static inline int64_t _first_match(
     base_t base,
     const seq_t& seq,
-    hts_pos_t M,
-    hts_pos_t N
+    int64_t M,
+    int64_t N
 ) {
 
-    for (hts_pos_t i = M; i <= N; i++) {
+    for (int64_t i = M; i <= N; i++) {
 
         if (seq[i] == base) { return i+1; }
 
@@ -77,13 +81,13 @@ static inline hts_pos_t _first_match(
 
 }
 
-static inline hts_pos_t _get_ambiguous_end(
-    hts_pos_t start,
-    hts_pos_t end,
+static inline int64_t _get_ambiguous_end(
+    int64_t start,
+    int64_t end,
     const seq_t& sequence
 ) {
 
-    hts_pos_t size = sequence.size();
+    int64_t size = sequence.size();
     if (end >= size) {
         return size;
     }
@@ -106,7 +110,7 @@ static inline hts_pos_t _get_ambiguous_end(
     // ever reaches the end of the reference sequence, we
     // must terminate.
 
-    hts_pos_t M = start, N = end;
+    int64_t M = start, N = end;
 
     while (M != -1 && N != size) {
         M = _first_match(sequence[N + 1], sequence, M, N);
@@ -129,7 +133,7 @@ static inline hts_pos_t _get_ambiguous_end(
 template <typename dtype, Mode mode>
 static inline dtype _total_muts(
     view_t<dtype, _ndims(mode)> arr,
-    hts_pos_t ix
+    int64_t ix
 ) {
 
     if constexpr (mode == Mode::Normal) {
@@ -185,13 +189,13 @@ static inline void _normalize(std::vector<dtype>& arr) {
 
 template <typename dtype, Mode mode, Spread spread>
 static inline std::vector<dtype> _spread_weights(
-    hts_pos_t start,
-    hts_pos_t end,
+    int64_t start,
+    int64_t end,
     view_t<dtype, _ndims(mode)> arr,
     dtype mask
 ) {
 
-    hts_pos_t length = end - start;
+    int64_t length = end - start;
     std::vector<dtype> weights(length, 0);
 
     if constexpr (spread == Spread::None) {
@@ -202,7 +206,7 @@ static inline std::vector<dtype> _spread_weights(
 
     if constexpr (spread == Spread::Uniform) {
 
-        for (hts_pos_t ix = start; ix < end; ix++) {
+        for (int64_t ix = start; ix < end; ix++) {
             weights[ix - start] = _total_muts<dtype, mode>(arr, ix) * mask;
         }
 
@@ -212,12 +216,11 @@ static inline std::vector<dtype> _spread_weights(
 
     if constexpr (spread == Spread::Uniform) {
 
-        for (hts_pos_t ix = start; ix < end; ix++) {
+        for (int64_t ix = start; ix < end; ix++) {
             weights[ix - start] = mask / length;
         }
 
     }
-
 
     return weights;
 
@@ -234,7 +237,7 @@ static inline std::vector<dtype> _spread_weights(
 template <typename dtype, Mode mode>
 static inline void __match_core(
     view_t<dtype, _ndims(mode)> arr,
-    hts_pos_t rpos,
+    int64_t rpos,
     base_t rbase,
     dtype mask
 ) {
@@ -243,10 +246,12 @@ static inline void __match_core(
     if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, rbase) += mask;
     }
+
     // Count the base position
     if constexpr (mode == Mode::LowMem) {
         arr(rpos, 1) += mask;
     }
+
     // Invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         __joint<dtype, true>(arr, rpos, mask);
@@ -257,7 +262,7 @@ static inline void __match_core(
 template <typename dtype, Mode mode>
 static inline void __mismatch_core(
     view_t<dtype, _ndims(mode)> arr,
-    hts_pos_t rpos,
+    int64_t rpos,
     base_t qbase,
     base_t rbase,
     dtype mask
@@ -267,11 +272,13 @@ static inline void __mismatch_core(
     if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, qbase) += mask;
     }
+
     // Record the position and an associated match
     if constexpr (mode == Mode::LowMem) {
         arr(rpos, 0) += mask;
         arr(rpos, 1) += mask;
     }
+
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         arr.periodic(rpos, -1, 0, 0) += mask;
@@ -283,7 +290,7 @@ static inline void __mismatch_core(
 template <typename dtype, Mode mode>
 static inline void __ins_core(
     view_t<dtype, _ndims(mode)> arr,
-    hts_pos_t rpos,
+    int64_t rpos,
     base_t qbase,
     dtype mask
 ) {
@@ -292,10 +299,12 @@ static inline void __ins_core(
     if constexpr (mode == Mode::Normal) {
         arr(rpos, qbase, IX_INS) += mask;
     }
+
     // Record the position; no associated match
     if constexpr (mode == Mode::LowMem) {
         arr(rpos, 0) += mask;
     }
+
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         arr.periodic(rpos, -1, 0) += mask;
@@ -307,7 +316,7 @@ static inline void __ins_core(
 template <typename dtype, Mode mode>
 static inline void __del_core(
     view_t<dtype, _ndims(mode)> arr,
-    hts_pos_t rpos,
+    int64_t rpos,
     base_t rbase,
     dtype mask
 ) {
@@ -316,11 +325,13 @@ static inline void __del_core(
     if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, IX_DEL) += mask;
     }
+
     // Record the position and an associated match
     if constexpr (mode == Mode::LowMem) {
         arr(rpos, 0) += mask;
         arr(rpos, 1) += mask;
     }
+
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         arr.periodic(rpos, -1, 0, 0) += mask;
@@ -337,10 +348,11 @@ template <
 >
 static inline void __match(
     view_t<dtype, _ndims(mode)> arr,
-    HTS::CIGAR_op& op,
-    hts_pos_t& rpos,
-    hts_pos_t& qpos,
-    const HTS::Alignment& aln,
+    TinyHTS::CIGAR_op& op,
+    int64_t& rpos,
+    int64_t& qpos,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     const std::vector<dtype>& mask
 ) {
 
@@ -348,7 +360,7 @@ static inline void __match(
 
         if constexpr (CONSUMES_RPOS) { rpos--; }
         if constexpr (CONSUMES_QPOS) { qpos--; }
-        base_t rbase = aln.rbase(rpos);
+        base_t rbase = reference[rpos];
 
         __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
 
@@ -359,11 +371,12 @@ static inline void __match(
 template <typename dtype, Mode mode>
 static inline void __mismatch(
     view_t<dtype, _ndims(mode)> arr,
-    HTS::CIGAR_op& op,
-    hts_pos_t& rpos,
-    hts_pos_t& qpos,
-    hts_pos_t& last,
-    const HTS::Alignment& aln,
+    TinyHTS::CIGAR_op& op,
+    int64_t& rpos,
+    int64_t& qpos,
+    int64_t& last,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     const std::vector<dtype>& mask,
     const Params& params
 ) {
@@ -371,8 +384,8 @@ static inline void __mismatch(
     rpos--;
     qpos--;
     op.advance();
-    base_t rbase = aln.rbase(rpos);
-    base_t qbase = aln.qbase(qpos);
+    base_t rbase = reference[rpos];
+    base_t qbase = aln.base(qpos);
 
     if (params.mismatches && last - rpos >= params.collapse && qbase != IX_UNK) {
         __mismatch_core<dtype, mode>(arr, rpos, qbase, rbase, mask[qpos]);
@@ -381,29 +394,30 @@ static inline void __mismatch(
         __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
     }
 
-    __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, mask);
+    __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, reference, mask);
 
 }
 
 template <typename dtype, Mode mode>
 static inline void __ins(
     view_t<dtype, _ndims(mode)> arr,
-    HTS::CIGAR_op& op,
-    hts_pos_t& rpos,
-    hts_pos_t& qpos,
-    hts_pos_t& last,
-    const HTS::Alignment& aln,
+    TinyHTS::CIGAR_op& op,
+    int64_t& rpos,
+    int64_t& qpos,
+    int64_t& last,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     const std::vector<dtype>& mask,
     const Params& params
 ) {
 
-    if (rpos >= aln.rlength()) {
+    if (rpos >= reference.size()) {
         qpos -= op.length();
         return;
     }
 
     qpos--;
-    base_t qbase = aln.qbase(qpos);
+    base_t qbase = aln.base(qpos);
     if (params.insertions && last - rpos >= params.collapse && qbase != IX_UNK) {
         __ins_core<dtype, mode>(arr, rpos, qbase, mask[qpos]);
         last = rpos;
@@ -416,11 +430,12 @@ static inline void __ins(
 template <typename dtype, Mode mode, Spread spread>
 static inline void __del(
     view_t<dtype, _ndims(mode)> arr,
-    HTS::CIGAR_op& op,
-    hts_pos_t& rpos,
-    hts_pos_t& qpos,
-    hts_pos_t& last,
-    const HTS::Alignment& aln,
+    TinyHTS::CIGAR_op& op,
+    int64_t& rpos,
+    int64_t& qpos,
+    int64_t& last,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     const std::vector<dtype>& mask,
     const Params& params
 ) {
@@ -428,18 +443,18 @@ static inline void __del(
     rpos--;
     op.advance();
 
-    hts_pos_t start     = rpos - op.length() + 1;
-    hts_pos_t end       = rpos;
-    hts_pos_t ambig_end = _get_ambiguous_end(start, end, aln.reference());
+    int64_t start     = rpos - op.length() + 1;
+    int64_t end       = rpos;
+    int64_t ambig_end = _get_ambiguous_end(start, end, reference);
 
     // TODO: remove this and fix
     ambig_end = end + 1;
 
     std::vector<dtype> weights = _spread_weights<dtype, mode, spread>(end, ambig_end, arr, mask[qpos]);
 
-    for (hts_pos_t ix = ambig_end - 1; ix >= end; ix--) {
+    for (int64_t ix = ambig_end - 1; ix >= end; ix--) {
 
-        base_t rbase = aln.rbase(ix);
+        base_t rbase = reference[ix];
         if (params.deletions && last - ix >= params.collapse) {
             __del_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
             last = ix;
@@ -449,23 +464,24 @@ static inline void __del(
 
     }
 
-    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, mask);
+    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, reference, mask);
 
 }
 
 template <typename dtype, Mode mode, Spread spread>
 static inline void __count(
-    const HTS::Alignment& aln,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     view_t<dtype, _ndims(mode)> arr,
     const Params& params
 ) {
 
     // Matches, mismatches, etc.
-    HTS::CIGAR cigar = aln.cigar();
+    TinyHTS::CIGAR cigar = aln.cigar();
     // Initial reference and query positions
-    hts_pos_t rpos = aln.offset() + cigar.rlength(), qpos = aln.qlength();
+    int64_t rpos = aln.offset() + cigar.rlength(), qpos = aln.length();
     // Position of the most recent (3'-wise) mutation
-    hts_pos_t last = rpos + params.collapse;
+    int64_t last = rpos + params.collapse;
     // PHRED quality mask
     std::vector<dtype> mask = aln.mask<dtype>(params.min_phred, params.quality_window);
 
@@ -475,77 +491,77 @@ static inline void __count(
 
         switch (op.type()) {
 
-            case HTS::CIGAR_t::MATCH: {
+            case TinyHTS::CIGAR_t::MATCH: {
 
-                __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, mask);
+                __match<dtype, mode, true, true>(arr, op, rpos, qpos, aln, reference, mask);
                 break;
 
             }
 
-            case HTS::CIGAR_t::MISMATCH: {
+            case TinyHTS::CIGAR_t::MISMATCH: {
 
-                __mismatch<dtype, mode>(arr, op, rpos, qpos, last, aln, mask, params);
+                __mismatch<dtype, mode>(arr, op, rpos, qpos, last, aln, reference, mask, params);
                 break;
 
             }
 
-            case HTS::CIGAR_t::DEL: {
+            case TinyHTS::CIGAR_t::DEL: {
 
                 if (op.length() > params.max_indel_length) {
-                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, mask);
+                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, aln, reference, mask);
                     break;
                 }
 
-                __del<dtype, mode, spread>(arr, op, rpos, qpos, last, aln, mask, params);
+                __del<dtype, mode, spread>(arr, op, rpos, qpos, last, aln, reference, mask, params);
                 break;
 
             }
 
-            case HTS::CIGAR_t::INS: {
+            case TinyHTS::CIGAR_t::INS: {
 
                 if (op.length() > params.max_indel_length) {
                     qpos -= op.length();
                     break;
                 }
 
-                __ins<dtype, mode>(arr, op, rpos, qpos, last, aln, mask, params);
+                __ins<dtype, mode>(arr, op, rpos, qpos, last, aln, reference, mask, params);
                 break;
 
             }
 
-            case HTS::CIGAR_t::SOFT: {
+            case TinyHTS::CIGAR_t::SOFT: {
 
                 qpos -= op.length();
                 break;
 
             }
 
-            case HTS::CIGAR_t::HARD: {
+            case TinyHTS::CIGAR_t::HARD: {
 
                 break;
 
             }
 
-            case HTS::CIGAR_t::SKIP: {
+            case TinyHTS::CIGAR_t::SKIP: {
 
                 rpos -= op.length();
                 break;
 
             }
 
-            case HTS::CIGAR_t::PAD: {
+            case TinyHTS::CIGAR_t::PAD: {
 
                 break;
 
             }
 
-            case HTS::CIGAR_t::BACK: {
+            case TinyHTS::CIGAR_t::BACK: {
 
                 break;
 
             }
 
-            case HTS::CIGAR_t::UNKNOWN: {
+            case TinyHTS::CIGAR_t::UNKNOWN: {
 
                 throw std::runtime_error("Unknown CIGAR operation encountered at reference position " + std::to_string(rpos) + ".");
 
@@ -558,14 +574,14 @@ static inline void __count(
 }
 
 static inline bool __check_quality(
-    const HTS::Alignment& aln,
+    const TinyHTS::Alignment& aln,
     const Params& params
 ) {
     return (
         aln.aligned() &&
         aln.mapq()    >= params.min_mapq   &&
-        aln.qlength() >= params.min_length &&
-        aln.qlength() <=  params.max_length
+        aln.length() >= params.min_length &&
+        aln.length() <=  params.max_length
     );
 }
 
@@ -576,7 +592,8 @@ static inline float __sample() { return dis(gen); }
 
 template <typename dtype, Mode mode, Spread spread, bool subsample>
 static inline void __count_with_quality_check(
-    const HTS::Alignment& aln,
+    const TinyHTS::Alignment& aln,
+    const seq_t& reference,
     view_t<dtype, _ndims(mode)> arr,
     const Params& params,
     Stats& stats
@@ -589,7 +606,7 @@ static inline void __count_with_quality_check(
     if (!__check_quality(aln, params)) {
         stats.skipped();
     } else {
-        __count<dtype, mode, spread>(aln, arr, params);
+        __count<dtype, mode, spread>(aln, reference, arr, params);
         stats.processed();
     }
 
@@ -597,7 +614,8 @@ static inline void __count_with_quality_check(
 
 template <typename dtype, Mode mode, Spread spread, bool subsample>
 static inline void __count_reference(
-    HTS::Alignment& aln,
+    TinyHTS::Alignment& aln,
+    const seq_t& reference,
     view_t<dtype, _ndims(mode)> arr,
     const Params& params,
     Stats& stats
@@ -605,7 +623,7 @@ static inline void __count_reference(
 
     while (aln.next()) {
 
-        __count_with_quality_check<dtype, mode, spread, subsample>(aln, arr, params, stats);
+        __count_with_quality_check<dtype, mode, spread, subsample>(aln, reference, arr, params, stats);
 
         // Zero out the temp portion of the array
         if constexpr (mode == Mode::Joint) {
@@ -624,42 +642,62 @@ static inline void __count_reference(
 
 
 
-static inline std::vector<size_t> __dims(const HTS::File& file, Mode mode) {
+static inline std::vector<size_t> __dims(const TinyHTS::FASTA& fasta, Mode mode) {
 
-    size_t size   = file.size();
-    size_t length = file.max_length();
+    size_t size   = fasta.size();
+    size_t length = fasta.longest();
 
     switch (mode) {
+
         case Mode::Normal: {
             return {size, length, N_BASES, N_DELBASES};
         }
+
         case Mode::LowMem: {
             return {size, length, 2};
         }
+
         case Mode::Joint: {
             return {size, length, length + 1, 2, 2};
         }
+
+        case Mode::Tokenize: {
+            return {size, length};
+        }
+
     }
 
 }
 
+
+static inline std::string _path(const std::string& name) {
+
+    std::filesystem::path path(name);
+    std::string stem = path.stem().string();
+    std::string parent = path.parent_path().string();
+    if (parent.empty()) { return stem; }
+    return parent + "/" + stem;
+
+}
+
+
 template<typename dtype, size_t N>
 static inline HDF5::Memspace<dtype, N> __memspace(
-    HTS::File& htsfile,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
+    const std::string& name,
     Mode mode
 ) {
 
-    std::string name = htsfile.path();
-    std::vector<size_t> dims = __dims(htsfile, mode);
-
+    std::vector<size_t> dims = __dims(fasta, mode);
     return hdf5.memspace<dtype, N>(dims, name);
 
 }
 
 template <typename dtype, Mode mode, Spread spread>
 static inline void __fill_at_offset(
-    HTS::Alignment& aln,
+    TinyHTS::Alignment& aln,
+    const seq_t& reference,
     HDF5::Memspace<dtype, _ndims(mode)>& memspace,
     const Params& params,
     Stats& stats,
@@ -668,16 +706,17 @@ static inline void __fill_at_offset(
 
     view_t<dtype, _ndims(mode)> arr = memspace.view(offset);
     if (params.subsample < 1.0) {
-        return __count_reference<dtype, mode, spread, true>(aln, arr, params, stats);
+        return __count_reference<dtype, mode, spread, true>(aln, reference, arr, params, stats);
     } else {
-        return __count_reference<dtype, mode, spread, false>(aln, arr, params, stats);
+        return __count_reference<dtype, mode, spread, false>(aln, reference, arr, params, stats);
     }
 
 }
 
 template <typename dtype, Mode mode, Spread spread>
 static inline void __process(
-    HTS::File& file,
+    TinyHTS::File& file,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
     const Params& params,
     Stats& stats,
@@ -691,9 +730,14 @@ static inline void __process(
     );
 
     for (int64_t ix = min; ix < max; ix++) {
-        HTS::Alignment aln = file.alignment(ix);
+
+        bool seek = (ix % hdf5.chunk_size() == 0);
+        TinyHTS::Alignment aln = file.alignment(ix, seek);
+        seq_t reference = fasta.sequence(ix);
+
         int64_t offset = ix - min;
-        __fill_at_offset<dtype, mode, spread>(aln, memspace, params, stats, offset);
+        __fill_at_offset<dtype, mode, spread>(aln, reference, memspace, params, stats, offset);
+
     }
 
     memspace.safe_write(min);
@@ -702,21 +746,23 @@ static inline void __process(
 }
 
 __Main::__Main(
-    HTS::File& file,
+    TinyHTS::File& file,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
     Stats& stats
-) : file(file), hdf5(hdf5), mpi(mpi), params(params), chunk(mpi.chunk(hdf5.chunk_size(), file.size())), stats(stats) { };
+) : file(file), fasta(fasta), hdf5(hdf5), mpi(mpi), params(params), chunk(mpi.chunk(hdf5.chunk_size(), file.size())), stats(stats) { };
 
 template <typename dtype, Mode mode, Spread spread>
 Main<dtype, mode, spread>::Main(
-    HTS::File& file,
+    TinyHTS::File& file,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
     Stats& stats
-) : __Main(file, hdf5, mpi, params, stats), memspace(__memspace<dtype, _ndims(mode)>(file, hdf5, mode)) {}
+) : __Main(file, fasta, hdf5, mpi, params, stats), memspace(__memspace<dtype, _ndims(mode)>(fasta, hdf5, _path(file.name()), mode)) {}
 
 template <typename dtype, Mode mode, Spread spread>
 void Main<dtype, mode, spread>::run() {
@@ -727,6 +773,7 @@ void Main<dtype, mode, spread>::run() {
 
         __process<dtype, mode, spread>(
             file,
+            fasta,
             hdf5,
             params,
             stats,
@@ -777,7 +824,8 @@ Spread spread(bool uniform, bool mutation_informed) {
 }
 
 std::unique_ptr<__Main> get_main(
-    HTS::File& file,
+    TinyHTS::File& file,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
@@ -789,13 +837,13 @@ std::unique_ptr<__Main> get_main(
         case Mode::Normal: {
             switch (params.spread) {
                 case Spread::None: {
-                    return std::make_unique<Main<float, Mode::Normal, Spread::None>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Normal, Spread::None>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::Uniform: {
-                    return std::make_unique<Main<float, Mode::Normal, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Normal, Spread::Uniform>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::MutationInformed: {
-                    return std::make_unique<Main<float, Mode::Normal, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Normal, Spread::MutationInformed>>(file, fasta, hdf5, mpi, params, stats);
                 }
             }
         }
@@ -803,13 +851,13 @@ std::unique_ptr<__Main> get_main(
         case Mode::LowMem: {
             switch (params.spread) {
                 case Spread::None: {
-                    return std::make_unique<Main<float, Mode::LowMem, Spread::None>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::None>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::Uniform: {
-                    return std::make_unique<Main<float, Mode::LowMem, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::Uniform>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::MutationInformed: {
-                    return std::make_unique<Main<float, Mode::LowMem, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::LowMem, Spread::MutationInformed>>(file, fasta, hdf5, mpi, params, stats);
                 }
             }
         }
@@ -817,13 +865,13 @@ std::unique_ptr<__Main> get_main(
         case Mode::Joint: {
             switch (params.spread) {
                 case Spread::None: {
-                    return std::make_unique<Main<float, Mode::Joint, Spread::None>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Joint, Spread::None>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::Uniform: {
-                    return std::make_unique<Main<float, Mode::Joint, Spread::Uniform>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Joint, Spread::Uniform>>(file, fasta, hdf5, mpi, params, stats);
                 }
                 case Spread::MutationInformed: {
-                    return std::make_unique<Main<float, Mode::Joint, Spread::MutationInformed>>(file, hdf5, mpi, params, stats);
+                    return std::make_unique<Main<float, Mode::Joint, Spread::MutationInformed>>(file, fasta, hdf5, mpi, params, stats);
                 }
             }
         }
@@ -834,9 +882,13 @@ std::unique_ptr<__Main> get_main(
 
 
 
+
+
 //
 // Stats
 //
+
+
 
 
 
@@ -864,9 +916,13 @@ static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t ref
 
 
 
+
+
 //
 // Stats
 //
+
+
 
 
 

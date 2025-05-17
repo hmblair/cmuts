@@ -80,78 +80,78 @@ static inline uint8_t _random_phred_quality(std::mt19937& gen) {
 
 }
 
-static inline HTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
+static inline TinyHTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
 
     std::vector<uint8_t> _phred(count);
     for (auto& val : _phred) {
         val = _random_phred_quality(gen);
     }
 
-    HTS::PHRED phred(_phred);
+    TinyHTS::PHRED phred(_phred);
     return phred;
 
 }
 
-static inline HTS::CIGAR_op _random_cigar_op(
+static inline TinyHTS::CIGAR_op _random_cigar_op(
     std::mt19937& gen,
     hts_pos_t match,
     hts_pos_t ins,
     hts_pos_t del,
-    HTS::CIGAR_t prev
+    TinyHTS::CIGAR_t prev
 ) {
 
-    HTS::CIGAR_t type;
+    TinyHTS::CIGAR_t type;
     hts_pos_t length;
 
     if (match == 0) {
         if (ins == 0) {
-            return HTS::CIGAR_op(HTS::CIGAR_t::DEL, del);
+            return TinyHTS::CIGAR_op(TinyHTS::CIGAR_t::DEL, del);
         }
         if (del == 0) {
-            return HTS::CIGAR_op(HTS::CIGAR_t::INS, ins);
+            return TinyHTS::CIGAR_op(TinyHTS::CIGAR_t::INS, ins);
         }
     }
 
-    std::vector<HTS::CIGAR_t> samples;
+    std::vector<TinyHTS::CIGAR_t> samples;
     if (match > 0) {
-        if (prev != HTS::CIGAR_t::MATCH) {
-            samples.push_back(HTS::CIGAR_t::MATCH);
+        if (prev != TinyHTS::CIGAR_t::MATCH) {
+            samples.push_back(TinyHTS::CIGAR_t::MATCH);
         }
-        if (prev != HTS::CIGAR_t::MISMATCH) {
-            samples.push_back(HTS::CIGAR_t::MISMATCH);
+        if (prev != TinyHTS::CIGAR_t::MISMATCH) {
+            samples.push_back(TinyHTS::CIGAR_t::MISMATCH);
         }
     }
     if (ins > 0) {
-        if (prev != HTS::CIGAR_t::INS) {
-            samples.push_back(HTS::CIGAR_t::INS);
+        if (prev != TinyHTS::CIGAR_t::INS) {
+            samples.push_back(TinyHTS::CIGAR_t::INS);
         }
     }
     if (del > 0) {
-        if (prev != HTS::CIGAR_t::DEL) {
-            samples.push_back(HTS::CIGAR_t::DEL);
+        if (prev != TinyHTS::CIGAR_t::DEL) {
+            samples.push_back(TinyHTS::CIGAR_t::DEL);
         }
     }
 
-    type = _sample_from_vector<HTS::CIGAR_t>(gen, samples);
+    type = _sample_from_vector<TinyHTS::CIGAR_t>(gen, samples);
 
     switch (type) {
 
-        case HTS::CIGAR_t::MATCH:
-        case HTS::CIGAR_t::MISMATCH: {
+        case TinyHTS::CIGAR_t::MATCH:
+        case TinyHTS::CIGAR_t::MISMATCH: {
 
             length = _random_length(gen, match);
             break;
 
         }
 
-        case HTS::CIGAR_t::INS:      {
+        case TinyHTS::CIGAR_t::INS:      {
 
             length = _random_length(gen, ins);
             break;
 
         }
 
-        case HTS::CIGAR_t::DEL:      {
+        case TinyHTS::CIGAR_t::DEL:      {
 
             length = _random_length(gen, del);
             break;
@@ -166,7 +166,7 @@ static inline HTS::CIGAR_op _random_cigar_op(
 
     }
 
-    return HTS::CIGAR_op(type, length);
+    return TinyHTS::CIGAR_op(type, length);
 
 }
 
@@ -191,8 +191,8 @@ public:
 
     const seq_t& reference;
     seq_t query;
-    HTS::CIGAR cigar;
-    HTS::PHRED phred;
+    TinyHTS::CIGAR cigar;
+    TinyHTS::PHRED phred;
     int mapq;
     hts_pos_t pos;
 
@@ -304,12 +304,12 @@ public:
 
     void extend() {
 
-        HTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
+        TinyHTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
         cigar.extend(op);
 
         switch (op.type()) {
 
-            case HTS::CIGAR_t::MATCH: {
+            case TinyHTS::CIGAR_t::MATCH: {
 
                 while (op.advance()) { match(); }
 
@@ -318,7 +318,7 @@ public:
 
             }
 
-            case HTS::CIGAR_t::MISMATCH: {
+            case TinyHTS::CIGAR_t::MISMATCH: {
 
                 mismatch();
                 op.advance();
@@ -329,7 +329,7 @@ public:
 
             }
 
-            case HTS::CIGAR_t::DEL: {
+            case TinyHTS::CIGAR_t::DEL: {
 
                 if (op.length() <= params.max_indel_length) {
                     del();
@@ -342,7 +342,7 @@ public:
 
             }
 
-            case HTS::CIGAR_t::INS: {
+            case TinyHTS::CIGAR_t::INS: {
 
                 if (op.length() <= params.max_indel_length && _rpos < reference.size()) {
                     ins();
@@ -374,7 +374,7 @@ public:
         std::string read_name = "read";
 
         std::stringstream ss;
-        ss << read_name << "\t" << flag << "\t" << ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << HTS::_to_str(query) << "\t" << phred.str();
+        ss << read_name << "\t" << flag << "\t" << ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << TinyHTS::_to_str(query) << "\t" << phred.str();
 
         return ss.str();
 
@@ -462,7 +462,7 @@ void __run_tests(
     std::ofstream sam(out_sam);
     _write_header(references, length, sam);
 
-    HTS::FASTA fasta(out_fasta);
+    OldSchool::FASTA fasta(out_fasta);
 
     std::vector<size_t> dims = {references, static_cast<size_t>(length), 4, 6};
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(out_sam));
@@ -472,7 +472,7 @@ void __run_tests(
 
         seq_t reference = _random_sequence(length, gen);
         std::string name = "ref" + std::to_string(ix);
-        fasta.write(name, HTS::_to_str(reference));
+        fasta.write(name, TinyHTS::_to_str(reference));
 
         view_t<float, 4> arr = memspace.view(ix);
         std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
@@ -495,7 +495,7 @@ int main(int argc, char** argv) {
     HDF5::Manager _hdf5_manager;
     // Disable native HTS logging as it does not work well in the
     // multi-threaded environment
-    HTS::__disable_logging();
+    TinyHTS::__disable_logging();
 
     // Parse command line arguments
     testsProgram opt;

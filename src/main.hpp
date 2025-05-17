@@ -3,7 +3,7 @@
 
 #include "cmuts.hpp"
 #include "hdf5.hpp"
-#include "hts.hpp"
+#include "tiny.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
 #include <cstdlib>

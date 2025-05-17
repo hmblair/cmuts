@@ -55,7 +55,7 @@ FetchContent_MakeAvailable_If_Not_Already_Present(xtensor)
 # Create a static library for shared files
 add_library(cmuts_shared
     src/cmuts.cpp
-    src/hts.cpp
+    src/tiny.cpp
     src/mpi.cpp
     src/hdf5.cpp
     src/utils.cpp

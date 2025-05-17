@@ -1,7 +1,7 @@
 #ifndef TESTS_HEADER
 #define TESTS_HEADER
 
-#include "hts.hpp"
+#include "tiny.hpp"
 #include "cmuts.hpp"
 #include "utils.hpp"
 #include "hdf5.hpp"

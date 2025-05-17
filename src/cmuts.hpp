@@ -1,11 +1,11 @@
 #ifndef CMUTS_HEADER
 #define CMUTS_HEADER
 
-#include "hts.hpp"
+#include "tiny.hpp"
 #include "hdf5.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
-#include <functional>
+#include <random>
 
 const int64_t N_BASES    = 4;
 const int64_t N_DELBASES = 6;
@@ -14,7 +14,7 @@ const std::string MODIFICATION_DS = "modifications";
 const std::string JOINT_DS        = "joint";
 
 const hts_pos_t NOMOD = 0;
-const hts_pos_t MOD = 1;
+const hts_pos_t MOD   = 1;
 
 const hts_pos_t MOD_MOD     = 0;
 const hts_pos_t MOD_NOMOD   = 1;
@@ -25,9 +25,13 @@ namespace cmuts {
 
 
 
+
+
 //
 // Enums
 //
+
+
 
 
 
@@ -41,9 +45,13 @@ enum class Mode {
     LowMem,
     // Compute the joint distribution of modifications
     // Size: (N, L, L, 4)
-    Joint
+    Joint,
+    // Tokenize the reference sequences
+    // Size: (N, L)
+    Tokenize
 
 };
+
 
 constexpr size_t _ndims(Mode mode) {
 
@@ -51,9 +59,11 @@ constexpr size_t _ndims(Mode mode) {
         case Mode::Normal:   { return 4; }
         case Mode::LowMem:   { return 3; }
         case Mode::Joint:    { return 5; }
+        case Mode::Tokenize: { return 2; }
     }
 
 }
+
 
 enum class Spread{
 
@@ -66,9 +76,13 @@ enum class Spread{
 
 
 
+
+
 //
 // Stats
 //
+
+
 
 
 
@@ -106,9 +120,13 @@ public:
 
 
 
+
+
 //
 // Params
 //
+
+
 
 
 
@@ -133,16 +151,21 @@ public:
 
 
 
+
+
 //
 // Main
 //
 
 
 
+
+
 class __Main {
 protected:
 
-    HTS::File& file;
+    TinyHTS::File& file;
+    TinyHTS::FASTA& fasta;
     HDF5::File& hdf5;
     const MPI::Manager& mpi;
     const Params& params;
@@ -152,7 +175,8 @@ protected:
 public:
 
     __Main(
-        HTS::File& file,
+        TinyHTS::File& file,
+        TinyHTS::FASTA& fasta,
         HDF5::File& hdf5,
         const MPI::Manager& mpi,
         const Params& params,
@@ -174,7 +198,8 @@ private:
 public:
 
     Main(
-        HTS::File& file,
+        TinyHTS::File& file,
+        TinyHTS::FASTA& fasta,
         HDF5::File& hdf5,
         const MPI::Manager& mpi,
         const Params& params,
@@ -189,7 +214,8 @@ Mode mode(bool lowmem, bool joint);
 Spread spread(bool uniform, bool mutation_informed);
 
 std::unique_ptr<__Main> get_main(
-    HTS::File& file,
+    TinyHTS::File& file,
+    TinyHTS::FASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,

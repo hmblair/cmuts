@@ -1,5 +1,6 @@
 #include "main.hpp"
 
+
 static inline void _print_title(const MPI::Manager& mpi) {
 
     mpi.down();
@@ -8,37 +9,40 @@ static inline void _print_title(const MPI::Manager& mpi) {
 
 }
 
+
 static inline void __write_sequences(
-    HTS::BinaryFASTA& fasta,
+    TinyHTS::FASTA fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi
 ) {
 
-    if (!hdf5.exist(SEQUENCE_DS)) {
+    // if (!hdf5.exist(SEQUENCE_DS)) {
         try {
-            fasta.to_hdf5(hdf5, mpi);
+            // fasta.to_hdf5(hdf5, mpi);
             mpi.out() << "        Tokenized " << fasta.size() << " sequences.\n";
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
         }
-    } else {
-        mpi.err() << "Warning: The file \"" << hdf5.name() << "\" already contains the dataset \"" << SEQUENCE_DS << "\". No tokenization can be done.\n";
-    }
+    // } else {
+        // mpi.err() << "Warning: The file \"" << hdf5.name() << "\" already contains the dataset \"" << SEQUENCE_DS << "\". No tokenization can be done.\n";
+    // }
 
 }
+
 
 static inline void __cleanup(
     const MPI::Manager& mpi,
     const cmutsProgram& opt
 ) {
+
     try {
-        if (opt.overwrite) {
-            mpi.remove(opt.output);
-        }
+        if (opt.overwrite) { mpi.remove(opt.output); }
     } catch (const std::exception& e) {
         mpi.err() << "Error during cleanup: " << e.what() << "\n";
     }
+
 }
+
 
 int main(int argc, char** argv) {
 
@@ -48,7 +52,7 @@ int main(int argc, char** argv) {
     HDF5::Manager _hdf5_manager;
     // Disable native HTS logging as it does not work well in the
     // multi-threaded environment
-    HTS::__disable_logging();
+    TinyHTS::__disable_logging();
     // For printing integers with commas
     __imbue();
 
@@ -66,24 +70,22 @@ int main(int argc, char** argv) {
 
     // Delete the exiting output file if specified
     try {
-        if (opt.overwrite) {
-            mpi.remove(opt.output);
-        }
+        if (opt.overwrite) { mpi.remove(opt.output); }
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
 
     // Open the reference FASTA
-    std::optional<HTS::BinaryFASTA> _fasta;
+    std::optional<TinyHTS::FASTA> _fasta;
     try {
-        _fasta.emplace(opt.fasta, mpi);
+        _fasta.emplace(opt.fasta);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
-    HTS::BinaryFASTA fasta = std::move(_fasta.value());
+    TinyHTS::FASTA fasta = std::move(_fasta.value());
 
     // Get the optimal chunksize given the number of processes
     int64_t _chunksize = mpi.chunksize(opt.chunk_size, fasta.size());
@@ -117,15 +119,15 @@ int main(int argc, char** argv) {
     }
 
     // Open the HTS files
-    std::optional<HTS::FileGroup> _files;
+    std::optional<TinyHTS::FileGroup> _files;
     try {
-        _files.emplace(opt.files, fasta, mpi);
+        _files.emplace(opt.files);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
-    HTS::FileGroup files = std::move(_files.value());
+    TinyHTS::FileGroup files = std::move(_files.value());
     mpi.barrier();
 
     // Get the desired operation modes
@@ -159,8 +161,8 @@ int main(int argc, char** argv) {
 
     // Initialise the stats tracker, and print the header
     cmuts::Stats stats(
-        files.reads(),
-        files.unaligned_reads(),
+        files.aligned(),
+        files.unaligned(),
         files.references(),
         mpi
     );
@@ -170,7 +172,7 @@ int main(int argc, char** argv) {
     for (auto& input : files) {
         std::unique_ptr<cmuts::__Main> main;
         try {
-            main = cmuts::get_main(input, hdf5, mpi, params, stats);
+            main = cmuts::get_main(input, fasta, hdf5, mpi, params, stats);
             main->run();
             processed++;
         } catch (const std::exception& e) {
