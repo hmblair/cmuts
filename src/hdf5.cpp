@@ -94,21 +94,40 @@ static inline H5::DataSetCreateProps __get_dsprops(
     std::vector<size_t> chunkdims,
     int compression
 ) {
+
     std::vector<hsize_t> _chunkdims(chunkdims.begin(), chunkdims.end());
 
     H5::DataSetCreateProps dsprops;
     dsprops.add(H5::Chunking(_chunkdims));
     dsprops.add(H5::Deflate(compression));
+
     return dsprops;
+
 }
 
 static inline H5::PropertyList<(H5::PropertyType)4> __get_wprops() {
+
     H5::PropertyList<(H5::PropertyType)4> wprops = H5::DataTransferProps{};
+
     #ifdef MPI_BUILD
     wprops.add(H5::UseCollectiveIO{});
     #endif
+
     return wprops;
+
 }
+
+
+
+
+
+//
+// Writer
+//
+
+
+
+
 
 template <typename dtype, size_t N>
 Writer<dtype, N>::Writer(
@@ -131,10 +150,10 @@ Writer<dtype, N>::Writer(
 
 }
 
+
 template <typename dtype, size_t N>
-int64_t Writer<dtype, N>::size() const {
-    return _chunksize;
-}
+int64_t Writer<dtype, N>::size() const { return _chunksize; }
+
 
 template <typename dtype, size_t N>
 void Writer<dtype, N>::write(
@@ -149,6 +168,7 @@ void Writer<dtype, N>::write(
         .write(data, wprops);
 
 }
+
 
 template <typename dtype, size_t N>
 void Writer<dtype, N>::write(
@@ -168,6 +188,7 @@ void Writer<dtype, N>::write(
 
 }
 
+
 template <typename dtype, size_t N>
 void Writer<dtype, N>::safe_write(
     const arr_t<dtype, N>& data,
@@ -181,6 +202,18 @@ void Writer<dtype, N>::safe_write(
     write(data, _offset, _size);
 
 }
+
+
+
+
+
+//
+// Memspace
+//
+
+
+
+
 
 template <typename dtype, size_t N>
 Memspace<dtype, N>::Memspace(
@@ -201,6 +234,7 @@ Memspace<dtype, N>::Memspace(
 
 }
 
+
 template <typename dtype, size_t N>
 view_t<dtype, N> Memspace<dtype, N>::view(int64_t ix) {
     return xt::view(_data, ix);
@@ -212,20 +246,24 @@ void Memspace<dtype, N>::write(int64_t ix) const {
     writer.write(_data, ix);
 }
 
+
 template <typename dtype, size_t N>
 void Memspace<dtype, N>::safe_write(int64_t ix) const {
     writer.safe_write(_data, ix);
 }
+
 
 template <typename dtype, size_t N>
 void Memspace<dtype, N>::clear() {
     _data.fill(0.0);
 }
 
+
 template <typename dtype, size_t N>
 int64_t Memspace<dtype, N>::size() const {
     return writer.size();
 }
+
 
 template <typename dtype, size_t N>
 void Memspace<dtype, N>::resize(const std::vector<size_t> dims) {
@@ -237,9 +275,13 @@ void Memspace<dtype, N>::resize(const std::vector<size_t> dims) {
 
 
 
+
+
 //
 // Template instantiation
 //
+
+
 
 
 
