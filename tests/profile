@@ -6,18 +6,25 @@
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
 command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
-__time() {
-    if [[ $(uname) == Darwin ]]; then
-        /usr/bin/time -l "$@"
-    else
-        /usr/bin/time -f "$@"
-    fi
-}
-
 __get_field() {
     local line="$1"
     local keyword="$2"
     echo "$line" | awk -v kw="$keyword" '{for(i=1; i<=NF; i++) {if ($i == kw) {print $(i+1); break}}}'
+}
+
+__time() {
+    if [[ $(uname) == Darwin ]]; then
+        result=$(/usr/bin/time -l "$@" 2>&1)
+        result=$(echo "$result" | tr -d '\n')
+        echo $(__get_field "$result" "real")
+        echo $(__get_field "$result" "elapsed")
+    else
+        result=$(/usr/bin/time -v "$@" 2>&1)
+        result=$(echo "$result" | tr -d '\n')
+        time=$(__get_field "$result" "m:ss):")
+        echo $time | awk -F[:-] '{print $1*60 + $2 + $3/100}'
+        echo "0"
+    fi
 }
 
 generate() {
@@ -96,13 +103,12 @@ profile() {
             --max-indel-length ${MAX_INDEL} \
             --overwrite \
             ${LOWMEM} \
-            ${BAM} 2>&1 >/dev/null)
-            rm -rf ${CMUTS_H5}
+            ${BAM})
 
-        result=$(echo "$result" | tr -d '\n')
+        rm -rf ${CMUTS_H5}
 
-        exec_time=$(__get_field "$result" "real")
-        mem_usage=$(__get_field "$result" "elapsed")
+        exec_time=$(echo $result | cut -d' ' -f1)
+        mem_usage=$(echo $result | cut -d' ' -f2)
 
         if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
             min_time=$exec_time
@@ -117,8 +123,8 @@ profile() {
     min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   cmuts:"
-    echo "    Minimum execution time: $min_time seconds"
-    echo "    Minimum memory usage: $min_mem MB"
+    echo "    Execution time:    $min_time seconds"
+    echo "    Peak memory usage: $min_mem MB"
 
     min_time=""
     min_mem=""
@@ -133,14 +139,12 @@ profile() {
             -wt ${THREADS} \
             -f ../${FASTA} \
             --fast \
-            ../${BAM} 2>&1 > /dev/null)
+            ../${BAM})
 
         cd ..
 
-        result=$(echo "$result" | tr -d '\n')
-
-        exec_time=$(__get_field "$result" "real")
-        mem_usage=$(__get_field "$result" "elapsed")
+        exec_time=$(echo $result | cut -d' ' -f1)
+        mem_usage=$(echo $result | cut -d' ' -f2)
 
         if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
             min_time=$exec_time
@@ -155,8 +159,8 @@ profile() {
     min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   rf-count:"
-    echo "    Minimum execution time: $min_time seconds"
-    echo "    Minimum memory usage: $min_mem MB"
+    echo "    Execution time:    $min_time seconds"
+    echo "    Peak memory usage: $min_mem MB"
 
 }
 
