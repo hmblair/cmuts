@@ -118,7 +118,7 @@ profile() {
     min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   cmuts:"
-    echo "    Average execution time: $min_time seconds"
+    echo "    Minimum execution time: $min_time seconds"
     echo "    Minimum memory usage: $min_mem MB"
 
     min_time=0
@@ -156,7 +156,7 @@ profile() {
     min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   rf-count:"
-    echo "    Average execution time: $min_time seconds"
+    echo "    Minimum execution time: $min_time seconds"
     echo "    Minimum memory usage: $min_mem MB"
 
 }
