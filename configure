@@ -23,8 +23,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check if dependencies are installed
-command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but it's not installed. Exiting."; exit 1; }
 command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but it's not installed. Exiting."; exit 1; }
+command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but it's not installed. Exiting."; exit 1; }
 
 # Define project-specific paths
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
