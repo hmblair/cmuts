@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euo pipefail
+# set -euo pipefail
 
 # Check if dependencies are installed
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
@@ -8,10 +8,16 @@ command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it
 
 __time() {
     if [[ $(uname) == Darwin ]]; then
-        gtime -f "%E %M KB" "$@"
+        /usr/bin/time -l "$@"
     else
-        /usr/bin/time -f "%E %M KB" "$@"
+        /usr/bin/time -f "$@"
     fi
+}
+
+__get_field() {
+    local line="$1"
+    local keyword="$2"
+    echo "$line" | awk -v kw="$keyword" '{for(i=1; i<=NF; i++) {if ($i == kw) {print $(i+1); break}}}'
 }
 
 generate() {
@@ -75,7 +81,7 @@ profile() {
     local LOWMEM=${13}
 
 
-    total_time=0
+    min_time=""
     min_mem=""
 
     for ((i=0; i<${RUNS}; i++)); do
@@ -94,12 +100,14 @@ profile() {
             ${BAM} 2>&1 >/dev/null)
             rm -rf ${CMUTS_H5}
 
-        exec_time=$(echo $result | awk '{print $1}')
-        mem_usage=$(echo $result | awk '{print $2}')
+        result=$(echo "$result" | tr -d '\n')
 
-        minutes=$(echo $exec_time | cut -d: -f1)
-        seconds=$(echo $exec_time | cut -d: -f2)
-        total_time=$(echo "$total_time + $minutes * 60 + $seconds" | bc)
+        exec_time=$(__get_field "$result" "real")
+        mem_usage=$(__get_field "$result" "elapsed")
+
+        if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
+            min_time=$exec_time
+        fi
 
         if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
             min_mem=$mem_usage
@@ -107,13 +115,13 @@ profile() {
 
     done
 
-    average_time=$(echo "scale=2; $total_time / $RUNS" | bc)
+    min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   cmuts:"
-    echo "    Average execution time: $average_time seconds"
-    echo "    Minimum memory usage: $min_mem KB"
+    echo "    Average execution time: $min_time seconds"
+    echo "    Minimum memory usage: $min_mem MB"
 
-    total_time=0
+    min_time=0
     min_mem=""
 
     for ((i=0; i<${RUNS}; i++)); do
@@ -130,12 +138,14 @@ profile() {
 
         cd ..
 
-        exec_time=$(echo $result | awk '{print $1}')
-        mem_usage=$(echo $result | awk '{print $2}')
+        result=$(echo "$result" | tr -d '\n')
 
-        minutes=$(echo $exec_time | cut -d: -f1)
-        seconds=$(echo $exec_time | cut -d: -f2)
-        total_time=$(echo "$total_time + $minutes * 60 + $seconds" | bc)
+        exec_time=$(__get_field "$result" "real")
+        mem_usage=$(__get_field "$result" "elapsed")
+
+        if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
+            min_time=$exec_time
+        fi
 
         if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
             min_mem=$mem_usage
@@ -143,11 +153,11 @@ profile() {
 
     done
 
-    average_time=$(echo "scale=2; $total_time / $RUNS" | bc)
+    min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
 
     echo "   rf-count:"
-    echo "    Average execution time: $average_time seconds"
-    echo "    Minimum memory usage: $min_mem KB"
+    echo "    Average execution time: $min_time seconds"
+    echo "    Minimum memory usage: $min_mem MB"
 
 }
 
