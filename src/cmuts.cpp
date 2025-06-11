@@ -252,17 +252,20 @@ static inline void __match_core(
     view_t<dtype, _ndims(mode)> arr,
     int32_t rpos,
     base_t rbase,
-    dtype mask
+    dtype mask,
+    const Params& params
 ) {
+
+    dtype _val = mask || !params.filter_coverage;
 
     // Count the base type and position
     if constexpr (mode == Mode::Normal) {
-        arr(rpos, rbase, rbase) += mask;
+        arr(rpos, rbase, rbase) += _val;
     }
 
     // Count the base position
     if constexpr (mode == Mode::LowMem) {
-        arr(rpos, LOWMEM_COV) += mask;
+        arr(rpos, LOWMEM_COV) += _val;
     }
 
     // Invoke the joint counter
@@ -271,6 +274,7 @@ static inline void __match_core(
     }
 
 };
+
 
 template <typename dtype, Mode mode>
 static inline void __mismatch_core(
@@ -366,7 +370,8 @@ static inline void __match(
     int32_t& rpos,
     int32_t& qpos,
     const seq_t& reference,
-    const std::vector<dtype>& mask
+    const std::vector<dtype>& mask,
+    const Params& params
 ) {
 
     while (op.advance()) {
@@ -375,7 +380,7 @@ static inline void __match(
         if constexpr (CONSUMES_QPOS) { qpos--; }
         base_t rbase = reference[rpos];
 
-        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
+        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos], params);
 
     }
 
@@ -404,10 +409,10 @@ static inline void __mismatch(
         __mismatch_core<dtype, mode>(arr, rpos, qbase, rbase, mask[qpos]);
         last = rpos;
     } else {
-        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos]);
+        __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos], params);
     }
 
-    __match<dtype, mode, true, true>(arr, op, rpos, qpos, reference, mask);
+    __match<dtype, mode, true, true>(arr, op, rpos, qpos, reference, mask, params);
 
 }
 
@@ -472,12 +477,12 @@ static inline void __del(
             __del_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
             last = ix;
         } else {
-            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
+            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - end], params);
         }
 
     }
 
-    __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask);
+    __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
 
 }
 
@@ -514,7 +519,7 @@ static inline void __count(
 
             case HTS::CIGAR_t::MATCH: {
 
-                __match<dtype, mode, true, true>(arr, op, rpos, qpos, reference, mask);
+                __match<dtype, mode, true, true>(arr, op, rpos, qpos, reference, mask, params);
                 break;
 
             }
@@ -529,7 +534,7 @@ static inline void __count(
             case HTS::CIGAR_t::DEL: {
 
                 if (op.length() > params.max_indel_length) {
-                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask);
+                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
                     break;
                 }
 

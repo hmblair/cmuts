@@ -53,6 +53,7 @@ public:
     Arg<bool> no_deletion;
     Arg<bool> tokenize;
     Arg<float> subsample;
+    Arg<bool> filter_coverage;
 
     cmutsProgram();
 
@@ -157,6 +158,11 @@ const std::string SUBSAMPLE_LONG_NAME = "--subsample";
 const float SUBSAMPLE_DEFAULT = 1.0;
 const std::string SUBSAMPLE_HELP = "Randomly choose to use a read with this probability.";
 
+const std::string FILTER_COVERAGE_SHORT_NAME = "";
+const std::string FILTER_COVERAGE_LONG_NAME = "--filter-coverage";
+const std::string FILTER_COVERAGE_HELP = "Apply the same filters to matches as are applied to modifications.";
+
+
 cmutsProgram::cmutsProgram()
     : Program(PROGRAM, PROGRAM + " " + VERSION),
       files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
@@ -180,7 +186,8 @@ cmutsProgram::cmutsProgram()
       no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP),
       no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
       tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
-      subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT)
+      subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
+      filter_coverage(_parser, FILTER_COVERAGE_SHORT_NAME, FILTER_COVERAGE_LONG_NAME, FILTER_COVERAGE_HELP)
 {}
 
 

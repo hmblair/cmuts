@@ -165,6 +165,7 @@ $__cmuts \
     --max-indel-length ${MAX_INDEL} \
     --collapse ${COLLAPSE} \
     --chunk-size ${CHUNKSIZE} \
+    --filter-coverage \
     ${NO_MISMATCHES} \
     ${NO_INSERTIONS} \
     ${NO_DELETIONS} \

@@ -108,6 +108,8 @@ The following lists all additional commands available:
 
 `--subsample`: Randomly accept each read with this probability, to simulate lower-read experiments. Default: 1.0
 
+`--filter-coverage`: Apply the same filters to matches as are applied to modifications.
+
 
 ## Normalization
 

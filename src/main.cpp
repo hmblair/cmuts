@@ -192,7 +192,8 @@ int main(int argc, char** argv) {
         !opt.no_mismatch,
         !opt.no_insertion,
         !opt.no_deletion,
-        opt.subsample
+        opt.subsample,
+        opt.filter_coverage
     };
 
     // Initialise the stats tracker, and print the header

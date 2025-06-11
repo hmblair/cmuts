@@ -154,6 +154,7 @@ public:
     bool insertions;
     bool deletions;
     float subsample;
+    bool filter_coverage;
 
 };
 
