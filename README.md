@@ -31,11 +31,11 @@ is sufficient.
 
 Installation is done by cloning the repository and running the installation script.
 ```
-git clone https://github.com/hmblair/cmuts
+git clone --recurse-submodules https://github.com/hmblair/cmuts
 cd cmuts
 ./configure
 ```
-Don't forget to add the `./bin` directory to your path.
+This will download and build the `htscodecs` dependency as well. Don't forget to add the `./bin` directory to your path.
 
 
 ## cmuts MPI
