@@ -32,7 +32,7 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
 
     cmuts = cmuts_f['aln'][:]
     exp = exp_f['aln'][:]
-    diff_with_exp = cmuts - exp
+    diff_with_exp = (cmuts - exp)
 
     cmuts_matches = (
         cmuts[..., 0, 0] +
@@ -51,6 +51,8 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
     )
     exp_cov = exp[..., :-1].sum((2, 3))
     exp_muts = exp.sum((2, 3)) - exp_matches
+
+    print()
 
     if (np.abs(diff_with_exp).sum() < TOLERANCE):
         if (exp_cov.sum() < TOLERANCE):
