@@ -350,7 +350,7 @@ void FASTA::write(const std::string& name, const std::string& sequence) {
 
 
 template <typename dtype>
-static inline int32_t _find_first_occurence(
+static inline int32_t _find_first_occurrence(
     const dtype* begin,
     const dtype* end,
     dtype value
@@ -546,7 +546,7 @@ std::vector<uint8_t> dataStream::line(uint8_t delimiter) {
     std::vector<uint8_t> line;
     line.reserve(LINE_RESERVE);
 
-    int32_t pos = _find_first_occurence<uint8_t>(
+    int32_t pos = _find_first_occurrence<uint8_t>(
         _data.data() + _pos, _data.data() + _data.size(), delimiter
     );
 
@@ -569,7 +569,7 @@ std::string dataStream::str(uint8_t delimiter) {
     std::string line;
     line.reserve(LINE_RESERVE);
 
-    int32_t pos = _find_first_occurence<uint8_t>(
+    int32_t pos = _find_first_occurrence<uint8_t>(
         _data.data() + _pos, _data.data() + _data.size(), delimiter
     );
 
@@ -717,7 +717,7 @@ std::vector<uint8_t> zlibStream::line(uint8_t delimiter) {
 
     std::vector<uint8_t> line;
     line.reserve(LINE_RESERVE);
-    int32_t pos = _find_first_occurence<uint8_t>(
+    int32_t pos = _find_first_occurrence<uint8_t>(
         _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
     );
 
@@ -732,7 +732,7 @@ std::vector<uint8_t> zlibStream::line(uint8_t delimiter) {
         _remaining -= (_buffer_end - _buffer_pos);
 
         fill();
-        pos = _find_first_occurence<uint8_t>(
+        pos = _find_first_occurrence<uint8_t>(
             _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
         );
 
@@ -766,7 +766,7 @@ std::string zlibStream::str(uint8_t delimiter) {
 
     std::string line;
     line.reserve(LINE_RESERVE);
-    int32_t pos = _find_first_occurence<uint8_t>(
+    int32_t pos = _find_first_occurrence<uint8_t>(
         _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
     );
 
@@ -781,7 +781,7 @@ std::string zlibStream::str(uint8_t delimiter) {
         _remaining -= (_buffer_end - _buffer_pos);
 
         fill();
-        pos = _find_first_occurence<uint8_t>(
+        pos = _find_first_occurrence<uint8_t>(
             _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
         );
 
