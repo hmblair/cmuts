@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <span>
 #include <filesystem>
+#include <algorithm>
 extern "C" {
     #include <htslib/sam.h>
     #include <htslib/hts.h>
