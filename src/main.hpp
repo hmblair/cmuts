@@ -1,13 +1,12 @@
-#ifndef MAIN_HEADER
-#define MAIN_HEADER
+#ifndef _MAIN_HEADER
+#define _MAIN_HEADER
 
+#include "fasta.hpp"
+#include "common.hpp"
 #include "cmuts.hpp"
 #include "hdf5.hpp"
-#include "tiny.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
-#include <cstdlib>
-#include <system_error>
 
 #ifdef MPI_BUILD
 const std::string PROGRAM = "cmuts MPI";

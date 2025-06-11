@@ -1,8 +1,9 @@
 #ifndef TESTS_HEADER
 #define TESTS_HEADER
 
-#include "tiny.hpp"
 #include "cmuts.hpp"
+#include "fasta.hpp"
+#include "common.hpp"
 #include "utils.hpp"
 #include "hdf5.hpp"
 #include "mpi.hpp"

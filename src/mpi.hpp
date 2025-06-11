@@ -39,10 +39,10 @@ public:
 
 struct Chunk {
 
-    int64_t low  = 0;
-    int64_t high = 0;
-    int64_t step = 0;
-    int64_t size = 0;
+    int32_t low  = 0;
+    int32_t high = 0;
+    int32_t step = 0;
+    int32_t size = 0;
 
 };
 
@@ -86,7 +86,7 @@ public:
     void up(int lines = 1) const;
     void down(int lines = 1) const;
     void divide() const;
-    int64_t chunksize(int64_t size, int64_t total) const;
+    int32_t chunksize(int32_t size, int32_t total) const;
 
     class OutStream {
     public:
@@ -134,7 +134,7 @@ public:
         return ErrStream(*this);
     }
 
-    Chunk chunk(int64_t size, int64_t total) const;
+    Chunk chunk(int32_t size, int32_t total) const;
 
 };
 

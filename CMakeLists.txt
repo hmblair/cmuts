@@ -1,22 +1,27 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.29)
 cmake_policy(SET CMP0074 NEW)
 
 project(cmuts LANGUAGES C CXX)
 set(TESTS "cmuts-generate-tests")
 
-# Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Display install messages lazily
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INSTALL_MESSAGE LAZY)
 
-# Compiler-specific options
+set(SANITIZER_COMPILE_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
+set(SANITIZER_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall)
 endif()
 
-# Find required packages
+
+#
+# Find/fetch packages
+#
+
+
 find_package(PkgConfig REQUIRED)
 if (DEFINED MPI_BUILD AND MPI_BUILD)
     find_package(MPI REQUIRED)
@@ -24,9 +29,7 @@ endif()
 find_package(HDF5 REQUIRED)
 pkg_check_modules(HTSLIB REQUIRED htslib)
 
-# Fetch dependencies if not already available
 include(FetchContent)
-
 function(FetchContent_MakeAvailable_If_Not_Already_Present name)
     if (NOT TARGET ${name}::${name})
         FetchContent_MakeAvailable(${name})
@@ -52,104 +55,117 @@ FetchContent_MakeAvailable_If_Not_Already_Present(argparse)
 FetchContent_MakeAvailable_If_Not_Already_Present(xtl)
 FetchContent_MakeAvailable_If_Not_Already_Present(xtensor)
 
-# Create a static library for shared files
-add_library(cmuts_shared
+
+#
+# Shared static library
+#
+
+
+add_library(libcmuts STATIC
+    src/fasta.cpp
+    src/common.cpp
     src/cmuts.cpp
-    src/tiny.cpp
+    src/bam.cpp
+    src/cram.cpp
     src/mpi.cpp
     src/hdf5.cpp
     src/utils.cpp
 )
 
-if (DEFINED MPI_BUILD AND MPI_BUILD)
-    target_include_directories(cmuts_shared PRIVATE ${MPI_C_INCLUDE_DIRS})
-    target_link_libraries(cmuts_shared PRIVATE MPI::MPI_CXX)
-endif()
+set_target_properties(libcmuts PROPERTIES PREFIX "")
 
-target_include_directories(cmuts_shared PRIVATE
+target_include_directories(libcmuts PRIVATE
     ${HTSLIB_INCLUDE_DIRS}
     ${HDF5_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/deps/highfive/include
+    ${PROJECT_SOURCE_DIR}/htscodecs/htscodecs
 )
 
-target_link_directories(cmuts_shared PRIVATE
+target_link_directories(libcmuts PRIVATE
     ${HTSLIB_LIBRARY_DIRS}
+    ${PROJECT_SOURCE_DIR}/htscodecs/lib
 )
 
-target_link_libraries(cmuts_shared PRIVATE
+target_link_libraries(libcmuts PRIVATE
     ${HTSLIB_LIBRARIES}
     ${HDF5_LIBRARIES}
     argparse
     xtensor
+    htscodecs
 )
 
-target_compile_options(cmuts_shared PRIVATE -O3)
+target_compile_options(libcmuts PRIVATE
+    -O3 -fno-math-errno
+)
+
 if (DEFINED MPI_BUILD AND MPI_BUILD)
-    target_compile_options(cmuts_shared PRIVATE "-DMPI_BUILD")
+    target_include_directories(libcmuts PRIVATE ${MPI_C_INCLUDE_DIRS})
+    target_link_libraries(libcmuts PRIVATE MPI::MPI_CXX)
+    target_compile_options(libcmuts PRIVATE "-DMPI_BUILD")
+endif()
+
+if (DEFINED DEBUG AND DEBUG)
+    target_compile_options(libcmuts PRIVATE ${SANITIZER_COMPILE_FLAGS})
+    target_link_options(libcmuts PRIVATE ${SANITIZER_LINK_FLAGS})
 endif()
 
 
-# Function to set up common properties for a target
-function(setup_target target_name)
+#
+# Executables and installation
+#
 
-    if (DEFINED MPI_BUILD AND MPI_BUILD)
-        target_include_directories(${target_name} PRIVATE ${MPI_C_INCLUDE_DIRS})
-        target_link_libraries(${target_name} PRIVATE MPI::MPI_CXX)
-    endif()
 
-    target_include_directories(${target_name} PRIVATE
+function(setup_target _target)
+
+    target_include_directories(${_target} PRIVATE
         ${HTSLIB_INCLUDE_DIRS}
         ${HDF5_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/deps/highfive/include
+        ${PROJECT_SOURCE_DIR}/htscodecs/htscodecs
     )
 
-    target_link_directories(${target_name} PRIVATE
+    target_link_directories(${_target} PRIVATE
         ${HTSLIB_LIBRARY_DIRS}
+        ${PROJECT_SOURCE_DIR}/htscodecs/lib
     )
 
-    target_link_libraries(${target_name} PRIVATE
+    target_link_libraries(${_target} PRIVATE
         ${HTSLIB_LIBRARIES}
         ${HDF5_LIBRARIES}
         argparse
         xtensor
-        cmuts_shared
+        htscodecs
+        libcmuts
     )
 
-    target_compile_options(${target_name} PRIVATE -O3)
+    target_compile_options(${_target} PRIVATE
+        -O3 -fno-math-errno
+    )
+
+    if (DEFINED MPI_BUILD AND MPI_BUILD)
+        target_include_directories(${_target} PRIVATE ${MPI_C_INCLUDE_DIRS})
+        target_link_libraries(${_target} PRIVATE MPI::MPI_CXX)
+        target_compile_options(${_target} PRIVATE "-DMPI_BUILD")
+    endif()
+
+    if (DEFINED DEBUG AND DEBUG)
+        target_compile_options(${_target} PRIVATE ${SANITIZER_COMPILE_FLAGS})
+        target_link_options(${_target} PRIVATE ${SANITIZER_LINK_FLAGS})
+    endif()
+
 endfunction()
 
-# Add executable for main project
 add_executable(${PROJECT_NAME}
     src/main.cpp
 )
 
-setup_target(${PROJECT_NAME})
-
-# Add executable for tests
 add_executable(${TESTS}
     src/tests.cpp
 )
 
+setup_target(${PROJECT_NAME})
 setup_target(${TESTS})
 
-if (DEFINED MPI_BUILD AND MPI_BUILD)
-    target_compile_options(${PROJECT_NAME} PRIVATE "-DMPI_BUILD")
-    target_compile_options(${TESTS} PRIVATE "-DMPI_BUILD")
-endif()
-
-# Enable sanitizers in debug mode
-if (DEFINED DEBUG AND DEBUG)
-    set(SANITIZER_COMPILE_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
-    set(SANITIZER_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
-
-    target_compile_options(${PROJECT_NAME} PRIVATE ${SANITIZER_COMPILE_FLAGS})
-    target_link_options(${PROJECT_NAME} PRIVATE ${SANITIZER_LINK_FLAGS})
-
-    target_compile_options(${TESTS} PRIVATE ${SANITIZER_COMPILE_FLAGS})
-    target_link_options(${TESTS} PRIVATE ${SANITIZER_LINK_FLAGS})
-endif()
-
-# Installation target
 install(TARGETS ${PROJECT_NAME} ${TESTS}
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin
 )

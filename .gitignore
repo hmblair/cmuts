@@ -2,5 +2,7 @@
 !/.gitignore
 bin/
 build/
+include/
+share/
 examples/
 __pycache__/

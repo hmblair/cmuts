@@ -11,21 +11,23 @@ static inline void _print_title(const MPI::Manager& mpi) {
 
 
 static inline void __write_sequences(
-    TinyHTS::FASTA fasta,
+    BinaryFASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi
 ) {
 
-    // if (!hdf5.exist(SEQUENCE_DS)) {
+    mpi.down();
+
+    if (!hdf5.exist(FASTA_DATASET)) {
         try {
-            // fasta.to_hdf5(hdf5, mpi);
+            fasta.hdf5(hdf5, mpi);
             mpi.out() << "        Tokenized " << fasta.size() << " sequences.\n";
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
         }
-    // } else {
-        // mpi.err() << "Warning: The file \"" << hdf5.name() << "\" already contains the dataset \"" << SEQUENCE_DS << "\". No tokenization can be done.\n";
-    // }
+    } else {
+        mpi.err() << "WARNING: The file \"" << hdf5.name() << "\" already contains the dataset \"" << FASTA_DATASET << "\". No tokenization can be done.\n";
+    }
 
 }
 
@@ -47,16 +49,24 @@ static inline void __cleanup(
 int main(int argc, char** argv) {
 
     // Initialize MPI processes
+
     MPI::Manager mpi(argc, argv);
+
     // Initialize HDF5 manager
+
     HDF5::Manager _hdf5_manager;
+
     // Disable native HTS logging as it does not work well in the
     // multi-threaded environment
-    TinyHTS::__disable_logging();
+
+    HTS::_disable_logging();
+
     // For printing integers with commas
+
     __imbue();
 
     // Parse command line arguments
+
     cmutsProgram opt;
     try {
         opt.parse(argc, argv);
@@ -66,9 +76,11 @@ int main(int argc, char** argv) {
     }
 
     // Print the program title
+
     _print_title(mpi);
 
     // Delete the exiting output file if specified
+
     try {
         if (opt.overwrite) { mpi.remove(opt.output); }
     } catch (const std::exception& e) {
@@ -77,20 +89,32 @@ int main(int argc, char** argv) {
     }
 
     // Open the reference FASTA
-    std::optional<TinyHTS::FASTA> _fasta;
+
+    std::optional<BinaryFASTA> _fasta;
     try {
-        _fasta.emplace(opt.fasta);
+
+        if (mpi.root()) {
+            _fasta.emplace(opt.fasta);
+        }
+        mpi.barrier();
+        if (!mpi.root()) {
+            _fasta.emplace(opt.fasta);
+        }
+        mpi.barrier();
+
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
-    TinyHTS::FASTA fasta = std::move(_fasta.value());
+    BinaryFASTA fasta = std::move(_fasta.value());
 
     // Get the optimal chunksize given the number of processes
+
     int64_t _chunksize = mpi.chunksize(opt.chunk_size, fasta.size());
 
     // Create the HDF5 file
+
     std::optional<HDF5::File> _hdf5;
     try {
         _hdf5.emplace(opt.output, HDF5::RWC, mpi, _chunksize, opt.compression);
@@ -118,19 +142,30 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    // Open the HTS files
-    std::optional<TinyHTS::FileGroup> _files;
+    // Open the HTS files, whose constructors are not thread-safe
+
+    std::optional<HTS::FileGroup> _files;
     try {
-        _files.emplace(opt.files);
+
+        if (mpi.root()) {
+            _files.emplace(opt.files);
+        }
+        mpi.barrier();
+        if (!mpi.root()) {
+            _files.emplace(opt.files);
+        }
+        mpi.barrier();
+
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
-    TinyHTS::FileGroup files = std::move(_files.value());
+    HTS::FileGroup files = std::move(_files.value());
     mpi.barrier();
 
     // Get the desired operation modes
+
     cmuts::Mode mode;
     cmuts::Spread spread;
     try {
@@ -143,6 +178,7 @@ int main(int argc, char** argv) {
     }
 
     // Initialise the parameters for the main counting function
+
     cmuts::Params params = {
         mode,
         spread,
@@ -151,7 +187,7 @@ int main(int argc, char** argv) {
         opt.min_length,
         opt.max_length,
         opt.max_indel_length,
-        opt.quality_window,
+        opt .quality_window,
         opt.collapse,
         !opt.no_mismatch,
         !opt.no_insertion,
@@ -160,6 +196,7 @@ int main(int argc, char** argv) {
     };
 
     // Initialise the stats tracker, and print the header
+
     cmuts::Stats stats(
         files.aligned(),
         files.unaligned(),
@@ -170,25 +207,24 @@ int main(int argc, char** argv) {
 
     size_t processed = 0;
     for (auto& input : files) {
-        std::unique_ptr<cmuts::__Main> main;
+
+        std::unique_ptr<cmuts::Main> main;
+
         try {
-            main = cmuts::get_main(input, fasta, hdf5, mpi, params, stats);
+            main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats);
             main->run();
             processed++;
         } catch (const std::exception& e) {
-            mpi.err() << "Error processing the file \"" << input.name() << "\": " << e.what() << "\n";
+            mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
             continue;
         }
+
     }
 
-    mpi.divide();
-
-    if (processed > 0) {
-        if (opt.tokenize) {
-            __write_sequences(fasta, hdf5, mpi);
-        }
-    } else {
+    if (processed == 0) {
         __cleanup(mpi, opt);
+    } else if (opt.tokenize) {
+        __write_sequences(fasta, hdf5, mpi);
     }
 
     mpi.down();

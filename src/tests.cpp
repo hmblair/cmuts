@@ -28,6 +28,14 @@ static inline int _random_int_excluding(std::mt19937& gen, int low, int high, in
 
 }
 
+
+static inline float _random_float(std::mt19937& gen) {
+
+    std::uniform_real_distribution<float> dist(0, 1);
+    return dist(gen);
+
+}
+
 template <typename dtype>
 static inline dtype _sample_from_vector(std::mt19937& gen, const std::vector<dtype>& vals) {
 
@@ -80,78 +88,78 @@ static inline uint8_t _random_phred_quality(std::mt19937& gen) {
 
 }
 
-static inline TinyHTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
+static inline HTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
 
     std::vector<uint8_t> _phred(count);
     for (auto& val : _phred) {
         val = _random_phred_quality(gen);
     }
 
-    TinyHTS::PHRED phred(_phred);
+    HTS::PHRED phred(_phred);
     return phred;
 
 }
 
-static inline TinyHTS::CIGAR_op _random_cigar_op(
+static inline HTS::CIGAR_op _random_cigar_op(
     std::mt19937& gen,
     hts_pos_t match,
     hts_pos_t ins,
     hts_pos_t del,
-    TinyHTS::CIGAR_t prev
+    HTS::CIGAR_t prev
 ) {
 
-    TinyHTS::CIGAR_t type;
+    HTS::CIGAR_t type;
     hts_pos_t length;
 
     if (match == 0) {
         if (ins == 0) {
-            return TinyHTS::CIGAR_op(TinyHTS::CIGAR_t::DEL, del);
+            return HTS::CIGAR_op(HTS::CIGAR_t::DEL, del);
         }
         if (del == 0) {
-            return TinyHTS::CIGAR_op(TinyHTS::CIGAR_t::INS, ins);
+            return HTS::CIGAR_op(HTS::CIGAR_t::INS, ins);
         }
     }
 
-    std::vector<TinyHTS::CIGAR_t> samples;
+    std::vector<HTS::CIGAR_t> samples;
     if (match > 0) {
-        if (prev != TinyHTS::CIGAR_t::MATCH) {
-            samples.push_back(TinyHTS::CIGAR_t::MATCH);
+        if (prev != HTS::CIGAR_t::MATCH) {
+            samples.push_back(HTS::CIGAR_t::MATCH);
         }
-        if (prev != TinyHTS::CIGAR_t::MISMATCH) {
-            samples.push_back(TinyHTS::CIGAR_t::MISMATCH);
+        if (prev != HTS::CIGAR_t::MISMATCH) {
+            samples.push_back(HTS::CIGAR_t::MISMATCH);
         }
     }
     if (ins > 0) {
-        if (prev != TinyHTS::CIGAR_t::INS) {
-            samples.push_back(TinyHTS::CIGAR_t::INS);
+        if (prev != HTS::CIGAR_t::INS) {
+            samples.push_back(HTS::CIGAR_t::INS);
         }
     }
     if (del > 0) {
-        if (prev != TinyHTS::CIGAR_t::DEL) {
-            samples.push_back(TinyHTS::CIGAR_t::DEL);
+        if (prev != HTS::CIGAR_t::DEL) {
+            samples.push_back(HTS::CIGAR_t::DEL);
         }
     }
 
-    type = _sample_from_vector<TinyHTS::CIGAR_t>(gen, samples);
+    type = _sample_from_vector<HTS::CIGAR_t>(gen, samples);
 
     switch (type) {
 
-        case TinyHTS::CIGAR_t::MATCH:
-        case TinyHTS::CIGAR_t::MISMATCH: {
+        case HTS::CIGAR_t::MATCH:
+        case HTS::CIGAR_t::MISMATCH: {
 
             length = _random_length(gen, match);
             break;
 
         }
 
-        case TinyHTS::CIGAR_t::INS:      {
+        case HTS::CIGAR_t::INS:      {
 
             length = _random_length(gen, ins);
             break;
 
         }
 
-        case TinyHTS::CIGAR_t::DEL:      {
+        case HTS::CIGAR_t::DEL:      {
 
             length = _random_length(gen, del);
             break;
@@ -166,7 +174,7 @@ static inline TinyHTS::CIGAR_op _random_cigar_op(
 
     }
 
-    return TinyHTS::CIGAR_op(type, length);
+    return HTS::CIGAR_op(type, length);
 
 }
 
@@ -185,14 +193,16 @@ private:
     std::mt19937& gen;
     view_t<dtype, 4>& arr;
     const Params& params;
+
+    bool _aligned;
     bool _mapq_mask;
 
 public:
 
     const seq_t& reference;
     seq_t query;
-    TinyHTS::CIGAR cigar;
-    TinyHTS::PHRED phred;
+    HTS::CIGAR cigar;
+    HTS::PHRED phred;
     int mapq;
     hts_pos_t pos;
 
@@ -226,6 +236,12 @@ public:
             _mapq_mask = false;
         } else {
             _mapq_mask = (mapq >= params.min_mapq);
+        }
+
+        // Randomly determine if the read is aligned
+        _aligned = (_random_float(gen) > 0.1);
+        if (!_aligned) {
+            _mapq_mask = false;
         }
 
         // Generate a random PHRED score per base
@@ -304,12 +320,12 @@ public:
 
     void extend() {
 
-        TinyHTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
+        HTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
         cigar.extend(op);
 
         switch (op.type()) {
 
-            case TinyHTS::CIGAR_t::MATCH: {
+            case HTS::CIGAR_t::MATCH: {
 
                 while (op.advance()) { match(); }
 
@@ -318,7 +334,7 @@ public:
 
             }
 
-            case TinyHTS::CIGAR_t::MISMATCH: {
+            case HTS::CIGAR_t::MISMATCH: {
 
                 mismatch();
                 op.advance();
@@ -329,7 +345,7 @@ public:
 
             }
 
-            case TinyHTS::CIGAR_t::DEL: {
+            case HTS::CIGAR_t::DEL: {
 
                 if (op.length() <= params.max_indel_length) {
                     del();
@@ -342,7 +358,7 @@ public:
 
             }
 
-            case TinyHTS::CIGAR_t::INS: {
+            case HTS::CIGAR_t::INS: {
 
                 if (op.length() <= params.max_indel_length && _rpos < reference.size()) {
                     ins();
@@ -373,8 +389,13 @@ public:
         int tlen = 0;
         std::string read_name = "read";
 
+        // The read is aligneed 1/10 of the time
+
+        std::string _ref_name = ref_name;
+        if (!_aligned) { _ref_name = "*"; }
+
         std::stringstream ss;
-        ss << read_name << "\t" << flag << "\t" << ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << TinyHTS::_to_str(query) << "\t" << phred.str();
+        ss << read_name << "\t" << flag << "\t" << _ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << HTS::str(query) << "\t" << phred.str();
 
         return ss.str();
 
@@ -428,15 +449,6 @@ static inline void _write_header(size_t references, size_t length, std::ostream&
 
 }
 
-static inline std::string _path(const std::string& name) {
-    std::filesystem::path path(name);
-    std::string stem = path.stem().string();
-    std::string parent = path.parent_path().string();
-    if (parent.empty()) {
-        return stem;
-    }
-    return parent + "/" + stem;
-}
 
 void __run_tests(
     const MPI::Manager& mpi,
@@ -462,7 +474,7 @@ void __run_tests(
     std::ofstream sam(out_sam);
     _write_header(references, length, sam);
 
-    OldSchool::FASTA fasta(out_fasta);
+    FASTA fasta(out_fasta);
 
     std::vector<size_t> dims = {references, static_cast<size_t>(length), 4, 6};
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(out_sam));
@@ -472,7 +484,7 @@ void __run_tests(
 
         seq_t reference = _random_sequence(length, gen);
         std::string name = "ref" + std::to_string(ix);
-        fasta.write(name, TinyHTS::_to_str(reference));
+        fasta.write(name, HTS::str(reference));
 
         view_t<float, 4> arr = memspace.view(ix);
         std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
@@ -495,7 +507,7 @@ int main(int argc, char** argv) {
     HDF5::Manager _hdf5_manager;
     // Disable native HTS logging as it does not work well in the
     // multi-threaded environment
-    TinyHTS::__disable_logging();
+    HTS::_disable_logging();
 
     // Parse command line arguments
     testsProgram opt;

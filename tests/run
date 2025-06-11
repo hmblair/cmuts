@@ -6,6 +6,18 @@ set -eou pipefail
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
 command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
+USE_CRAM=0
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --cram) USE_CRAM=1
+                ;;
+        *) echo "Unknown option: $1"
+           exit 1
+           ;;
+    esac
+    shift
+done
+
 # Clean and create working directory
 SCRIPT_DIR=$(pwd)
 WORK_DIR=${SCRIPT_DIR}"/.tests_tmp"
@@ -43,7 +55,6 @@ MIN_LENGTH=$(generate_random_number 2 ${LENGTH})
 MAX_LENGTH=$(generate_random_number ${LENGTH} $((2 * LENGTH)))
 MAX_INDEL=$(generate_random_number 0 ${LENGTH})
 COLLAPSE=$(generate_random_number 0 ${LENGTH})
-COLLAPSE=0
 
 USE_NO_MISMATCHES=$(generate_random_number 0 4)
 USE_NO_INSERTIONS=$(generate_random_number 0 4)
@@ -73,7 +84,6 @@ else
     NO_DELETIONS_STR="FALSE"
 fi
 
-
 VERSION=$(cmuts --version)
 if [[ "$VERSION" == *"MPI"* ]]; then
     __cmuts="mpirun -np ${THREADS} cmuts"
@@ -84,13 +94,23 @@ fi
 
 FASTA="seq.fasta"
 SAM="aln.sam"
-BAM="aln.bam"
+BAM_TMP="aln_tmp.bam"
 EXP_H5="expected.h5"
 CMUTS_H5="cmuts.h5"
+
+if [[ $USE_CRAM -eq 1 ]]; then
+    FILE="aln.cram"
+    _IS_CRAM="TRUE"
+else
+    FILE="aln.bam"
+    _IS_CRAM="FALSE"
+fi
+
 
 echo ""
 echo "        TEST PARAMETERS"
 echo " ─────────────────────────────"
+echo "   CRAM:             $_IS_CRAM"
 echo "   THREADS:          $THREADS"
 echo "   CHUNK SIZE:       $CHUNKSIZE"
 echo "   REFERENCE LENGTH: $LENGTH"
@@ -126,7 +146,13 @@ cmuts-generate-tests \
     ${NO_DELETIONS} \
     --collapse ${COLLAPSE}
 
-samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM}
+if [[ $USE_CRAM -eq 1 ]]; then
+    samtools sort -@${THREADS} -o ${BAM_TMP} ${SAM} > /dev/null 2>&1
+    samtools view -T ${FASTA} -C -o ${FILE} ${BAM_TMP} > /dev/null 2>&1
+else
+    samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP} 2> /dev/null
+    samtools sort -@${THREADS} -o ${FILE} ${BAM_TMP} > /dev/null 2>&1
+fi
 
 $__cmuts \
     --fasta ${FASTA} \
@@ -142,7 +168,7 @@ $__cmuts \
     ${NO_MISMATCHES} \
     ${NO_INSERTIONS} \
     ${NO_DELETIONS} \
-    ${BAM}
+    ${FILE}
 
 # rf-count \
 #     -wt ${THREADS} \
@@ -159,7 +185,7 @@ $__cmuts \
 #     --median-quality 0 \
 #     --discard-shorter ${MIN_LENGTH} \
 #     --max-deletion-len ${MAX_INDEL} \
-#     ${BAM} > /dev/null
+#     ${FILE} > /dev/null
 
 # rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > rf_muts.txt
 # rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > rf_cov.txt

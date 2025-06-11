@@ -20,7 +20,7 @@ template <typename dtype, size_t N>
 using arr_t = xt::xtensor<dtype, N>;
 // Most arrays are passed as views
 template <typename dtype, size_t N>
-using view_t = decltype(xt::view(std::declval<arr_t<dtype, N>&>(), std::declval<int64_t>()));
+using view_t = decltype(xt::view(std::declval<arr_t<dtype, N>&>(), std::declval<int32_t>()));
 
 namespace HDF5 {
 
@@ -87,7 +87,7 @@ private:
     std::vector<size_t> dims;
     std::vector<size_t> chunkdims;
     std::vector<size_t> offsetdims;
-    int64_t _chunksize;
+    int32_t _chunksize;
     H5::PropertyList<(H5::PropertyType)4> wprops;
 
 public:
@@ -100,22 +100,22 @@ public:
         int compression
     );
 
-    int64_t size() const;
+    int32_t size() const;
 
     void write(
         const arr_t<dtype, N>& data,
-        int64_t offset
+        int32_t offset
     ) const;
 
     void write(
         const arr_t<dtype, N>& data,
-        int64_t offset,
-        int64_t size
+        int32_t offset,
+        int32_t size
     ) const;
 
     void safe_write(
         const arr_t<dtype, N>& data,
-        int64_t offset
+        int32_t offset
     ) const;
 
 
@@ -136,10 +136,10 @@ public:
         const std::string& name
     );
 
-    int64_t size() const;
-    view_t<dtype, N> view(int64_t ix);
-    void write(int64_t ix) const;
-    void safe_write(int64_t ix) const;
+    int32_t size() const;
+    view_t<dtype, N> view(int32_t ix);
+    void write(int32_t ix) const;
+    void safe_write(int32_t ix) const;
     void clear();
     void resize(const std::vector<size_t> dims);
 

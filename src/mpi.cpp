@@ -2,10 +2,10 @@
 
 namespace MPI {
 
-static inline int64_t ceil_div(int64_t x, int64_t y) {
+static inline int32_t ceil_div(int32_t x, int32_t y) {
     return x/y + (x % y != 0);
 }
-static inline int64_t round_up_to_multiple(int64_t x, int64_t y) {
+static inline int32_t round_up_to_multiple(int32_t x, int32_t y) {
     return ceil_div(x, y) * y;
 }
 
@@ -234,13 +234,15 @@ void Manager::divide() const {
 
 }
 
-int64_t Manager::chunksize(int64_t curr_size, int64_t total) const {
+int32_t Manager::chunksize(int32_t curr_size, int32_t total) const {
 
-    return std::min(curr_size, total / _size);
+    int32_t opt = std::min(curr_size, total / _size);
+    auto _one   = static_cast<int32_t>(1);
+    return std::max(opt, _one);
 
 }
 
-Chunk Manager::chunk(int64_t _size, int64_t _total) const {
+Chunk Manager::chunk(int32_t _size, int32_t _total) const {
 
     Chunk chunk;
 

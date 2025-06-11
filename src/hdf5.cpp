@@ -152,13 +152,13 @@ Writer<dtype, N>::Writer(
 
 
 template <typename dtype, size_t N>
-int64_t Writer<dtype, N>::size() const { return _chunksize; }
+int32_t Writer<dtype, N>::size() const { return _chunksize; }
 
 
 template <typename dtype, size_t N>
 void Writer<dtype, N>::write(
     const arr_t<dtype, N>& data,
-    int64_t offset
+    int32_t offset
 ) const {
 
     std::vector<size_t> _offsetdims = offsetdims;
@@ -173,8 +173,8 @@ void Writer<dtype, N>::write(
 template <typename dtype, size_t N>
 void Writer<dtype, N>::write(
     const arr_t<dtype, N>& data,
-    int64_t offset,
-    int64_t size
+    int32_t offset,
+    int32_t size
 ) const {
 
     std::vector<size_t> _offsetdims = offsetdims;
@@ -192,12 +192,12 @@ void Writer<dtype, N>::write(
 template <typename dtype, size_t N>
 void Writer<dtype, N>::safe_write(
     const arr_t<dtype, N>& data,
-    int64_t offset
+    int32_t offset
 ) const {
 
-    int64_t _dim = static_cast<int64_t>(dims[0]);
-    int64_t _offset = std::min(offset, _dim);
-    int64_t _size = std::min(_chunksize, _dim - _offset);
+    int32_t _dim = static_cast<int32_t>(dims[0]);
+    int32_t _offset = std::min(offset, _dim);
+    int32_t _size = std::min(_chunksize, _dim - _offset);
 
     write(data, _offset, _size);
 
@@ -236,19 +236,19 @@ Memspace<dtype, N>::Memspace(
 
 
 template <typename dtype, size_t N>
-view_t<dtype, N> Memspace<dtype, N>::view(int64_t ix) {
+view_t<dtype, N> Memspace<dtype, N>::view(int32_t ix) {
     return xt::view(_data, ix);
 }
 
 
 template <typename dtype, size_t N>
-void Memspace<dtype, N>::write(int64_t ix) const {
+void Memspace<dtype, N>::write(int32_t ix) const {
     writer.write(_data, ix);
 }
 
 
 template <typename dtype, size_t N>
-void Memspace<dtype, N>::safe_write(int64_t ix) const {
+void Memspace<dtype, N>::safe_write(int32_t ix) const {
     writer.safe_write(_data, ix);
 }
 
@@ -260,7 +260,7 @@ void Memspace<dtype, N>::clear() {
 
 
 template <typename dtype, size_t N>
-int64_t Memspace<dtype, N>::size() const {
+int32_t Memspace<dtype, N>::size() const {
     return writer.size();
 }
 

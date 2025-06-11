@@ -26,12 +26,22 @@ done
 command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but it's not installed. Exiting."; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but it's not installed. Exiting."; exit 1; }
 
-# Define project-specific paths
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CODECS_DIR=${SCRIPT_DIR}/htscodecs
 BUILD_DIR=${SCRIPT_DIR}/build
-SHARE_DIR=${SCRIPT_DIR}/share
 BIN_DIR=${SCRIPT_DIR}/bin
-INCLUDE_DIR=${SCRIPT_DIR}/include
+
+# Build htscodecs if not already
+if [[ ! -d ${CODECS_DIR}/build ]]; then
+  pushd ${SCRIPT_DIR}/htscodecs > /dev/null
+  autoreconf -i
+  mkdir build
+  cd build
+  ../configure --prefix="$(pwd)/.."
+  make
+  make install
+  popd > /dev/null
+fi
 
 # Clean and create build directory
 rm -rf ${BIN_DIR}
@@ -53,6 +63,5 @@ make install
 popd > /dev/null
 
 # Post-install steps
-rm -rf ${SHARE_DIR} ${INCLUDE_DIR}
 ln -s ${SCRIPT_DIR}/src/cmuts-normalize ${BIN_DIR}/cmuts-normalize
 chmod +x ${BIN_DIR}/cmuts-normalize

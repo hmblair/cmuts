@@ -15,7 +15,9 @@ To build single-threaded `cmuts`, you will need installed copies of
    2. `samtools` and `HTSlib`
    3. `HDF5`
 
-The easiest way to install these dependencies is via `brew`, where they are available under `cmake`, `samtools`, and `hdf5` respectively.
+Building `htscodecs`, used for reading CRAM files, also requires `autoreconf`.
+
+The easiest way to install these dependencies is via `brew`, where they are available under `cmake`, `samtools`, `hdf5`, and `autoconf` respectively.
 
 If `cmake` has issues finding the HDF5 installation or you want to use a specific one, set the `HDF5_DIR` environment variable to the desired installation directory and it will be used instead.
 
@@ -146,6 +148,6 @@ The output file will contain one dataset per input with the same naming scheme a
 
 ## Tests
 
-`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions.
+`cmuts` has tests for the basic mutation counting features, which are build automatically with the main program. They can be run with `./tests/run`, which selects a random set of parameters to generate test cases with and then runs `cmuts`. The position and type of each match, mismatch, insertion and deletion are scored against their expected positions. Pass the `--cram` flag to test with CRAM rather than BAM files.
 
 There is also a command to assess the performance of `cmuts`, `./tests/profile`. This requires `rf-count` and, on Mac OS, `gtime` to be installed.

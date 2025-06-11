@@ -1,14 +1,17 @@
-#ifndef CMUTS_HEADER
-#define CMUTS_HEADER
+#ifndef _CMUTS_HEADER
+#define _CMUTS_HEADER
 
-#include "tiny.hpp"
+#include "common.hpp"
+#include "fasta.hpp"
+#include "bam.hpp"
+#include "cram.hpp"
 #include "hdf5.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
 #include <random>
 
-const int64_t N_BASES    = 4;
-const int64_t N_DELBASES = 6;
+const int32_t N_BASES    = 4;
+const int32_t N_DELBASES = 6;
 
 const std::string MODIFICATION_DS = "modifications";
 const std::string JOINT_DS        = "joint";
@@ -20,6 +23,9 @@ const hts_pos_t MOD_MOD     = 0;
 const hts_pos_t MOD_NOMOD   = 1;
 const hts_pos_t NOMOD_MOD   = 2;
 const hts_pos_t NOMOD_NOMOD = 3;
+
+const int32_t LOWMEM_MOD = 0;
+const int32_t LOWMEM_COV = 1;
 
 namespace cmuts {
 
@@ -93,7 +99,7 @@ private:
     int64_t _skipped    = 0;
     int64_t _aligned    = 0;
     int64_t _unaligned  = 0;
-    int64_t _references = 0;
+    int32_t _references = 0;
 
     const MPI::Manager& _mpi;
 
@@ -106,12 +112,14 @@ public:
     Stats(
         int64_t aligned,
         int64_t unaligned,
-        int64_t references,
+        int32_t references,
         const MPI::Manager& mpi
     );
 
     void processed();
+    void processed(int64_t n);
     void skipped();
+    void skipped(int64_t n);
     void aggregate();
     void header() const;
     void body() const;
@@ -135,13 +143,13 @@ public:
 
     Mode mode;
     Spread spread;
-    int64_t min_mapq;
-    int64_t min_phred;
-    int64_t min_length;
-    int64_t max_length;
-    int64_t max_indel_length;
-    int64_t quality_window;
-    int64_t collapse;
+    int32_t min_mapq;
+    int32_t min_phred;
+    int32_t min_length;
+    int32_t max_length;
+    int32_t max_indel_length;
+    int32_t quality_window;
+    int32_t collapse;
     bool mismatches;
     bool insertions;
     bool deletions;
@@ -161,11 +169,11 @@ public:
 
 
 
-class __Main {
+class Main {
 protected:
 
-    TinyHTS::File& file;
-    TinyHTS::FASTA& fasta;
+    HTS::File& file;
+    BinaryFASTA& fasta;
     HDF5::File& hdf5;
     const MPI::Manager& mpi;
     const Params& params;
@@ -174,48 +182,49 @@ protected:
 
 public:
 
-    __Main(
-        TinyHTS::File& file,
-        TinyHTS::FASTA& fasta,
+    Main(
+        HTS::File& file,
+        BinaryFASTA& fasta,
         HDF5::File& hdf5,
         const MPI::Manager& mpi,
         const Params& params,
         Stats& stats
     );
-
-    virtual ~__Main() = default;
+    virtual ~Main() = default;
 
     virtual void run() = 0;
 
 };
 
-template <typename dtype, Mode mode, Spread spread>
-class Main : public __Main {
+
+template <typename dtype, Mode mode>
+class TemplatedMain : public Main {
 private:
 
     HDF5::Memspace<dtype, _ndims(mode)> memspace;
 
 public:
 
-    Main(
-        TinyHTS::File& file,
-        TinyHTS::FASTA& fasta,
+    TemplatedMain(
+        HTS::File& file,
+        BinaryFASTA& fasta,
         HDF5::File& hdf5,
         const MPI::Manager& mpi,
         const Params& params,
         Stats& stats
     );
 
-    void run();
+    void run() override;
 
 };
+
 
 Mode mode(bool lowmem, bool joint);
 Spread spread(bool uniform, bool mutation_informed);
 
-std::unique_ptr<__Main> get_main(
-    TinyHTS::File& file,
-    TinyHTS::FASTA& fasta,
+std::unique_ptr<Main> _get_main(
+    HTS::File& file,
+    BinaryFASTA& fasta,
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
@@ -223,6 +232,13 @@ std::unique_ptr<__Main> get_main(
 );
 
 
+
+
+
 } // namespace cmuts
 
-#endif
+
+
+
+
+#endif // _CMUTS_HEADER
