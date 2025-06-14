@@ -64,11 +64,11 @@ generate() {
             --quality-window ${WINDOW} \
             --collapse ${COLLAPSE}
 
-        # samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP} 
-        samtools sort -@${THREADS} -o ${BAM} ${SAM} > /dev/null 2>&1
-        samtools view -T ${FASTA} -C --output-fmt-option embed_ref -o ${CRAM} ${BAM}
+    samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP} 2> /dev/null
+    samtools sort -@${THREADS} -o ${BAM} ${BAM_TMP} > /dev/null 2>&1
+    samtools view -T ${FASTA} -C -o ${CRAM} ${BAM} > /dev/null 2>&1
 
-        rm -rf ${SAM} ${BAM} ${OUTPUT}
+    rm -rf ${SAM} ${BAM_TMP}
 
     fi
 }
@@ -87,10 +87,18 @@ profile() {
     local RF_DIR=${11}
     local THREADS=${12}
     local LOWMEM=${13}
+    local USE_CRAM=${14}
 
 
     min_time=""
     min_mem=""
+
+    if [[ $USE_CRAM -eq 1 ]]; then
+        FILE="aln.cram"
+    else
+        FILE="aln.bam"
+    fi
+
 
     for ((i=0; i<${RUNS}; i++)); do
 
@@ -105,7 +113,7 @@ profile() {
             --max-indel-length ${MAX_INDEL} \
             --overwrite \
             ${LOWMEM} \
-            ${BAM})
+            ${FILE})
 
         rm -rf ${CMUTS_H5}
 
@@ -141,7 +149,7 @@ profile() {
             -wt ${THREADS} \
             -f ../${FASTA} \
             --fast \
-            ../${BAM})
+            ../${FILE})
 
         cd ..
 
@@ -173,6 +181,7 @@ QUERIES_SET=false
 REFERENCES_SET=false
 LENGTHS_SET=false
 LOWMEM=""
+USE_CRAM=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -190,6 +199,8 @@ while [[ "$#" -gt 0 ]]; do
                    ;;
         --low-mem) LOWMEM="--low-mem"
                    ;;
+        --cram) USE_CRAM=true
+                ;;
         *) echo "Unknown option: $1"
            exit 1
            ;;
@@ -247,7 +258,7 @@ if ${QUERIES_SET}; then
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
@@ -288,7 +299,7 @@ if ${REFERENCES_SET}; then
         FASTA="seq_"${REFERENCES}"_"${QUERIES}"_"${LENGTH}".fasta"
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${CRAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${CRAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
@@ -328,7 +339,7 @@ if ${LENGTHS_SET}; then
         MAX_LENGTH=$((2 * LENGTH))
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${BAM}" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
