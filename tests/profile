@@ -64,9 +64,9 @@ generate() {
             --quality-window ${WINDOW} \
             --collapse ${COLLAPSE}
 
-    samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP} 2> /dev/null
-    samtools sort -@${THREADS} -o ${BAM} ${BAM_TMP} > /dev/null 2>&1
-    samtools view -T ${FASTA} -C -o ${CRAM} ${BAM} > /dev/null 2>&1
+    samtools calmd -b -@${THREADS} ${SAM} ${FASTA} > ${BAM_TMP}
+    samtools sort -@${THREADS} -o ${BAM} ${BAM_TMP} > /dev/null
+    samtools view -T ${FASTA} -C -o ${CRAM} ${BAM} > /dev/null
 
     rm -rf ${SAM} ${BAM_TMP}
 
@@ -94,9 +94,9 @@ profile() {
     min_mem=""
 
     if [[ $USE_CRAM -eq 1 ]]; then
-        FILE="aln.cram"
+        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.cram"
     else
-        FILE="aln.bam"
+        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.bam"
     fi
 
 
@@ -130,7 +130,7 @@ profile() {
 
     done
 
-    min_mem=$(echo "scale=2; $min_mem / (1024 * 1024)" | bc)
+    min_mem=$(echo "scale=2; $min_mem / 1024 / 1024" | bc)
 
     echo "   cmuts:"
     echo "    Execution time:    $min_time seconds"
