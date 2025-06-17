@@ -9,7 +9,16 @@ command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it
 __get_field() {
     local line="$1"
     local keyword="$2"
-    echo "$line" | awk -v kw="$keyword" '{for(i=1; i<=NF; i++) {if ($i == kw) {print $(i+1); break}}}'
+    echo "$line" | awk -v kw="$keyword" '{
+        n = split($0, arr, kw);
+        if (n == 2) {
+            rest = arr[2];
+            split(rest, words, " ");
+            if(length(words[1]) > 0) {
+                print words[1];
+            }
+        }
+    }'
 }
 
 __time() {
@@ -17,13 +26,13 @@ __time() {
         result=$(/usr/bin/time -l "$@" 2>&1)
         result=$(echo "$result" | tr -d '\n')
         echo $(__get_field "$result" "real")
-        echo $(__get_field "$result" "elapsed")
+        echo $(__get_field "$result" "cycles elapsed")
     else
         result=$(/usr/bin/time -v "$@" 2>&1)
         result=$(echo "$result" | tr -d '\n')
         time=$(__get_field "$result" "m:ss):")
         echo $time | awk -F[:-] '{print $1*60 + $2 + $3/100}'
-        echo "0"
+        echo $(__get_field "$result" "Maximum resident set size \\\(kbytes\\\):")
     fi
 }
 
@@ -130,7 +139,14 @@ profile() {
 
     done
 
-    min_mem=$(echo "scale=2; $min_mem / 1024 / 1024" | bc)
+    if [[ $(uname) == Darwin ]]; then
+        FACTOR="/ 1024 / 1024"
+    else
+        FACTOR=" / 1024"
+    fi
+
+
+    min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
 
     echo "   cmuts:"
     echo "    Execution time:    $min_time seconds"
@@ -181,7 +197,7 @@ QUERIES_SET=false
 REFERENCES_SET=false
 LENGTHS_SET=false
 LOWMEM=""
-USE_CRAM=false
+USE_CRAM=0
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
