@@ -1,4 +1,5 @@
 #include "tests.hpp"
+#include <functional>
 
 
 
@@ -462,10 +463,13 @@ void __run_tests(
 ) {
 
     std::mt19937 gen = _init_gen();
+    size_t _chunksize = 128;
+    size_t chunksize = std::min(_chunksize, references);
+    size_t nchunks = (references + chunksize - 1) / chunksize;
 
     std::optional<HDF5::File> _hdf5;
     try {
-        _hdf5.emplace(out_h5, HDF5::RWC, mpi, references, 3);
+        _hdf5.emplace(out_h5, HDF5::RWC, mpi, chunksize, 3);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
     }
@@ -478,24 +482,29 @@ void __run_tests(
 
     std::vector<size_t> dims = {references, static_cast<size_t>(length), 4, 6};
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(out_sam));
-
     std::vector<Record<float>> records;
-    for (size_t ix = 0; ix < references; ix++) {
 
-        seq_t reference = _random_sequence(length, gen);
-        std::string name = "ref" + std::to_string(ix);
-        fasta.write(name, HTS::str(reference));
+    for (size_t ix = 0; ix < nchunks; ix++) {
+        for (size_t jx = 0; jx < chunksize && ix * chunksize + jx < references; jx++) {
 
-        view_t<float, 4> arr = memspace.view(ix);
-        std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
+            seq_t reference = _random_sequence(length, gen);
+            std::string name = "ref" + std::to_string(ix * chunksize + jx);
+            fasta.write(name, HTS::str(reference));
 
-        for (const auto& record : records) {
-            sam << record.str(name) << "\n";
+            view_t<float, 4> arr = memspace.view(jx);
+            std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
+
+            for (const auto& record : records) {
+                sam << record.str(name) << "\n";
+            }
+
         }
+
+        memspace.safe_write(ix * chunksize);
+        memspace.clear();
 
     }
 
-    memspace.safe_write(0);
 
 }
 
