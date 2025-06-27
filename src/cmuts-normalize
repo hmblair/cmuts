@@ -215,16 +215,21 @@ if __name__ == '__main__':
                 reads += nomod_reads
 
             with ProgressBar(width=PBAR_WIDTH):
+
                 # We need the reads computed in advance in order to
                 # find all sequences with more than NORM_CUTOFF reads
                 _reads = reads.compute()
-                # Normalise the reactivity
+
+                # Normalise the reactivity and its error
                 norm = normalise(mod_reactivity, _reads)
+                err = mod_err / norm
+
                 # Background subtract
                 if nomod_ds is not None:
                     reactivity = (mod_reactivity - nomod_reactivity) / norm
                 else:
                     reactivity = mod_reactivity / norm
+
                 # Clip the reactivity if requested
                 if args.clip_reactivity:
                     reactivity = da.clip(reactivity, 0, 1)
@@ -238,13 +243,14 @@ if __name__ == '__main__':
                     out_group + '/' + READS_DS: reads,
                     out_group + '/' + NORM_DS: norm,
                     out_group + '/' + ROI_DS: roi,
-                    out_group + '/' + ERROR_DS: mod_err,
+                    out_group + '/' + ERROR_DS: err,
                 }
                 da.to_hdf5(args.out, data)
 
         # Get the embedded sequences
         sequences = _get_sequences(f)
         if sequences is not None:
+
             # Track the region of interest
             # Save to file
             aux_data = {
