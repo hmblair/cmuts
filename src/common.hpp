@@ -411,8 +411,8 @@ struct Header {
 
 
 FileType _get_filetype(BGZF* _bgzf_file);
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length);
 Header _read_sam_header(std::unique_ptr<ByteStream>& block);
-
 
 
 

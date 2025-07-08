@@ -12,7 +12,6 @@ const int32_t KEY_SIZE = 2;
 const int32_t CRC_SIZE = 4;
 
 const int32_t CRAM_EOF_POS  = 4542278;
-const int32_t CRAM_EOF_SIZE = 15;
 const int32_t CRAM_MULTI    = -2;
 
 
@@ -73,7 +72,7 @@ namespace HTS {
 
 struct cramHeader : public Header {
 
-    std::string version;
+    int32_t version;
 
 };
 
@@ -315,11 +314,12 @@ public:
 class cramBlock {
 private:
 
+    bool _has_crc;
 
 public:
 
-    explicit cramBlock(BGZF* file);
-    explicit cramBlock(uint8_t*& _data);
+    explicit cramBlock(BGZF* file, bool crc);
+    explicit cramBlock(uint8_t*& _data, bool crc);
     ~cramBlock() = default;
 
     // The block header as per the specification
@@ -363,8 +363,8 @@ public:
 
     // Load just the header, or the header and all blocks
 
-    explicit cramSlice(uint8_t*& data);
-    cramSlice(uint8_t*& data, CodecMap codecs);
+    explicit cramSlice(uint8_t*& data, bool crc);
+    cramSlice(uint8_t*& data, CodecMap codecs, bool crc);
 
     int32_t reference;
     int32_t start;
@@ -406,7 +406,7 @@ private:
 public:
 
     CompressionHeader() = default;
-    explicit CompressionHeader(uint8_t*& data);
+    explicit CompressionHeader(uint8_t*& data, bool crc);
 
     CodecMap codecs() const;
     SubstitutionMatrix substitution() const;
@@ -429,12 +429,13 @@ public:
 class cramContainerBase {
 protected:
 
-    BGZF* _file = nullptr;
+    BGZF* _file   = nullptr;
+    bool _has_crc = false;
 
 public:
 
     cramContainerBase() = default;
-    explicit cramContainerBase(BGZF* file);
+    explicit cramContainerBase(BGZF* file, int32_t version);
 
     // The location of the container in the file
     int64_t ptr = 0;
@@ -473,7 +474,7 @@ private:
 public:
 
     cramContainer() = default;
-    explicit cramContainer(BGZF* file);
+    explicit cramContainer(BGZF* file, int32_t version);
 
     // The raw data of the container
 
@@ -507,7 +508,7 @@ private:
 
 public:
 
-    explicit cramHeaderContainer(BGZF* file);
+    explicit cramHeaderContainer(BGZF* file, int32_t version);
 
     void skip();
 
@@ -527,9 +528,10 @@ public:
 class cramIterator : public Iterator {
 private:
 
-    // The BGZF file
+    // The BGZF file and version
 
-    BGZF* _file;
+    BGZF* _file     = nullptr;
+    int32_t _version = 0;
 
     // Reference to the blocks in the slice
 
@@ -561,7 +563,7 @@ private:
 
 public:
 
-    explicit cramIterator(BGZF* file, int32_t reads);
+    explicit cramIterator(BGZF* file, int32_t reads, int32_t version);
     cramIterator(cramIterator&&) = delete;
     cramIterator& operator=(cramIterator&&) = delete;
 
@@ -589,6 +591,7 @@ public:
 class cramFile : public File {
 private:
 
+    int32_t _version = 0;
     std::shared_ptr<cramIterator> _iterator;
 
 public:

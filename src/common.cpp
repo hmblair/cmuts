@@ -696,6 +696,9 @@ std::vector<uint8_t> zlibStream::bytes(int32_t length) {
         if (_buffer_pos >= _buffer_end) { fill(); }
 
         int32_t _to_read = std::min(length - read, static_cast<int32_t>(_buffer_end - _buffer_pos));
+        if (_to_read <= 0) {
+            throw std::runtime_error("Invalid value of _to_read in zlibStream.");
+        }
 
         std::memcpy(values.data() + read, _buffer.data() + _buffer_pos, _to_read);
 
@@ -1027,15 +1030,17 @@ static inline bool _is_seq(const std::string& line) {
 
 }
 
+static inline bool _is_aux(const std::string& line) {
 
-Header _read_sam_header(std::unique_ptr<ByteStream>& block) {
+    return line.starts_with("@PG");
+
+}
+
+
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
 
     Header header;
-
-    // Skip past the first 4 bytes, which contain the length of the header
-
-    int32_t length = block->size();
-    int32_t ix     = 0;
+    int32_t ix = 0;
 
     // The first line tells us whether the file is sorted
 
@@ -1046,12 +1051,32 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block) {
     // The next set of lines are for the reference sequences
 
     while (ix < length) {
+
         line = block->str();
-        if (_is_seq(line)) { header.references++; }
         ix += static_cast<int32_t>(line.length() + 1);
+
+        // If we have reached the aux data, we are done with the references
+
+        if (_is_aux(line)) { break; }
+
+        // Else, increment the number of references
+
+        if (_is_seq(line)) { header.references++; }
+
     }
 
+    // Skip any remaining blank space
+
+    if (ix < length) { (void)block->bytes(length - ix); }
+
     return header;
+
+}
+
+
+Header _read_sam_header(std::unique_ptr<ByteStream>& block) {
+
+    return _read_sam_header(block, block->size());
 
 }
 
