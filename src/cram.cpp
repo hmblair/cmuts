@@ -250,6 +250,7 @@ static inline Codec_t _codec_from_cram(int32_t value) {
         case 4:  { return Codec_t::ByteArrayLen; }
         case 5:  { return Codec_t::ByteStop; }
         case 6:  { return Codec_t::Beta;     }
+        case 7:  { return Codec_t::SubExp;     }
         default: {
             throw std::runtime_error("Invalid codec \"" + std::to_string(value) + "\".");
         }
@@ -445,6 +446,10 @@ BetaCodec::BetaCodec(int32_t offset, int32_t length)
     : Codec(Codec_t::Beta), _offset(offset), _length(length) {}
 
 
+SubExpCodec::SubExpCodec(int32_t offset, int32_t order)
+    : Codec(Codec_t::SubExp), _offset(offset), _order(order) {}
+
+
 Codec_t Codec::type() const { return _type; }
 
 int32_t Codec::id() const { return _id; }
@@ -500,6 +505,37 @@ int32_t HuffmanCodec::integer() {
 int32_t BetaCodec::integer() {
 
     return _stream->bits(_length) + _offset;
+
+}
+
+
+int32_t SubExpCodec::integer() {
+
+    // Read the number of leading ones.
+    // This also takes care of the trailing zero.
+
+    uint8_t bit   = _stream->bits(1);
+    uint8_t count = 0;
+
+    while (bit == 1) {
+        count++;
+        bit = _stream->bits(1);
+    }
+
+    // Decode as per the standard
+
+    int32_t length = 0;
+
+    if (count == 0) {
+        length = static_cast<int32_t>(_order);
+    } else {
+        length = static_cast<int32_t>(count + _order - 1);
+    }
+
+    int32_t value = static_cast<int32_t>(_stream->bits(length));
+    if (count > 0) { value += (1L << length); }
+
+    return value - _offset;
 
 }
 
@@ -790,6 +826,14 @@ static inline std::shared_ptr<Codec> _get_codec(cramBlock& block) {
             int32_t offset = block.itf8();
             int32_t length = block.itf8();
             return std::make_shared<BetaCodec>(offset, length);
+
+        }
+
+        case Codec_t::SubExp: {
+
+            int32_t offset = block.itf8();
+            int32_t order  = block.itf8();
+            return std::make_shared<SubExpCodec>(offset, order);
 
         }
 

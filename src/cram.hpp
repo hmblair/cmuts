@@ -137,7 +137,8 @@ enum class Codec_t : uint8_t {
     Huffman,      // Canonical Huffman coding
     ByteArrayLen, // An integer encoding of lengths followed by a byte encoding
     ByteStop,     // Stop character + ITF8 integer
-    Beta          // Offset + length, both ITF8
+    Beta,         // Offset + length, both ITF8
+    SubExp        // Offset + exponent, both ITF8
 
 };
 
@@ -261,6 +262,21 @@ private:
 public:
 
     BetaCodec(int32_t offset, int32_t length);
+
+    int32_t integer() override;
+
+};
+
+
+class SubExpCodec: public Codec {
+private:
+
+    int32_t _offset = 0;
+    int32_t _order  = 0;
+
+public:
+
+    SubExpCodec(int32_t offset, int32_t order);
 
     int32_t integer() override;
 
