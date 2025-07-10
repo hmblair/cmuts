@@ -404,7 +404,7 @@ bool ByteStream::end() const noexcept {
 uint8_t ByteStream::bits(int32_t length) {
 
     if (length > BYTE) {
-        throw std::runtime_error("bits() cannot load more than " + std::to_string(BYTE) + " bits.");
+        throw std::runtime_error("bits() cannot load " + std::to_string(length) + " bits.");
     }
 
     if (_n_bits == 0) { _byte = byte(); _n_bits = BYTE; }
