@@ -401,43 +401,35 @@ bool ByteStream::end() const noexcept {
 }
 
 
-uint8_t ByteStream::bits(int32_t length) {
+int32_t ByteStream::bits(int32_t length) {
 
-    if (length > BYTE) {
-        throw std::runtime_error("bits() cannot load " + std::to_string(length) + " bits.");
-    }
+    int32_t out       = 0;
+    int32_t bits_remaining = length;
 
-    if (_n_bits == 0) { _byte = byte(); _n_bits = BYTE; }
+    while (bits_remaining > 0) {
 
-    int32_t diff = (length - _n_bits);
-    uint8_t out  = 0;
+        if (_n_bits == 0) { _byte = byte(); _n_bits = BYTE; }
 
-    // We already have enough bits
+        int32_t _to_read = std::min(bits_remaining, static_cast<int32_t>(_n_bits));
 
-    if (diff <= 0) {
+        // Make room for the bits we are going to read
 
-        out      = _byte & BIT_MASK[length];
-        _byte  <<= length;
-        _n_bits -= length;
+        out <<= _to_read;
 
-    }
+        // Read the desired number of bits into out
 
-    // We will need to load the next byte
+        uint8_t tmp = (_byte & BIT_MASK[_to_read]);
+        out |= (tmp >> (BYTE - _to_read));
 
-    else {
+        // Update accordingly
 
-        out = _byte;
-        _byte = byte();
-
-        uint8_t remainder = (_byte & BIT_MASK[diff]) >> _n_bits;
-        out = out | remainder;
-        _byte = _byte << diff;
-
-        _n_bits = (BYTE - diff);
+        _byte    <<= _to_read;
+        _n_bits   -= _to_read;
+        bits_remaining -= _to_read;
 
     }
 
-    return out >> (BYTE - length);
+    return out;
 
 }
 

@@ -217,7 +217,7 @@ public:
     int32_t remaining() const;
     bool end() const noexcept;
 
-    uint8_t bits(int32_t length);
+    int32_t bits(int32_t length);
     void memcpy(uint8_t* dest, int32_t n);
     int32_t itf8();
     int64_t ltf8();
