@@ -1,5 +1,6 @@
 #include "common.hpp"
 #include <stdexcept>
+#include <string>
 
 
 
@@ -403,7 +404,7 @@ bool ByteStream::end() const noexcept {
 
 int32_t ByteStream::bits(int32_t length) {
 
-    int32_t out       = 0;
+    int32_t out            = 0;
     int32_t bits_remaining = length;
 
     while (bits_remaining > 0) {
@@ -423,8 +424,8 @@ int32_t ByteStream::bits(int32_t length) {
 
         // Update accordingly
 
-        _byte    <<= _to_read;
-        _n_bits   -= _to_read;
+        _byte   <<= _to_read;
+        _n_bits -= _to_read;
         bits_remaining -= _to_read;
 
     }
@@ -517,7 +518,7 @@ dataStream::dataStream(std::span<const uint8_t> data)
     : ByteStream(static_cast<int32_t>(data.size())), _data(data) {}
 
 
-uint8_t dataStream::byte() { 
+uint8_t dataStream::byte() {
 
     uint8_t value = _data[_pos];
     _pos++;
@@ -528,6 +529,10 @@ uint8_t dataStream::byte() {
 
 
 std::vector<uint8_t> dataStream::bytes(int32_t length) {
+
+    if (length + _pos > _data.size()) {
+        throw std::runtime_error("Failed to get " + std::to_string(length) + " bytes from the dataStream.");
+    }
 
     std::vector<uint8_t> values(length);
     std::memcpy(values.data(), _data.data() + _pos, length);
@@ -879,7 +884,11 @@ std::string bgzfFileStream::str(uint8_t delimiter) {
 
 
 zlibFileStream::zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
-    : zlibStream(_buffer_span, raw, buffer), _bgzf(file, size), _bgzf_buffer(buffer), _bgzf_buffer_pos (buffer), _in_remaining(size) {}
+    : zlibStream(_buffer_span, raw, buffer),
+      _bgzf(file, size),
+      _bgzf_buffer(buffer),
+      _bgzf_buffer_pos (buffer),
+      _in_remaining(size) {}
 
 
 void zlibFileStream::fill() {

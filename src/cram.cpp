@@ -224,14 +224,6 @@ static inline std::unique_ptr<ByteStream> _get_file_stream(const cramBlock& bloc
 }
 
 
-
-
-
-
-
-
-
-
 template <typename dtype>
 static inline std::vector<dtype> _read_bgzf_array(BGZF* _bgzf_file) {
 
