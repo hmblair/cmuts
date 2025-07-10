@@ -302,6 +302,17 @@ int64_t cramContainer::unaligned() {
 
 }
 
+cramSlice cramContainer::slice(int32_t ix) {
+
+    if (ix >= slices.size()) {
+        throw std::runtime_error("The slice index (" + std::to_string(ix) + ") is out of bounds.");
+    }
+
+    return slices[ix];
+
+}
+
+
 
 static inline ExtData_t _aux_from_code(const std::string &code) {
 
@@ -949,7 +960,6 @@ cramSlice::cramSlice(uint8_t*& data, CodecMap _codecs, bool crc)
 
         // Attach all remaining external blocks to their associated codec
 
-
         else {
 
             int32_t id = block.content;
@@ -1081,7 +1091,7 @@ cramContainerBase::cramContainerBase(BGZF* file, int32_t version)
       landmarks (_read_ITF8_array(file)) {
 
     if (_has_crc) {
-      crc32 = _read_bgzf_single<int32_t>(file);
+        crc32 = _read_bgzf_single<int32_t>(file);
     }
 
 }
@@ -1144,18 +1154,10 @@ cramHeaderContainer::cramHeaderContainer(BGZF* file, int32_t version)
 
     stream = _get_file_stream(block);
 
-    // Skip the first int, which stores the length of the header
-
-    if (_has_crc) {
-        (void)stream->bytes(sizeof(int32_t));
-    }
-
 }
 
 
 void cramHeaderContainer::skip() {
-
-    // Skip the CRC of the current (SAM header) block
 
     if (_has_crc) {
         (void)_read_bgzf(_file, CRC_SIZE);
@@ -1183,7 +1185,6 @@ SubstitutionMatrix cramContainer::substitution() const { return _comp.substituti
 bool cramContainer::delta() const { return _comp.delta(); }
 
 
-
 static inline cramHeader _read_cram_header(BGZF* file) {
 
     cramHeader header;
@@ -1207,14 +1208,11 @@ static inline cramHeader _read_cram_header(BGZF* file) {
     cramHeaderContainer container(file, version);
 
     // Read the raw SAM header.
-    // This will endlessly loop unless we force it not to read the CRC.
 
-    Header _tmp_header;
     if (version >= 30) {
-        _tmp_header = _read_sam_header(container.stream, container.stream->size() - CRC_SIZE);
-    } else {
-        _tmp_header = _read_sam_header(container.stream);
+        container.stream->bytes(sizeof(int32_t));
     }
+    Header _tmp_header = _read_sam_header(container.stream);
 
     header.sorted     = _tmp_header.sorted;
     header.references = _tmp_header.references;
@@ -1288,9 +1286,9 @@ cramIterator::cramIterator(BGZF* file, int32_t reads, int32_t version)
     _file(file),
     _version(version),
     _container(file, _version),
-    _remaining_in_slice(_container.slices[_slice].records) {
+    _remaining_in_slice(_container.slice(_slice).records) {
 
-    int32_t _tmp = _container.slices[_slice].start;
+    int32_t _tmp = _container.slice(_slice).start;
     _offset      = std::max(_tmp - 1, 0);
 
 }
@@ -1309,7 +1307,7 @@ void cramIterator::set(int64_t reads) {
 
 std::shared_ptr<Codec> cramIterator::at(ExtData_t type) {
 
-    return _container.slices[_slice].codecs.map.at(type);
+    return _container.slice(_slice).codecs.map.at(type);
 
 }
 
@@ -1323,9 +1321,9 @@ void cramIterator::_next_slice() {
         _slice = 0;
     }
 
-    _remaining_in_slice = _container.slices[_slice].records;
+    _remaining_in_slice = _container.slice(_slice).records;
 
-    int32_t _tmp = _container.slices[_slice].start;
+    int32_t _tmp = _container.slice(_slice).start;
     _offset      = std::max(_tmp - 1, 0);
 
 }
@@ -1532,7 +1530,7 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
             block.reads = 0;
 
             for (int32_t jx = tid + 1; jx < curr; jx++) {
-                block.write_ptr(out);
+                block.write_bad_ptr(out);
                 block.write_reads(out);
             }
 
@@ -1542,7 +1540,6 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
             tid = curr;
             block.write_ptr(out);
 
-
         } else {
 
             block.reads += container.aligned();
@@ -1550,13 +1547,18 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
 
         }
 
-
         block.tell(file);
         container = cramContainer(file, version);
 
     }
 
     block.write_reads(out);
+
+    block.reads = 0;
+    for (int32_t jx = tid + 1; jx < references; jx++) {
+        block.write_bad_ptr(out);
+        block.write_reads(out);
+    }
 
     // Write the unaligned read count
 
@@ -1587,6 +1589,12 @@ std::shared_ptr<Iterator> cramFile::get(int32_t ix, bool seek) {
 
     IndexBlock block = _index.read(ix);
 
+    // If the pointer is bad, then return an empty iterator
+
+    if (block.ptr == -1) {
+        return std::make_shared<EmptyIterator>();
+    }
+
     // Seek to the correct alignment if necessary
 
     if (seek || _iterator->empty()) {
@@ -1599,6 +1607,7 @@ std::shared_ptr<Iterator> cramFile::get(int32_t ix, bool seek) {
     } 
 
     // Otherwise, just tell the iterator the number of reads in the alignment
+    // This saves having to do unnecessary (and expensive) seeks
 
     else {
 

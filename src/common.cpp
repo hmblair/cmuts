@@ -387,6 +387,13 @@ int32_t ByteStream::size() const {
 }
 
 
+int32_t ByteStream::remaining() const {
+
+    return _remaining;
+
+}
+
+
 bool ByteStream::end() const noexcept {
 
     return (_remaining <= 0);
@@ -697,7 +704,7 @@ std::vector<uint8_t> zlibStream::bytes(int32_t length) {
 
         int32_t _to_read = std::min(length - read, static_cast<int32_t>(_buffer_end - _buffer_pos));
         if (_to_read <= 0) {
-            throw std::runtime_error("Invalid value of _to_read in zlibStream.");
+            throw std::runtime_error("Invalid number of bytes (" + std::to_string(_to_read) + ") in zlibStream.");
         }
 
         std::memcpy(values.data() + read, _buffer.data() + _buffer_pos, _to_read);
@@ -1076,7 +1083,7 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
 
 Header _read_sam_header(std::unique_ptr<ByteStream>& block) {
 
-    return _read_sam_header(block, block->size());
+    return _read_sam_header(block, block->remaining());
 
 }
 
@@ -1500,6 +1507,13 @@ bool Iterator::end() const noexcept {
 }
 
 
+Alignment EmptyIterator::next() {
+
+    throw std::runtime_error("Cannot get alignments from an empty iterator.");
+
+}
+
+
 
 
 
@@ -1528,6 +1542,14 @@ void IndexBlock::tell(BGZF* _hts_bgzf) {
 void IndexBlock::write_ptr(std::ofstream& file) {
 
     file.write(reinterpret_cast<char*>(&ptr), sizeof(int64_t));
+
+}
+
+
+void IndexBlock::write_bad_ptr(std::ofstream& file) {
+
+    int64_t _tmp_ptr = -1;
+    file.write(reinterpret_cast<char*>(&_tmp_ptr), sizeof(int64_t));
 
 }
 

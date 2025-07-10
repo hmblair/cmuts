@@ -483,6 +483,7 @@ public:
     // The slices in the container
 
     std::vector<cramSlice> slices;
+    cramSlice slice(int32_t ix);
 
     // The number of aligned reads in the container
 

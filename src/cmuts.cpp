@@ -116,7 +116,7 @@ static inline int32_t _get_ambiguous_end(
     int32_t M = start;
     int32_t N = end;
 
-    while (M != -1 && N != size) {
+    while (M != -1 && N < size - 1) {
         M = _first_match(sequence[N + 1], sequence, M, N);
         N++;
     }

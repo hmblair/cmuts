@@ -214,6 +214,7 @@ public:
     virtual std::string str(uint8_t delimiter = '\n')    = 0;
 
     int32_t size() const;
+    int32_t remaining() const;
     bool end() const noexcept;
 
     uint8_t bits(int32_t length);
@@ -604,6 +605,7 @@ protected:
 
 public:
 
+    Iterator() = default;
     explicit Iterator(int64_t reads);
     virtual ~Iterator() = default;
     Iterator(const Iterator&) = delete;
@@ -613,6 +615,15 @@ public:
 
     virtual Alignment next() = 0;
     bool end() const noexcept;
+
+};
+
+
+class EmptyIterator : public Iterator {
+public:
+
+    EmptyIterator() = default;
+    Alignment next() override;
 
 };
 
@@ -637,6 +648,7 @@ public:
     bool empty() const;
     void tell(BGZF* _hts_bgzf);
     void write_ptr(std::ofstream& file);
+    void write_bad_ptr(std::ofstream& file);
     void write_reads(std::ofstream& file);
 
 };
