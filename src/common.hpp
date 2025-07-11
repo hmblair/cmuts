@@ -281,7 +281,7 @@ protected:
 public:
 
     zlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer);
-    ~zlibStream() override;
+    virtual ~zlibStream() override;
 
     virtual void fill();
 
