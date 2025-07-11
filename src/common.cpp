@@ -618,19 +618,18 @@ static inline std::vector<uint8_t> _decompress_rans4x8(std::span<const uint8_t> 
 }
 
 
-ransStream::ransStream(std::vector<uint8_t> data) 
+ransStream::ransStream(std::vector<uint8_t> data)
     : dataStream(data), _rans_data(std::move(data)) {}
 
 
 ransStream::ransStream(std::span<const uint8_t> data, int32_t raw)
     : ransStream(_decompress_rans4x8(data)) {
 
-        if (_rans_data.size() != raw) {
-            throw std::runtime_error("RANS4x8 decompresssion failed.");
-        }
-
+    if (_rans_data.size() != raw) {
+        throw std::runtime_error("RANS4x8 decompresssion failed.");
     }
 
+}
 
 
 
@@ -887,7 +886,7 @@ zlibFileStream::zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t bu
     : zlibStream(_buffer_span, raw, buffer),
       _bgzf(file, size),
       _bgzf_buffer(buffer),
-      _bgzf_buffer_pos (buffer),
+      _bgzf_buffer_pos(buffer),
       _in_remaining(size) {}
 
 

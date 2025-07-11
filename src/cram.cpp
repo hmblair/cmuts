@@ -176,22 +176,22 @@ static inline LTF8 _decode_LTF8(const uint8_t* buffer, int32_t remaining) {
 }
 
 
-static inline std::unique_ptr<ByteStream> _get_stream(const cramBlock& block) {
+static inline std::shared_ptr<ByteStream> _get_stream(const cramBlock& block) {
 
     std::span data(block.data.begin(), block.data.end());
 
     switch (block.method) {
 
         case CompressionMethod::None:    {
-            return std::make_unique<dataStream>(data);
+            return std::make_shared<dataStream>(data);
         }
 
         case CompressionMethod::gzip:    {
-            return std::make_unique<zlibStream>(data, block.raw, BGZF_BUFFER);
+            return std::make_shared<zlibStream>(data, block.raw, BGZF_BUFFER);
         }
 
         case CompressionMethod::rans4x8: {
-            return std::make_unique<ransStream>(data, block.raw);
+            return std::make_shared<ransStream>(data, block.raw);
         }
 
         default: {
