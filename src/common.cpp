@@ -882,12 +882,17 @@ std::string bgzfFileStream::str(uint8_t delimiter) {
 
 
 
-zlibFileStream::zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
-    : zlibStream(_buffer_span, raw, buffer),
+zlibFileStream::zlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer)
+    : zlibStream(data, raw, buffer),
       _bgzf(file, size),
       _bgzf_buffer(buffer),
+      _buffer_span(data),
       _bgzf_buffer_pos(buffer),
       _in_remaining(size) {}
+
+
+zlibFileStream::zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
+    : zlibFileStream(file, std::span<const uint8_t>(), size, raw, buffer) {}
 
 
 void zlibFileStream::fill() {

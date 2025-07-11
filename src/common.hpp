@@ -336,6 +336,7 @@ private:
 
 public:
 
+    zlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer);
     zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer);
 
     void fill() override;
