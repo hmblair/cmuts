@@ -530,7 +530,7 @@ uint8_t dataStream::byte() {
 
 std::vector<uint8_t> dataStream::bytes(int32_t length) {
 
-    if (length + _pos > _data.size()) {
+    if (length <= 0 || length + _pos > _data.size()) {
         throw std::runtime_error("Failed to get " + std::to_string(length) + " bytes from the dataStream.");
     }
 
