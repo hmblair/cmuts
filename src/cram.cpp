@@ -1190,6 +1190,7 @@ static inline cramHeader _read_cram_header(BGZF* file) {
     auto major = _read_bgzf_single<uint8_t>(file);
     auto minor = _read_bgzf_single<uint8_t>(file);
     int32_t version = 10 * major + minor;
+    std::cout << "CRAM version: " << version << std::endl;
 
     // Every CRAM header has an extra 20 bytes for the file ID
 
