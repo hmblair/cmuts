@@ -1,7 +1,7 @@
 #include "utils.hpp"
 #include <stdexcept>
 
-static inline void __log(std::ofstream& file) {
+static inline void __log_trace(std::ofstream& file) {
 
     void* array[MAX_TRACE];
     int size = backtrace(array, MAX_TRACE);
@@ -12,6 +12,21 @@ static inline void __log(std::ofstream& file) {
     }
 
     free(symbols);
+
+}
+
+void __log(const std::string& filename, const std::string& message) {
+
+    std::time_t now = std::time(nullptr);
+    std::ofstream file(filename, std::ios::app);
+
+    if (!file) {
+        std::cerr << "Error opening the log file \"" << filename << "\".\n";
+        return;
+    }
+
+    file << "--------------- " << std::ctime(&now);
+    file << "MESSAGE: " << message << std::endl;
 
 }
 
@@ -27,7 +42,7 @@ void __throw_and_log(const std::string& filename, const std::string& err) {
 
     file << "--------------- " << std::ctime(&now);
     file << "ERROR: " << err << std::endl;
-    __log(file);
+    __log_trace(file);
     throw std::runtime_error(err);
 
 }

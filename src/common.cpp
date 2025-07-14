@@ -1021,7 +1021,7 @@ FileType _get_filetype(BGZF* _bgzf_file) {
     } else {
 
         _close_bgzf(_bgzf_file);
-        __throw_and_log(_LOG_FILE, "Magic check failed -- invalid file.");
+        __throw_and_log(_LOG_FILE, "Magic check failed -- invalid alignment file.");
 
     }
 
@@ -1709,7 +1709,14 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
     _throw_if_has_duplicate_paths(filenames);
 
     for (const auto& name : filenames) {
-        _group.push_back(_get_file(name));
+
+        try {
+            _group.push_back(_get_file(name));
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to load \"" + name + "\": " + e.what() + "\n";
+            continue;
+        }
+
     }
 
 }

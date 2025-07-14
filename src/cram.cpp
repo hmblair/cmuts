@@ -1,4 +1,5 @@
 #include "cram.hpp"
+#include "utils.hpp"
 #include <stdexcept>
 
 
@@ -1190,7 +1191,9 @@ static inline cramHeader _read_cram_header(BGZF* file) {
     auto major = _read_bgzf_single<uint8_t>(file);
     auto minor = _read_bgzf_single<uint8_t>(file);
     int32_t version = 10 * major + minor;
-    std::cout << "CRAM version: " << version << std::endl;
+
+    std::string _str_version = std::to_string(major) + "." + std::to_string(minor);
+    __log(_LOG_FILE, "CRAM version: " + _str_version);
 
     // Every CRAM header has an extra 20 bytes for the file ID
 
@@ -1430,6 +1433,10 @@ Alignment cramIterator::next() {
 
     int32_t length = at(ExtData_t::RL)->integer();
     int32_t matches = length - _qpos;
+
+    if (length <= 0) {
+        __throw_and_log(_LOG_FILE, "Invalid read length (" + std::to_string(length) + ").");
+    }
 
     if (matches > 0) {
         CIGAR_op match(CIGAR_t::MATCH, matches);

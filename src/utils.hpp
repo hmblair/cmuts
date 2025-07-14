@@ -13,6 +13,7 @@ constexpr int32_t MAX_TRACE = 256;
 
 typedef argparse::ArgumentParser Parser;
 
+void __log(const std::string& filename, const std::string& message);
 void __throw_and_log(const std::string& filename, const std::string& err);
 
 template <typename T>
