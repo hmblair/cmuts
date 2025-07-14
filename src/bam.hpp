@@ -2,6 +2,7 @@
 # define _CMUTS_BAM_HEADER
 
 #include "common.hpp"
+#include "utils.hpp"
 
 const char MD_DEL  = '^';
 const char MD_NULL = '0';

@@ -244,6 +244,7 @@ void MD_tag::update() {
         }
 
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Unknown MD tag operation \"" + std::to_string(_tag[pos]) + "\" at tag position " + std::to_string(pos) + ". The tag is " + _tag + ".");
         }
 
@@ -367,6 +368,7 @@ static inline bam1_t* _open_aln() {
 
     bam1_t* _hts_aln = bam_init1();
     if (_hts_aln == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to allocate memory for a sequence aligment.");
     }
 
@@ -391,6 +393,7 @@ static inline void _close_aln(bam1_t*& _hts_aln) {
 static inline void _read_bam(BGZF* _hts_bgzf, bam1_t* _hts_aln) {
 
     if (bam_read1(_hts_bgzf, _hts_aln) < 0) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The alignment ended prematurely.");
     }
 
@@ -429,6 +432,7 @@ static inline std::string _bam_md(bam1_t* _hts_aln) {
 
     uint8_t* md_ptr = bam_aux_get(_hts_aln, "MD");
     if (md_ptr == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to retrieve the MD tag.");
     }
     char* tag = bam_aux2Z(md_ptr);
@@ -442,6 +446,7 @@ static inline std::span<const uint32_t> _bam_cigar_str(bam1_t* _hts_aln) {
 
     uint32_t* raw_str = bam_get_cigar(_hts_aln);
     if (raw_str == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Error retrieving the CIGAR string.");
     }
     hts_pos_t length = _hts_aln->core.n_cigar;
@@ -534,6 +539,7 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
 
     FileType type = _get_filetype(_bgzf_file);
     if (type != FileType::BAM) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Opening a non-CRAM file using _read_bam_header.");
     }
 

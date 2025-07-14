@@ -2,6 +2,7 @@
 #define _CMUTS_CRAM_HEADER
 
 #include "common.hpp"
+#include "utils.hpp"
 #include <unordered_map>
 
 const int32_t FILE_ID_SIZE = 20;

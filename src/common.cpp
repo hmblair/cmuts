@@ -25,6 +25,7 @@ bool _exists(const std::string& filename) {
 void _throw_if_exists(const std::string& filename) {
 
     if (_exists(filename)) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The file \"" + filename + "\" already exists.");
     }
 
@@ -34,6 +35,7 @@ void _throw_if_exists(const std::string& filename) {
 void _throw_if_not_exists(const std::string& filename) {
 
     if (!_exists(filename)) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The file \"" + filename + "\" does not exist.");
     }
 
@@ -86,6 +88,7 @@ bool _has_duplicate_paths(const std::vector<std::string>& paths) {
 void _throw_if_has_duplicate_paths(const std::vector<std::string>& paths) {
 
     if (_has_duplicate_paths(paths)) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Duplicate input paths (modulo extensions) are not allowed.");
     }
 
@@ -109,6 +112,7 @@ BGZF* _open_bgzf(const std::string& name) {
 
     BGZF* _bgzf_file = bgzf_open(name.c_str(), "r");
     if (_bgzf_file == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to open the file \"" + name + "\" using BGZF.");
     }
 
@@ -130,6 +134,7 @@ void _close_bgzf(BGZF*& _bgzf_file) {
 void _read_bgzf(BGZF* _bgzf_file, void* buffer, int32_t size) {
 
     if (_bgzf_file == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Null BGZF pointer.");
     }
 
@@ -140,6 +145,7 @@ void _read_bgzf(BGZF* _bgzf_file, void* buffer, int32_t size) {
     if (bytes != size) {
 
         _close_bgzf(_bgzf_file);
+        __log(_LOG_FILE);
         throw std::runtime_error("BGZF failed to read " + std::to_string(size - bytes) + " of " + std::to_string(size) + " bytes.");
 
     }
@@ -161,6 +167,7 @@ void _seek_bgzf(BGZF* _bgzf_file, int64_t ptr) {
     if (bgzf_seek(_bgzf_file, ptr, SEEK_SET) < 0) {
 
         _close_bgzf(_bgzf_file);
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to seek to position " + std::to_string(ptr) + ".");
 
     }
@@ -175,6 +182,7 @@ dtype _read_bgzf_line(BGZF* _bgzf_file, uint8_t delimiter) {
 
     int length = bgzf_getline(_bgzf_file, static_cast<int>(delimiter), &tmp);
     if (length < -1) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failure in _read_bgzf_line.");
     }
 
@@ -233,6 +241,7 @@ static inline z_stream _open_z_stream(std::span<const uint8_t> data) {
 
     int err = inflateInit2(&stream, ZLIB_WINDOW);
     if (err != Z_OK) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to initialize z_stream: " + _get_stream_msg(&stream));
     }
 
@@ -251,6 +260,7 @@ static inline void _close_z_stream(z_stream& stream) {
 static inline void _read_z_stream(z_stream* stream, std::vector<uint8_t>& buffer) {
 
     if (stream == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Null pointer in _read_z_stream.");
     }
 
@@ -263,6 +273,7 @@ static inline void _read_z_stream(z_stream* stream, std::vector<uint8_t>& buffer
     int err = inflate(stream, Z_NO_FLUSH);
     if (err != Z_OK && err != Z_STREAM_END) {
 
+        __log(_LOG_FILE);
         throw std::runtime_error(
             "Failed to read from the zlib stream: " + _get_stream_msg(stream)
         );
@@ -531,6 +542,7 @@ uint8_t dataStream::byte() {
 std::vector<uint8_t> dataStream::bytes(int32_t length) {
 
     if (length <= 0 || length + _pos > _data.size()) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to get " + std::to_string(length) + " bytes from the dataStream.");
     }
 
@@ -607,6 +619,7 @@ static inline std::vector<uint8_t> _decompress_rans4x8(std::span<const uint8_t> 
     uint32_t _out_size = 0;
     uint8_t* _out = rans_uncompress(const_cast<uint8_t*>(data.data()), data.size(), &_out_size);
     if (_out == nullptr) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Failed to decompress the RANS4x8 stream.");
     }
 
@@ -626,6 +639,7 @@ ransStream::ransStream(std::span<const uint8_t> data, int32_t raw)
     : ransStream(_decompress_rans4x8(data)) {
 
     if (_rans_data.size() != raw) {
+        __log(_LOG_FILE);
         throw std::runtime_error("RANS4x8 decompresssion failed.");
     }
 
@@ -665,6 +679,7 @@ zlibStream::~zlibStream() {
 void zlibStream::fill() {
 
     if (!_open) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The zlib stream is not open.");
     }
 
@@ -700,6 +715,7 @@ std::vector<uint8_t> zlibStream::bytes(int32_t length) {
 
         int32_t _to_read = std::min(length - read, static_cast<int32_t>(_buffer_end - _buffer_pos));
         if (_to_read <= 0) {
+        __log(_LOG_FILE);
             throw std::runtime_error("Invalid number of bytes (" + std::to_string(_to_read) + ") in zlibStream.");
         }
 
@@ -1019,6 +1035,7 @@ FileType _get_filetype(BGZF* _bgzf_file) {
     } else {
 
         _close_bgzf(_bgzf_file);
+        __log(_LOG_FILE);
         throw std::runtime_error("Magic check failed -- invalid file.");
 
     }
@@ -1514,6 +1531,7 @@ bool Iterator::end() const noexcept {
 
 Alignment EmptyIterator::next() {
 
+    __log(_LOG_FILE);
     throw std::runtime_error("Cannot get alignments from an empty iterator.");
 
 }
@@ -1573,6 +1591,7 @@ Index::Index(const std::string& filename, int32_t references)
 IndexBlock Index::read(int32_t ix) {
 
     if (ix >= _references) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The index " + std::to_string(ix) + " is too large for the file \"" + _name + "\".");
     }
 

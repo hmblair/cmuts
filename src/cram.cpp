@@ -100,6 +100,7 @@ static inline std::vector<int32_t> _read_ITF8_array(BGZF* _bgzf_file) {
 
     int32_t size = _read_ITF8(_bgzf_file);
     if (size < 0) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Invalid ITF8 array size.");
     }
 
@@ -195,6 +196,7 @@ static inline std::shared_ptr<ByteStream> _get_stream(const cramBlock& block) {
         }
 
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Unsupported compression method \"" + std::to_string(static_cast<int32_t>(block.method)) + "\".");
         }
 
@@ -216,6 +218,7 @@ static inline std::unique_ptr<ByteStream> _get_file_stream(const cramBlock& bloc
         }
 
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Unsupported file-streaming compression method \"" + std::to_string(static_cast<int32_t>(block.method)) + "\".");
         }
 
@@ -248,6 +251,7 @@ static inline Codec_t _codec_from_cram(int32_t value) {
         case 6:  { return Codec_t::Beta;     }
         case 7:  { return Codec_t::SubExp;     }
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Invalid codec \"" + std::to_string(value) + "\".");
         }
 
@@ -265,6 +269,7 @@ static inline CompressionMethod _get_compression(uint8_t value) {
         case 1:  { return CompressionMethod::gzip;    }
         case 4:  { return CompressionMethod::rans4x8; }
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Invalid compression method \"" + std::to_string(value) + "\".");
         }
 
@@ -297,6 +302,7 @@ int64_t cramContainer::unaligned() {
 cramSlice cramContainer::slice(int32_t ix) {
 
     if (ix >= slices.size()) {
+        __log(_LOG_FILE);
         throw std::runtime_error("The slice index (" + std::to_string(ix) + ") is out of bounds.");
     }
 
@@ -337,6 +343,7 @@ static inline ExtData_t _aux_from_code(const std::string &code) {
     if (code == "BA") { return ExtData_t::BA; }
     if (code == "QS") { return ExtData_t::QS; }
 
+    __log(_LOG_FILE);
     throw std::invalid_argument("Unknown auxilliary CRAM code " + code + ".");
 
 }
@@ -475,12 +482,14 @@ int32_t Codec::integer() { return _stream->itf8(); }
 
 std::vector<uint8_t> Codec::array() {
 
+    __log(_LOG_FILE);
     throw std::runtime_error("No default for array().");
 
 }
 
 std::vector<uint8_t> Codec::array(int32_t length) {
 
+    __log(_LOG_FILE);
     throw std::runtime_error("No default for array(int32_t).");
 
 }
@@ -757,6 +766,7 @@ static inline PreservationMap _get_preservation_map(cramBlock& block) {
         } else if (key == "RN") {
             map.RN = static_cast<bool>(block.byte());
         } else {
+            __log(_LOG_FILE);
             throw std::runtime_error("Invalid preservation map key \"" + key + "\".");
         }
 
@@ -784,6 +794,7 @@ static inline ExtData_t _fc_to_enum(uint8_t value) {
         case 0x50: { return ExtData_t::PD; }
         case 0x48: { return ExtData_t::HC; }
         default:   {
+            __log(_LOG_FILE);
             throw std::runtime_error("Invalid value \"" + std::to_string(value) + "\" in _fc_to_enum.");
         }
 
@@ -905,6 +916,7 @@ cramSlice::cramSlice(uint8_t*& data, bool crc) {
     cramBlock block(data, crc);
     if (block.type != cramBlockType::Slice) {
         auto _type = static_cast<int32_t>(block.type);
+        __log(_LOG_FILE);
         throw std::runtime_error("Invalid slice header block type \"" + std::to_string(_type) + "\".");
     }
 
@@ -1034,6 +1046,7 @@ CompressionHeader::CompressionHeader(uint8_t*& data, bool crc) {
 
     cramBlock block(data, crc);
     if (block.type != cramBlockType::Compression) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Invalid compression header block type \"" + std::to_string(static_cast<int32_t>(block.type)) + "\".");
     }
 
@@ -1141,6 +1154,7 @@ cramHeaderContainer::cramHeaderContainer(BGZF* file, int32_t version)
     cramBlock block(file, _has_crc);
 
     if (block.type != cramBlockType::Header) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Invalid file header block type \"" + std::to_string(static_cast<int32_t>(block.type)) + "\".");
     }
 
@@ -1185,6 +1199,7 @@ static inline cramHeader _read_cram_header(BGZF* file) {
 
     FileType type = _get_filetype(file);
     if (type != FileType::CRAM) {
+        __log(_LOG_FILE);
         throw std::runtime_error("Opening a non-CRAM file using _read_cram_header.");
     }
     auto major = _read_bgzf_single<uint8_t>(file);
@@ -1266,6 +1281,7 @@ static inline CIGAR_op _op_from_fc_enum(ExtData_t type, cramIterator& iter) {
         }
 
         default: {
+            __log(_LOG_FILE);
             throw std::runtime_error("Invalid ExtData_t \"" + _code_from_aux(type) + "\".");
         }
 

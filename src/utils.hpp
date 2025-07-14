@@ -8,6 +8,7 @@
 #include <execinfo.h>
 #include <argparse/argparse.hpp>
 
+const std::string _LOG_FILE = "cmuts.log";
 constexpr int32_t MAX_TRACE = 256;
 
 typedef argparse::ArgumentParser Parser;

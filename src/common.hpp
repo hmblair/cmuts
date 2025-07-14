@@ -22,6 +22,7 @@ extern "C" {
     #include <zlib.h>
     #include <rANS_static.h>
 }
+#include "utils.hpp"
 
 // Canonical bases
 
