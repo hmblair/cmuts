@@ -1,24 +1,34 @@
 #include "utils.hpp"
+#include <stdexcept>
 
-void __log(const std::string& filename) {
+static inline void __log(std::ofstream& file) {
 
     void* array[MAX_TRACE];
     int size = backtrace(array, MAX_TRACE);
     char** symbols = backtrace_symbols(array, size);
-    std::time_t now = std::time(nullptr);
 
-    std::ofstream ofs(filename, std::ios::app);
-    if (!ofs) {
+    for (size_t i = 0; i < size; i++) {
+        file << symbols[i] << "\n";
+    }
+
+    free(symbols);
+
+}
+
+void __throw_and_log(const std::string& filename, const std::string& err) {
+
+    std::time_t now = std::time(nullptr);
+    std::ofstream file(filename, std::ios::app);
+
+    if (!file) {
         std::cerr << "Error opening the log file \"" << filename << "\".\n";
         return;
     }
 
-    ofs << "--------------- " << std::ctime(&now);
-    for (size_t i = 0; i < size; i++) {
-        ofs << symbols[i] << "\n";
-    }
-
-    free(symbols);
+    file << "--------------- " << std::ctime(&now);
+    file << "ERROR: " << err << std::endl;
+    __log(file);
+    throw std::runtime_error(err);
 
 }
 
