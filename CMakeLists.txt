@@ -9,8 +9,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INSTALL_MESSAGE LAZY)
 
-set(SANITIZER_COMPILE_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
-set(SANITIZER_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g")
+set(SANITIZER_COMPILE_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g" "-O1")
+set(SANITIZER_LINK_FLAGS "-fsanitize=address" "-fsanitize=undefined" "-fno-omit-frame-pointer" "-g" "-O1")
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall)
@@ -94,9 +94,6 @@ target_link_libraries(libcmuts PRIVATE
     htscodecs
 )
 
-target_compile_options(libcmuts PRIVATE
-    -O3 -fno-math-errno
-)
 
 if (DEFINED MPI_BUILD AND MPI_BUILD)
     target_include_directories(libcmuts PRIVATE ${MPI_C_INCLUDE_DIRS})
@@ -107,6 +104,8 @@ endif()
 if (DEFINED DEBUG AND DEBUG)
     target_compile_options(libcmuts PRIVATE ${SANITIZER_COMPILE_FLAGS})
     target_link_options(libcmuts PRIVATE ${SANITIZER_LINK_FLAGS})
+else()
+    target_compile_options(libcmuts PRIVATE -O3 -fno-math-errno)
 endif()
 
 
@@ -138,10 +137,6 @@ function(setup_target _target)
         libcmuts
     )
 
-    target_compile_options(${_target} PRIVATE
-        -O3 -fno-math-errno
-    )
-
     set_target_properties(${_target} PROPERTIES
         INSTALL_RPATH ${PROJECT_SOURCE_DIR}/htscodecs/lib
     )
@@ -155,6 +150,8 @@ function(setup_target _target)
     if (DEFINED DEBUG AND DEBUG)
         target_compile_options(${_target} PRIVATE ${SANITIZER_COMPILE_FLAGS})
         target_link_options(${_target} PRIVATE ${SANITIZER_LINK_FLAGS})
+    else()
+        target_compile_options(${_target} PRIVATE -O3 -fno-math-errno)
     endif()
 
 endfunction()
