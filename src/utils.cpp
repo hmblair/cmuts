@@ -1,5 +1,24 @@
 #include "utils.hpp"
 
+void __log(const std::string& filename) {
+
+    void *array[MAX_TRACE];
+    int size = backtrace(array, MAX_TRACE);
+    char **symbols = backtrace_symbols(array, size);
+
+    std::ofstream ofs(filename, std::ios::app);
+    if (!ofs) {
+        std::cerr << "Error opening log file: " << filename << "\n";
+        return;
+    }
+    for (size_t i = 0; i < size; i++) {
+        ofs << symbols[i] << "\n";
+    }
+
+    free(symbols);
+
+}
+
 template <typename T>
 static inline void _add_arg(
     Parser& parser,

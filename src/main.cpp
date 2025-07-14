@@ -1,5 +1,6 @@
 #include "main.hpp"
 
+const std::string _LOG_FILE = "cmuts.log";
 
 static inline void _print_title(const MPI::Manager& mpi) {
 
@@ -24,6 +25,7 @@ static inline void __write_sequences(
             mpi.out() << "        Tokenized " << fasta.size() << " sequences.\n";
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
+            __log(_LOG_FILE);
         }
     } else {
         mpi.err() << "WARNING: The file \"" << hdf5.name() << "\" already contains the dataset \"" << FASTA_DATASET << "\". No tokenization can be done.\n";
@@ -104,6 +106,7 @@ int main(int argc, char** argv) {
 
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
+        __log(_LOG_FILE);
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
@@ -120,6 +123,7 @@ int main(int argc, char** argv) {
         _hdf5.emplace(opt.output, HDF5::RWC, mpi, _chunksize, opt.compression);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
+        __log(_LOG_FILE);
         return EXIT_FAILURE;
     }
     HDF5::File hdf5 = std::move(_hdf5.value());
@@ -128,6 +132,7 @@ int main(int argc, char** argv) {
         HDF5::_throw_if_object_exists(hdf5, opt.files);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
+        __log(_LOG_FILE);
         return EXIT_FAILURE;
     }
 
@@ -158,6 +163,7 @@ int main(int argc, char** argv) {
 
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
+        __log(_LOG_FILE);
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
@@ -173,6 +179,7 @@ int main(int argc, char** argv) {
         spread = cmuts::spread(opt.uniform_spread, opt.mutation_spread);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
+        __log(_LOG_FILE);
         __cleanup(mpi, opt);
         return EXIT_FAILURE;
     }
@@ -217,6 +224,7 @@ int main(int argc, char** argv) {
             processed++;
         } catch (const std::exception& e) {
             mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
+            __log(_LOG_FILE);
             continue;
         }
 

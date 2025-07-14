@@ -3,9 +3,15 @@
 
 #include <string>
 #include <iostream>
+#include <fstream>
+#include <execinfo.h>
 #include <argparse/argparse.hpp>
 
+constexpr int32_t MAX_TRACE = 32;
+
 typedef argparse::ArgumentParser Parser;
+
+void __log(const std::string& filename);
 
 template <typename T>
 class Arg {
