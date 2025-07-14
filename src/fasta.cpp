@@ -397,10 +397,13 @@ BinaryFASTA::BinaryFASTA(const std::string& fasta)
 
     if (!_exists(_name)) {
         _fasta_to_binary(_fasta_name, _name);
+        __log(_LOG_FILE, "Successfully created " + _name + ".");
     }
 
     _file   = std::ifstream(_name);
     _header = Header(_file);
+
+    __log(_LOG_FILE, "Successfully loaded " + _name + ".");
 
 }
 

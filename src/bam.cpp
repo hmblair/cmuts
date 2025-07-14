@@ -640,9 +640,11 @@ bamFile::bamFile(const std::string& name)
 
     std::string _index_name = _name + CMUTS_INDEX;
     if (!std::filesystem::exists(_index_name)) {
+        __log(_LOG_FILE, "Successfully created " + _index_name + ".");
         _build_bam_index(_hts_bgzf, _index_name, _references);
     }
     _index = Index(_index_name, _references);
+    __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");
 
 }
 

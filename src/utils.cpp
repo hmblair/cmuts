@@ -17,7 +17,6 @@ static inline void __log_trace(std::ofstream& file) {
 
 void __log(const std::string& filename, const std::string& message) {
 
-    std::time_t now = std::time(nullptr);
     std::ofstream file(filename, std::ios::app);
 
     if (!file) {
@@ -25,14 +24,20 @@ void __log(const std::string& filename, const std::string& message) {
         return;
     }
 
-    file << "--------------- " << std::ctime(&now);
     file << "MESSAGE: " << message << std::endl;
+
+}
+
+void __init_log(const std::string& filename) {
+
+    std::time_t now = std::time(nullptr);
+    std::ofstream file(filename, std::ios::app);
+    file << "--------------- " << std::ctime(&now);
 
 }
 
 void __throw_and_log(const std::string& filename, const std::string& err) {
 
-    std::time_t now = std::time(nullptr);
     std::ofstream file(filename, std::ios::app);
 
     if (!file) {
@@ -40,7 +45,6 @@ void __throw_and_log(const std::string& filename, const std::string& err) {
         return;
     }
 
-    file << "--------------- " << std::ctime(&now);
     file << "ERROR: " << err << std::endl;
     __log_trace(file);
     throw std::runtime_error(err);

@@ -1432,12 +1432,11 @@ Alignment cramIterator::next() {
     // the QS field instead.
 
     int32_t length = at(ExtData_t::RL)->integer();
-    int32_t matches = length - _qpos;
-
     if (length <= 0) {
         __throw_and_log(_LOG_FILE, "Invalid read length (" + std::to_string(length) + ").");
     }
 
+    int32_t matches = length - _qpos;
     if (matches > 0) {
         CIGAR_op match(CIGAR_t::MATCH, matches);
         _cigar.extend(match);
@@ -1579,8 +1578,11 @@ cramFile::cramFile(const std::string& name)
     std::string _index_name = _name + CMUTS_INDEX;
     if (!std::filesystem::exists(_index_name)) {
         _build_cram_index(_hts_bgzf, _index_name, _references, _data.version);
+        __log(_LOG_FILE, "Successfully created " + _index_name + ".");
     }
+
     _index = Index(_index_name, _references);
+    __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");
 
 }
 

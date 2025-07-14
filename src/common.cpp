@@ -1712,6 +1712,7 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
 
         try {
             _group.push_back(_get_file(name));
+            __log(_LOG_FILE, "Successfully loaded " + name + ".");
         } catch (const std::exception& e) {
             std::cerr << "Failed to load \"" + name + "\": " + e.what() + "\n";
             continue;

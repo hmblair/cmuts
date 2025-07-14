@@ -77,6 +77,7 @@ int main(int argc, char** argv) {
     // Print the program title
 
     _print_title(mpi);
+    __init_log(_LOG_FILE);
 
     // Delete the exiting output file if specified
 
