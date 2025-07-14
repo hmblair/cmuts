@@ -473,13 +473,13 @@ uint8_t Codec::byte() { return _stream->byte(); }
 int32_t Codec::integer() { return _stream->itf8(); }
 
 
-std::vector<uint8_t> Codec::array() { 
+std::vector<uint8_t> Codec::array() {
 
     throw std::runtime_error("No default for array().");
 
 }
 
-std::vector<uint8_t> Codec::array(int32_t length) { 
+std::vector<uint8_t> Codec::array(int32_t length) {
 
     throw std::runtime_error("No default for array(int32_t).");
 

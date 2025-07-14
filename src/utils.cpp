@@ -2,15 +2,18 @@
 
 void __log(const std::string& filename) {
 
-    void *array[MAX_TRACE];
+    void* array[MAX_TRACE];
     int size = backtrace(array, MAX_TRACE);
-    char **symbols = backtrace_symbols(array, size);
+    char** symbols = backtrace_symbols(array, size);
+    std::time_t now = std::time(nullptr);
 
     std::ofstream ofs(filename, std::ios::app);
     if (!ofs) {
-        std::cerr << "Error opening log file: " << filename << "\n";
+        std::cerr << "Error opening the log file \"" << filename << "\".\n";
         return;
     }
+
+    ofs << "--------------- " << std::ctime(&now);
     for (size_t i = 0; i < size; i++) {
         ofs << symbols[i] << "\n";
     }

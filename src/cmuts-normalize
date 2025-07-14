@@ -99,7 +99,7 @@ def _remove_if_exists(
 
 def _throw_if_bad_names(
     mod_ds: list[str],
-    nomod_ds: list[str] | None,
+    nomod_ds: list[str | None],
     out_groups: list[str],
 ) -> None:
     if len(mod_ds) != len(out_groups):
@@ -108,7 +108,7 @@ def _throw_if_bad_names(
             "and output groups."
         )
 
-    if nomod_ds is not None and len(mod_ds) != len(nomod_ds):
+    if len(mod_ds) != len(nomod_ds):
         raise ValueError(
             "There must be an equal number of mod and "
             "nomod datasets if the latter is specified."

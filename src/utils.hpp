@@ -4,10 +4,11 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <ctime>
 #include <execinfo.h>
 #include <argparse/argparse.hpp>
 
-constexpr int32_t MAX_TRACE = 32;
+constexpr int32_t MAX_TRACE = 256;
 
 typedef argparse::ArgumentParser Parser;
 
