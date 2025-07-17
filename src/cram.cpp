@@ -512,7 +512,7 @@ int32_t HuffmanCodec::integer() {
 
 int32_t BetaCodec::integer() {
 
-    return _stream->bits(_length) + _offset;
+    return _stream->bits(_length) - _offset;
 
 }
 
