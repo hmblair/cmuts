@@ -101,11 +101,11 @@ constexpr int32_t BYTE = CHAR_BIT;
 
 constexpr std::array<uint8_t, BYTE + 1> _bit_mask() {
 
-    constexpr int32_t _MASK = (1 << BYTE) - 1;
+    constexpr int32_t BASE = (1 << BYTE) - 1;
     std::array<uint8_t, BYTE + 1> mask{};
 
     for (int32_t ix = 0; ix <= BYTE; ix++) {
-        mask[ix] = (_MASK << (BYTE - ix)) & _MASK;
+        mask[ix] = (BASE << (BYTE - ix));
     }
 
     return mask;

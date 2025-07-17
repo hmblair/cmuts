@@ -403,6 +403,10 @@ bool ByteStream::end() const noexcept {
 
 int32_t ByteStream::bits(int32_t length) {
 
+    if (length <= 0) {
+        __throw_and_log(_LOG_FILE, "Tried to read invalid number of bits (" + std::to_string(length) + ").");
+    }
+
     int32_t out            = 0;
     int32_t bits_remaining = length;
 
