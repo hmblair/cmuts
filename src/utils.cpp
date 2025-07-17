@@ -270,9 +270,17 @@ static inline std::string __repeat(const std::string& str, size_t count) {
 }
 
 #ifdef MPI_BUILD
+#ifdef DEBUG
+const std::string PROGRAM = "cmuts MPI (debug)";
+#else
 const std::string PROGRAM = "cmuts MPI";
+#endif
+#else
+#ifdef DEBUG
+const std::string PROGRAM = "cmuts (debug)";
 #else
 const std::string PROGRAM = "cmuts";
+#endif
 #endif
 
 const std::string VERSION = "1.0.0";
