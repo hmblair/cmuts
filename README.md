@@ -113,7 +113,7 @@ The following lists all additional commands available:
 
 ## Normalization
 
-The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the dependencies in `requirements.txt` and can be run as
+The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the Python dependencies in `requirements.txt` and can be run as
 ```
 cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-groups OUTPUT_GROUPS INPUT.h5
 ```
