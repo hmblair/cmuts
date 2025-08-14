@@ -144,10 +144,6 @@ function(setup_target _target)
         libcmuts
     )
 
-    set_target_properties(${_target} PROPERTIES
-        INSTALL_RPATH ${PROJECT_SOURCE_DIR}/htscodecs/lib
-    )
-
     if (DEFINED MPI_BUILD AND MPI_BUILD)
         target_include_directories(${_target} PRIVATE ${MPI_C_INCLUDE_DIRS})
         target_link_libraries(${_target} PRIVATE MPI::MPI_CXX)
