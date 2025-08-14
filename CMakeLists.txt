@@ -27,8 +27,10 @@ endif()
 find_package(PkgConfig REQUIRED)
 if (DEFINED MPI_BUILD AND MPI_BUILD)
     find_package(MPI REQUIRED)
+    set(HDF5_PREFER_PARALLEL TRUE)
 endif()
 find_package(HDF5 REQUIRED)
+find_package(ZLIB REQUIRED)
 pkg_check_modules(HTSLIB REQUIRED htslib)
 
 include(FetchContent)
@@ -91,6 +93,7 @@ target_link_directories(libcmuts PRIVATE
 target_link_libraries(libcmuts PRIVATE
     ${HTSLIB_LIBRARIES}
     ${HDF5_LIBRARIES}
+    ${ZLIB_LIBRARIES}
     argparse
     xtensor
     htscodecs
@@ -134,6 +137,7 @@ function(setup_target _target)
     target_link_libraries(${_target} PRIVATE
         ${HTSLIB_LIBRARIES}
         ${HDF5_LIBRARIES}
+        ${ZLIB_LIBRARIES}
         argparse
         xtensor
         htscodecs
