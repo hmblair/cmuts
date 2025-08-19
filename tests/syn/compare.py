@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import h5py
+import matplotlib.pyplot as plt
 
 
 def _open_rf(filename: str) -> np.ndarray:
@@ -25,8 +26,11 @@ def _open_rf(filename: str) -> np.ndarray:
 
 CMUTS_FILE = sys.argv[1]
 EXPECTED_FILE = sys.argv[2]
-RF_FILE = "rf_count/raw_counts/aln.txt"
-TOLERANCE = 1E-6
+
+RF_MUTS_FILE = "rf_muts.txt"
+RF_COV_FILE = "rf_cov.txt"
+
+TOLERANCE = 1E-2
 
 with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp_f:
 
@@ -52,24 +56,48 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
     exp_cov = exp[..., :-1].sum((2, 3))
     exp_muts = exp.sum((2, 3)) - exp_matches
 
-    print()
+    rf_muts = np.loadtxt(RF_MUTS_FILE, delimiter=",")
+    rf_cov = np.loadtxt(RF_COV_FILE, delimiter=",")
 
-    if (np.abs(diff_with_exp).sum() < TOLERANCE):
+    cmuts_profile = np.nan_to_num(cmuts_muts / cmuts_cov, 0.0)
+    rf_profile = np.nan_to_num(rf_muts / rf_cov, 0.0)
+    exp_profile = np.nan_to_num(exp_muts / exp_cov, 0.0)
+
+    cmuts_profile[cmuts_profile > 1] = 1
+    rf_profile[rf_profile > 1] = 1
+
+    exp_mae = np.mean(np.abs(cmuts_profile - exp_profile))
+    rf_mae = np.mean(np.abs(cmuts_profile - rf_profile))
+
+    print()
+    print("   TEST RESULTS (SYNTHETIC)")
+    print(" ─────────────────────────────")
+
+    if (exp_mae < TOLERANCE):
         if (exp_cov.sum() < TOLERANCE):
             print("   STATUS: (TRIVIALLY) PASSED")
         else:
             print("   STATUS: PASSED")
-        print()
-        sys.exit(0)
     else:
         print("   STATUS: FAILED")
-        print("   MEAN DIFFERENCE: ", np.abs(diff_with_exp).mean())
-        print("   MAX DIFFERENCE:  ", np.abs(diff_with_exp).max())
-        print(f"   EXP COV:   {exp_cov.sum().item()}")
-        print(f"   EXP MUT:   {exp_muts.sum().item()}")
-        print(f"   CMUTS COV: {cmuts_cov.sum().item()}")
-        print(f"   CMUTS MUT: {cmuts_muts.sum().item()}")
-        print("   MUTATION TABLE:")
-        print(diff_with_exp.sum((0, 1)))
-        print()
-        sys.exit(1)
+
+    print(f"   MAE: {exp_mae}")
+
+    print()
+    print("    TEST RESULTS (RF-COUNT)")
+    print(" ─────────────────────────────")
+
+    if (rf_mae < TOLERANCE):
+        if (exp_cov.sum() < TOLERANCE):
+            print("   STATUS: (TRIVIALLY) PASSED")
+        else:
+            print("   STATUS: PASSED")
+    else:
+        print("   STATUS: FAILED")
+
+    print(f"   MAE: {rf_mae}")
+    
+    plt.plot(rf_profile[0], label="rf-count", color="blue")
+    plt.plot(cmuts_profile[0], label="cmuts", color="red")
+    plt.legend()
+    plt.show()

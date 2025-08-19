@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -eou pipefail
+
+# Clean and create working directory
+
+SCRIPT_DIR=$(pwd)
+WORK_DIR=${SCRIPT_DIR}"/.tmp"
+rm -rf ${WORK_DIR}
+mkdir -p ${WORK_DIR}
+pushd ${WORK_DIR} > /dev/null
+
+FASTA="../data/pk50/reference.fasta"
+FILE="../data/pk50/aln.bam"
+
+CMUTS="cmuts.h5"
+RF_MUTS="rf_muts.txt"
+RF_COV="rf_cov.txt"
+
+MIN_MAPQ=20
+MIN_PHRED=20
+MIN_LENGTH=2
+COLLAPSE=2
+WINDOW=1
+
+cmuts \
+    --fasta ${FASTA} \
+    --output ${CMUTS} \
+    --min-mapq ${MIN_MAPQ} \
+    --min-phred ${MIN_PHRED} \
+    --min-length ${MIN_LENGTH} \
+    --collapse ${COLLAPSE} \
+    --quality-window ${WINDOW} \
+    --no-insertions \
+    ${FILE}
+
+rf-count \
+    -f ${FASTA} \
+    -m \
+    --right-deletion \
+    --no-discard-duplicates \
+    --map-quality ${MIN_MAPQ} \
+    --min-quality ${MIN_PHRED} \
+    --discard-shorter ${MIN_LENGTH} \
+    --collapse-consecutive \
+    --max-collapse-distance ${COLLAPSE} \
+    --no-insertions \
+    --eval-surrounding \
+    --median-quality 0 \
+    --max-edit-distance 1.0 \
+    ${FILE}
+
+rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > $RF_MUTS
+rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > $RF_COV
+
+mkdir -p ../figures
+python3 ../compare.py $CMUTS $RF_MUTS $RF_COV
+
+popd > /dev/null

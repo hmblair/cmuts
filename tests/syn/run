@@ -3,13 +3,17 @@
 set -eou pipefail
 
 # Check if dependencies are installed
+
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
 command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
 USE_CRAM=0
+USE_RF=0
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cram) USE_CRAM=1
+                ;;
+        --rf-count) USE_RF=1
                 ;;
         *) echo "Unknown option: $1"
            exit 1
@@ -19,6 +23,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Clean and create working directory
+
 SCRIPT_DIR=$(pwd)
 WORK_DIR=${SCRIPT_DIR}"/.tests_tmp"
 rm -rf ${WORK_DIR}
@@ -33,20 +38,17 @@ generate_random_number() {
 
 THREADS_MIN=1
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux OS
     THREADS_MAX=$(nproc)
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
     THREADS_MAX=$(sysctl -n hw.ncpu)
 else
-    echo "Unsupported OS type: $OSTYPE"
-    exit 1
+    THREADS_MAX=1
 fi
 
 THREADS=$(generate_random_number $THREADS_MIN $THREADS_MAX)
 CHUNKSIZE=$(generate_random_number 1 256)
 LENGTH=$(generate_random_number 2 250)
-QUERIES=$(generate_random_number 1 512)
+QUERIES=$(generate_random_number 1 1024)
 REFERENCES=$(generate_random_number 1 64)
 MIN_MAPQ=$(generate_random_number 0 30)
 MIN_PHRED=$(generate_random_number 0 10)
@@ -82,6 +84,19 @@ if [[ "$USE_NO_DELETIONS" -eq 4 ]]; then
 else
     NO_DELETIONS=""
     NO_DELETIONS_STR="FALSE"
+fi
+
+# rf-count does not have these options, so disable them
+
+if [[ $USE_RF -eq 1 ]]; then
+    WINDOW=1
+    MAX_LENGTH=$((2 * LENGTH + 1))
+    COLLAPSE=3
+
+    NO_MISMATCHES=""
+    NO_MISMATCHES_STR="FALSE"
+    NO_INSERTIONS="--no-insertions"
+    NO_INSERTIONS_STR="TRUE"
 fi
 
 VERSION=$(cmuts --version)
@@ -171,25 +186,28 @@ $__cmuts \
     ${NO_DELETIONS} \
     ${FILE}
 
-# rf-count \
-#     -wt ${THREADS} \
-#     -f ${FASTA} \
-#     -m \
-#     --no-discard-duplicates \
-#     --no-cov-low-qual \
-#     --right-deletion \
-#     --max-collapse-distance 1 \
-#     --collapse-consecutive \
-#     --max-edit-distance 1.0 \
-#     --map-quality ${QUALITY} \
-#     --min-quality ${QUALITY} \
-#     --median-quality 0 \
-#     --discard-shorter ${MIN_LENGTH} \
-#     --max-deletion-len ${MAX_INDEL} \
-#     ${FILE} > /dev/null
+rf-count \
+    -wt ${THREADS} \
+    -f ${FASTA} \
+    -m \
+    --eval-surrounding \
+    --no-cov-low-qual \
+    --no-discard-duplicates \
+    --right-deletion \
+    --collapse-consecutive \
+    --max-collapse-distance ${COLLAPSE} \
+    --max-edit-distance 1.0 \
+    --map-quality ${MIN_MAPQ} \
+    --min-quality ${MIN_PHRED} \
+    --discard-shorter ${MIN_LENGTH} \
+    --max-deletion-len ${MAX_INDEL} \
+    --median-quality 0 \
+    ${NO_INSERTIONS} \
+    ${NO_DELETIONS} \
+    ${FILE}
 
-# rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > rf_muts.txt
-# rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > rf_cov.txt
+rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > rf_muts.txt
+rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > rf_cov.txt
 
 python3 ../compare.py ${CMUTS_H5} ${EXP_H5}
 
