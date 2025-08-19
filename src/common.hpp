@@ -532,6 +532,10 @@ public:
 
     bool empty() const;
 
+    // The Hamming distance to the reference sequence
+
+    int32_t hamming() const;
+
     // Iterator stuff
 
     auto begin() -> decltype(_str.begin());

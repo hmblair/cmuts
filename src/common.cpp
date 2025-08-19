@@ -1273,6 +1273,20 @@ bool CIGAR::empty() const {
 }
 
 
+int32_t CIGAR::hamming() const {
+
+    int32_t _hamming = 0;
+    for (const auto& op : _str) {
+        if (op.type() != CIGAR_t::MATCH) {
+            _hamming = op.length();
+        }
+    }
+
+    return _hamming;
+
+}
+
+
 int32_t CIGAR::rlength() const {
 
     int32_t _rlength = 0;

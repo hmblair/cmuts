@@ -5,4 +5,10 @@ build/
 include/
 share/
 examples/
+*.bai
+*.crai
+*.cmix
+*.binary
+onp/
+figures/
 __pycache__/

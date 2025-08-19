@@ -1,5 +1,4 @@
 #include "tests.hpp"
-#include <functional>
 
 
 
@@ -217,22 +216,27 @@ public:
         hts_pos_t length = reference.size();
 
         // Generate a random alignment position
+
         pos = _random_int(gen, 0, length - 2);
 
         // Generate random lengths of insertions and deletions
+
         _ins = _random_int(gen, 0, length);
         _del = _random_int(gen, 0, length - pos - 2);
         _match = length - pos - _del;
 
         // Start at the 3' end of the sequence
+
         _rpos = length;
         _qpos = _match + _ins;
         _last_mod = _rpos + params.collapse;
 
         // Generate a random mapping quality
+
         mapq = _random_mapq(gen);
 
         // Pretend the read is low-quality if it is too short or too long
+
         if (_qpos < params.min_length || _qpos > params.max_length) {
             _mapq_mask = false;
         } else {
@@ -240,18 +244,21 @@ public:
         }
 
         // Randomly determine if the read is aligned
-        _aligned = (_random_float(gen) > 0.1);
-        if (!_aligned) {
-            _mapq_mask = false;
-        }
+
+        float _ALIGN_P = 0.1;
+        _aligned = (_random_float(gen) > _ALIGN_P);
+        if (!_aligned) { _mapq_mask = false; }
 
         // Generate a random PHRED score per base
+
         phred = _random_phred(gen, _qpos);
 
         // Generate the query sequence
+
         while (_match > 0 || _ins > 0 || _del > 0) { extend(); }
 
         // Reverse as we generated 3' -> 5'
+
         std::reverse(query.begin(), query.end());
         std::reverse(cigar.begin(), cigar.end());
 

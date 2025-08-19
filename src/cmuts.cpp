@@ -466,7 +466,7 @@ static inline void __del(
     int32_t ambig_end = _get_ambiguous_end(start, end, reference);
 
     // TODO: remove this and fix
-    ambig_end = end + 1;
+    // ambig_end = end + 1;
 
     std::vector<dtype> weights = _spread_weights<dtype, mode>(end, ambig_end, arr, mask[qpos], params.spread);
 
@@ -599,6 +599,7 @@ static inline bool __check_quality(
     const HTS::Alignment& aln,
     const Params& params
 ) {
+
     return (
         aln.aligned                       &&
         aln.mapq    >= params.min_mapq    &&
