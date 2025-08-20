@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+
+import numpy as np
+import h5py
+import dask.array as da
+import dask
+import dask.dataframe as dd
+import os
+import argparse
+import matplotlib.pyplot as plt
+
+VERSION = '1.0.0'
+NAME = 'cmuts-stats'
+
+REACTIVITY_DS = 'reactivity'
+READS_DS = 'reads'
+ERROR_DS = "error"
+SNR_DS = "snr"
+NORM_DS = "norm"
+ROI_DS = "ROI"
+SEQUENCE_DS = 'sequence'
+
+FIGURE_DIR = "figures"
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    'file',
+    help='An output file from cmuts-normalize.',
+)
+parser.add_argument(
+    '--group',
+    help='The group to print stats for.',
+)
+
+
+def _title(name: str, version: str) -> str:
+    return f"""
+        {name} version {version}
+      ───────────────────────────────────"""
+
+
+if __name__ == "__main__":
+
+    args = parser.parse_args()
+    print(_title(NAME, VERSION))
+    os.makedirs(FIGURE_DIR, exist_ok=True)
+
+    with h5py.File(args.file, 'r') as f:
+
+        reads = da.from_array(
+            f[args.group + "/" + READS_DS], chunks='auto'
+        ).compute()
+
+        snr = da.from_array(
+            f[args.group + "/" + SNR_DS], chunks='auto'
+        ).compute()
+
+        reactivity = da.from_array(
+            f[args.group + "/" + REACTIVITY_DS], chunks='auto'
+        ).compute()
+
+        norm = da.from_array(
+            f[args.group + "/" + NORM_DS], chunks='auto'
+        ).compute()
+
+    nseqs = reads.shape[0]
+    mr = np.mean(reads)
+    medr = np.median(reads)
+
+    msnr = np.mean(snr)
+    medsnr = np.median(snr)
+
+    mrr = np.mean(reactivity * norm)
+
+    print(f"        References:      {nseqs:,}")
+    print(f"        Mean reads:      {int(mr):,}")
+    print(f"        Mean SNR:        {msnr:.2f}")
+    print(f"        Mean reactivity: {mrr:.3f}")
+    print()
+    print(f"        Median reads: {int(medr):,}")
+    print(f"        Median SNR:   {medsnr:.2f}")
+
+    # Plotting
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.hist(reads, bins=100, color="red")
+    plt.xlabel("Reads", fontsize=12)
+    plt.ylabel("Count", fontsize=12)
+    plt.savefig(FIGURE_DIR + "/reads-hist.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    ix = reads.argmax()
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.plot(reactivity[ix], color="red")
+    plt.xlabel("Residue", fontsize=12)
+    plt.ylabel("Reactivity", fontsize=12)
+    plt.title(f"Highest-Read Sequence (#{ix})", fontsize=13)
+    plt.savefig(FIGURE_DIR + "/high-read-example.png", dpi=300, bbox_inches="tight")
+    plt.close()
