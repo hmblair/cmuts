@@ -204,6 +204,7 @@ static inline std::vector<dtype> _spread_weights(
 
     int32_t length = end - start;
     std::vector<dtype> weights(length, 0);
+    if (length == 0) { return weights; }
 
     switch (spread) {
 
