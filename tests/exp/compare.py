@@ -1,35 +1,36 @@
 import sys
+import xml.etree.ElementTree as ET
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 
 
 CMUTS_FILE = sys.argv[1]
-RF_MUTS_FILE = sys.argv[2]
-RF_COV_FILE = sys.argv[3]
+RF_FILE = sys.argv[2]
+NAME = sys.argv[3]
 
 TOLERANCE = 1E-2
 
+tree = ET.parse(RF_FILE)
+root = tree.getroot()
+
+reactivity_values = []
+for transcript in root.findall('transcript'):
+    reactivity = transcript.find('reactivity')
+    if reactivity is not None:
+        reactivity_values = reactivity.text.split(',')
+
+rf = np.array([x.strip() for x in reactivity_values], dtype=float)
+
 with h5py.File(CMUTS_FILE, "r") as f:
+    cmuts = f['onp/reactivity'][:]
+    reads = f['onp/reads'][:]
 
-    cmuts = f["../data/pk50/aln"][:]
+if rf.ndim == 1:
+    rf = rf[None, ...]
 
-cmuts_matches = (
-    cmuts[..., 0, 0] +
-    cmuts[..., 1, 1] +
-    cmuts[..., 2, 2] +
-    cmuts[..., 3, 3]
-)
-cmuts_cov = cmuts[..., :-1].sum((2, 3))
-cmuts_muts = cmuts.sum((2, 3)) - cmuts_matches
-
-rf_muts = np.loadtxt(RF_MUTS_FILE, delimiter=",")
-rf_cov = np.loadtxt(RF_COV_FILE, delimiter=",")
-
-cmuts_profile = np.nan_to_num(cmuts_muts / cmuts_cov, 0.0)
-rf_profile = np.nan_to_num(rf_muts / rf_cov, 0.0)
-
-mae = np.mean(np.abs(cmuts_profile - rf_profile))
+mae = np.mean(np.abs(cmuts - rf))
+mae_indiv = np.mean(np.abs(cmuts - rf), axis=1)
 
 print()
 print("         TEST RESULTS")
@@ -42,12 +43,12 @@ else:
 
 print(f"   MAE: {mae:.4f}")
 
-ix = cmuts_cov.max(-1).argmax()
+ix = reads.argmax()
 
-plt.plot(rf_profile[ix], label="rf-count", color="blue", alpha=0.5, linewidth=1.0)
-plt.plot(cmuts_profile[ix], label="cmuts", color="red", alpha=0.5, linewidth=1.0)
+plt.plot(rf[ix], label="rf-count", color="blue", alpha=0.5, linewidth=1.0)
+plt.plot(cmuts[ix], label="cmuts", color="red", alpha=0.5, linewidth=1.0)
 plt.xlabel("Residue", fontsize=11)
 plt.ylabel("Reactivity Rate", fontsize=11)
-plt.title(f"MAE: {mae:.4f}", fontsize=12)
+plt.title(f"MAE: {mae_indiv[ix]:.4f}", fontsize=12)
 plt.legend()
 plt.savefig("../figures/rf-vs-cmuts.png", dpi=300, bbox_inches="tight")

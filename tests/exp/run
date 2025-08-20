@@ -10,12 +10,17 @@ rm -rf ${WORK_DIR}
 mkdir -p ${WORK_DIR}
 pushd ${WORK_DIR} > /dev/null
 
-FASTA="../data/pk50/reference.fasta"
-FILE="../data/pk50/aln.bam"
+NAME="onp"
+
+FASTA="../data/$NAME/reference.fasta"
+FILE="../data/$NAME/aln.bam"
 
 CMUTS="cmuts.h5"
+CMUTS_PROFILES="cmuts-profiles.h5"
+
 RF_MUTS="rf_muts.txt"
 RF_COV="rf_cov.txt"
+RF_PROFILES="aln_norm/rool_118_RNA_reference.xml"
 
 MIN_MAPQ=20
 MIN_PHRED=20
@@ -34,6 +39,18 @@ cmuts \
     --no-insertions \
     ${FILE}
 
+echo
+
+cmuts-normalize \
+    $CMUTS \
+    -o $CMUTS_PROFILES \
+    --mod-ds ../data/$NAME/aln \
+    --out-groups $NAME \
+    --5p-primer-length 0 \
+    --3p-primer-length 0
+
+echo
+
 rf-count \
     -f ${FASTA} \
     -m \
@@ -50,10 +67,17 @@ rf-count \
     --max-edit-distance 1.0 \
     ${FILE}
 
+echo
+
+rf-norm \
+    --treated rf_count/aln.rc \
+    -sm 4 \
+    -nm 3
+
 rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > $RF_MUTS
 rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > $RF_COV
 
 mkdir -p ../figures
-python3 ../compare.py $CMUTS $RF_MUTS $RF_COV
+python3 ../compare.py $CMUTS_PROFILES $RF_PROFILES $NAME
 
 popd > /dev/null
