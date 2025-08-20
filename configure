@@ -70,4 +70,6 @@ popd > /dev/null
 # Post-install steps
 
 ln -s ${SCRIPT_DIR}/src/cmuts-normalize ${BIN_DIR}/cmuts-normalize
+ln -s ${SCRIPT_DIR}/src/cmuts-stats ${BIN_DIR}/cmuts-stats
 chmod +x ${BIN_DIR}/cmuts-normalize
+chmod +x ${BIN_DIR}/cmuts-stats
