@@ -122,7 +122,7 @@ static inline int32_t _get_ambiguous_end(
     }
 
     // This is the position of the base _after_ the final base that can be deleted.
-    return N;
+    return N + 1;
 
 }
 
