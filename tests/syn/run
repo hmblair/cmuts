@@ -25,7 +25,7 @@ done
 # Clean and create working directory
 
 SCRIPT_DIR=$(pwd)
-WORK_DIR=${SCRIPT_DIR}"/.tests_tmp"
+WORK_DIR=${SCRIPT_DIR}"/.tmp"
 rm -rf ${WORK_DIR}
 mkdir -p ${WORK_DIR}
 pushd ${WORK_DIR} > /dev/null
