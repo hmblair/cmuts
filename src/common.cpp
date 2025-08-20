@@ -1070,13 +1070,10 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
         line = block->str();
         ix += static_cast<int32_t>(line.length() + 1);
 
-        // If we have reached the aux data, we are done with the references
-
-        if (_is_aux(line)) { break; }
-
-        // Else, increment the number of references
+        // Increment the number of references if relevant
 
         if (_is_seq(line)) { header.references++; }
+        else if (header.references > 0) { break; }
 
     }
 
