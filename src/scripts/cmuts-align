@@ -1,0 +1,83 @@
+#!/bin/bash
+
+set -eou pipefail
+
+FASTA=""
+OUTPUT=""
+THREADS="1"
+FILES=()
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --fasta)
+            shift
+            FASTA="$1"
+            ;;
+        --output)
+            shift
+            OUTPUT="$1"
+            ;;
+        --threads)
+            shift
+            THREADS="$1"
+            ;;
+        *)
+            FILES+=("$1")
+            ;;
+    esac
+    shift
+done
+
+if [[ -z "$FASTA" ]]; then
+    echo "Error: --fasta argument is required"
+    exit 1
+fi
+
+if [[ -z "$OUTPUT" ]]; then
+    echo "Error: --output argument is required"
+    exit 1
+fi
+
+if [[ "${#FILES[@]}" -eq 0 ]]; then
+    echo "Error: At least one input file is required"
+    exit 1
+fi
+
+INDEX="index/index"
+TMPDIR=".tmp"
+mkdir -p index "$TMPDIR" "$OUTPUT"
+bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX"
+
+for FILE in "${FILES[@]}"; do
+
+  NAME=$(basename "$FILE")
+  BASENAME="${NAME%.*}"
+
+  TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
+  FINAL="${OUTPUT}/${BASENAME}.bam"
+
+  echo
+  echo " -- Aligning $NAME --"
+  echo
+
+  bowtie2 \
+    --threads "$THREADS" \
+    -x "$INDEX" \
+    --dpad 30 \
+    --maxins=800 \
+    --ignore-quals \
+    --local \
+    --mp 3,1 \
+    --rdg 5,1 \
+    --rfg 5,1 \
+    "$FILE" > "$TMP"
+
+  echo
+  echo " -- Sorting $NAME --"
+  echo
+
+  samtools sort --threads "$THREADS" -o "$FINAL" "$TMP"
+
+done
+
+rm -rf "$TMPDIR"
