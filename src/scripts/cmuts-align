@@ -46,7 +46,7 @@ fi
 INDEX="index/index"
 TMPDIR=".tmp"
 mkdir -p index "$TMPDIR" "$OUTPUT"
-bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX"
+bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" > "cmuts-align.log" 2>&1
 
 for FILE in "${FILES[@]}"; do
 
@@ -70,7 +70,7 @@ for FILE in "${FILES[@]}"; do
     --mp 3,1 \
     --rdg 5,1 \
     --rfg 5,1 \
-    "$FILE" > "$TMP"
+    "$FILE" > "$TMP" 2> "cmuts-align.log"
 
   echo
   echo " -- Sorting $NAME --"
