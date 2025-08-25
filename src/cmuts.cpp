@@ -61,30 +61,14 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
 
 
 //
-// Helpers for ambiguous deletions
+// For ambiguous deletions
 //
 
 
 
 
 
-static inline int32_t _first_match(
-    base_t base,
-    const seq_t& seq,
-    int32_t M,
-    int32_t N
-) {
-
-    for (int32_t i = M; i <= N; i++) {
-        if (seq[i] == base) { return i+1; }
-    }
-
-    return -1;
-
-}
-
-
-static inline int32_t _get_ambiguous_end(
+int32_t _get_ambiguous_end(
     int32_t start,
     int32_t end,
     const seq_t& sequence
@@ -116,13 +100,13 @@ static inline int32_t _get_ambiguous_end(
     int32_t M = start;
     int32_t N = end;
 
-    while (M != -1 && N < size - 1) {
-        M = _first_match(sequence[N + 1], sequence, M, N);
-        N++;
+    while (M < N && N < size) {
+        if (sequence[M] == sequence[N]) { N++; }
+        M++;
     }
 
     // This is the position of the base _after_ the final base that can be deleted.
-    return N + 1;
+    return N;
 
 }
 
@@ -173,6 +157,8 @@ static inline dtype _total_muts(
         return arr.periodic(ix, -1, 0, 0);
     }
 
+    throw std::runtime_error("Invalid mode for _total_muts.");
+
 }
 
 template <typename dtype>
@@ -183,7 +169,8 @@ static inline void _normalize(std::vector<dtype>& arr) {
 
     if (total == 0) {
 
-        for (dtype& val : arr) { val = 1 / arr.size(); }
+        auto ONE = static_cast<dtype>(1);
+        for (dtype& val : arr) { val = ONE / arr.size(); }
 
     } else {
 
@@ -459,26 +446,35 @@ static inline void __del(
     const Params& params
 ) {
 
-    rpos--;
+    // Start and end indices of the deletion
+
+    int32_t start = rpos - op.length();
+    int32_t end   = rpos;
+
+    // Start and end indices of the ambiguous region
+    // Defaults to simply the 3' base, but may change if ambiguous detection
+    // is not disabled
+
+    int32_t ambig_start = end - 1;
+    int32_t ambig_end   = end;
+
+    if (params.ambiguous) {
+        ambig_end = _get_ambiguous_end(start, end, reference);
+    }
+
     op.advance();
+    rpos--;
 
-    int32_t start     = rpos - op.length() + 1;
-    int32_t end       = rpos;
-    int32_t ambig_end = _get_ambiguous_end(start, end, reference);
+    std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, mask[qpos], params.spread);
 
-    // TODO: remove this and fix
-    // ambig_end = end + 1;
-
-    std::vector<dtype> weights = _spread_weights<dtype, mode>(end, ambig_end, arr, mask[qpos], params.spread);
-
-    for (int32_t ix = ambig_end - 1; ix >= end; ix--) {
+    for (int32_t ix = ambig_end - 1; ix >= ambig_start; ix--) {
 
         base_t rbase = reference[ix];
         if (params.deletions && last - ix >= params.collapse) {
-            __del_core<dtype, mode>(arr, ix, rbase, weights[ix - end]);
+            __del_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start]);
             last = ix;
         } else {
-            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - end], params);
+            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start], params);
         }
 
     }

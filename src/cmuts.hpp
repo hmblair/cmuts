@@ -155,8 +155,27 @@ public:
     bool deletions;
     float subsample;
     bool filter_coverage;
+    bool ambiguous;
 
 };
+
+
+
+
+
+//
+// Ambiguous deletion detection
+//
+
+
+
+
+
+int32_t _get_ambiguous_end(
+    int32_t start,
+    int32_t end,
+    const seq_t& sequence
+);
 
 
 
