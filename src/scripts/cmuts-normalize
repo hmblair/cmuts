@@ -21,9 +21,6 @@ NORM_DS = "norm"
 ROI_DS = "ROI"
 SEQUENCE_DS = 'sequence'
 
-NORM_CUTOFF = 50
-NORM_PERCENTILE = 90
-
 
 def _all_unique(x: list):
     return len(set(x)) == len(x)
@@ -37,6 +34,7 @@ parser.add_argument(
 parser.add_argument(
     '--mod',
     help='The name of the dataset containing the mutation counts of the modified sequences.',
+    required=True,
 )
 parser.add_argument(
     '--nomod',
@@ -45,6 +43,7 @@ parser.add_argument(
 parser.add_argument(
     '--group',
     help='The group in the output file to place the reads and reactivities.',
+    required=True,
 )
 parser.add_argument(
     '-o', '--out',
@@ -78,6 +77,23 @@ parser.add_argument(
     help='The length of the 3\' primer, which will be zeroed out.',
     type=int,
     default=0,
+)
+parser.add_argument(
+    '--raw',
+    help='Do not normalize the reactivity values.',
+    action='store_true',
+)
+parser.add_argument(
+    '--norm-cutoff',
+    help='References with at least this many reads are used for normalization.',
+    type=int,
+    default=500,
+)
+parser.add_argument(
+    '--norm-percentile',
+    help='The reactivity percentile to use for normalization.',
+    type=int,
+    default=90,
 )
 
 
@@ -182,21 +198,20 @@ def _process(file: h5py.File, group: str) -> tuple[da.Array, ...]:
 def normalise(
     reactivity: da.Array,
     reads: da.Array,
+    cutoff: int,
+    percentile: int
 ) -> da.Array:
 
     # Get the reactivity of all high-read sequences
 
-    high_reactivity = reactivity[reads > NORM_CUTOFF]
+    high_reactivity = reactivity[reads > cutoff]
 
     # Find the 90th percentile of these reactivity values
 
-    return da.percentile(
-        high_reactivity[:, UNBLANKED].flatten(),
-        NORM_PERCENTILE,
-    )
+    return da.percentile(high_reactivity[:, UNBLANKED].flatten(), percentile)
 
 
-def _get_sequences(file: h5py.File) -> da.Array | None:
+def _get_sequences(file: h5py.File) -> da.Array:
     # Get the tokenized sequences if they exist
     if SEQUENCE_DS in file:
         return da.from_array(file[SEQUENCE_DS], chunks='auto')
@@ -235,7 +250,16 @@ if __name__ == '__main__':
         # Normalise the reactivity and its error
         # SNR is unchanged
 
-        norm = normalise(mod_reactivity, _reads)
+        if args.raw:
+            norm = da.ones(1, dtype=reads.dtype)
+        else:
+            norm = normalise(
+                mod_reactivity,
+                _reads,
+                args.norm_cutoff,
+                args.norm_percentile,
+            )
+
         err /= norm
 
         # Background subtract
