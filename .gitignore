@@ -9,6 +9,7 @@ examples/
 *.crai
 *.cmix
 *.binary
+*.log
 onp/
 figures/
 __pycache__/
