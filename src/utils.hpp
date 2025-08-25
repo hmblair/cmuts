@@ -8,6 +8,15 @@
 #include <execinfo.h>
 #include <argparse/argparse.hpp>
 
+#ifdef _WIN32
+    #include <windows.h>
+#elif __APPLE__
+    #include <mach-o/dyld.h>
+#elif __linux__
+    #include <unistd.h>
+#endif
+
+
 const std::string _LOG_FILE = "cmuts.log";
 constexpr int32_t MAX_TRACE = 256;
 
@@ -57,6 +66,8 @@ public:
 };
 
 namespace Utils {
+
+std::string _get_version();
 
 void cursor_up(int num_lines);
 void cursor_down(int num_lines);

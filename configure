@@ -1,5 +1,7 @@
 #!/bin/bash
 
+VERSION="1.0.1"
+
 set -eo pipefail
 
 DEBUG=0
@@ -73,3 +75,5 @@ for script in ${SCRIPT_DIR}/src/scripts/*; do
   name=$(basename $script)
   ln -s $script ${BIN_DIR}/$name
 done
+
+echo $VERSION > ${BIN_DIR}/VERSION

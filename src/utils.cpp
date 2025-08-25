@@ -269,6 +269,25 @@ static inline std::string __repeat(const std::string& str, size_t count) {
 
 }
 
+std::filesystem::path _get_exe() {
+
+#ifdef _WIN32
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    return std::filesystem::path(path);
+#elif __APPLE__
+    char path[1024];
+    uint32_t size = sizeof(path);
+    _NSGetExecutablePath(path, &size);
+    return std::filesystem::path(path);
+#elif __linux__
+    char path[1024];
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path));
+    return std::filesystem::path(std::string(path, count));
+#endif
+
+}
+
 #ifdef MPI_BUILD
 #ifdef DEBUG
 const std::string PROGRAM = "cmuts MPI (DEBUG)";
@@ -283,11 +302,25 @@ const std::string PROGRAM = "cmuts";
 #endif
 #endif
 
-const std::string VERSION = "1.0.0";
+std::string _get_version() {
 
+    auto exe = _get_exe().parent_path();
+    auto version_file = exe / "VERSION";
+    std::cout << "Exe: " << exe << std::endl;
+
+    std::ifstream file(version_file);
+    std::string version;
+    std::getline(file, version);
+
+    version.erase(version.find_last_not_of(" \t\n\r") + 1);
+    version.erase(0, version.find_first_not_of(" \t\n\r"));
+
+    return version;
+
+}
 
 void version() {
-    std::cout << __repeat(SPACE, 8) + PROGRAM + " version 1.0.0\n";
+    std::cout << __repeat(SPACE, 8) + PROGRAM + " version " + _get_version() + "\n";
 }
 
 void divider() {

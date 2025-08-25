@@ -437,6 +437,8 @@ static inline void __ins(
     const Params& params
 ) {
 
+    // Insertions at the beginning of the sequence are ignored
+
     if (rpos >= reference.size()) {
         qpos -= op.length();
         return;

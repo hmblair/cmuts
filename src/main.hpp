@@ -14,8 +14,6 @@ const std::string PROGRAM = "cmuts MPI";
 const std::string PROGRAM = "cmuts";
 #endif
 
-const std::string VERSION = "1.0.0";
-
 static inline bool __mpi_build() {
 
     #ifdef MPI_BUILD
@@ -174,7 +172,7 @@ const std::string DISABLE_AMBIGUOUS_HELP = "Disable the ambiguous delection dete
 
 
 cmutsProgram::cmutsProgram()
-    : Program(PROGRAM, PROGRAM + " " + VERSION),
+    : Program(PROGRAM, PROGRAM + " " + Utils::_get_version()),
       files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
       output(_parser, OUTPUT_SHORT_NAME, OUTPUT_LONG_NAME, OUTPUT_HELP),
       fasta(_parser, FASTA_SHORT_NAME, FASTA_LONG_NAME, FASTA_HELP),
