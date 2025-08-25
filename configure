@@ -69,10 +69,7 @@ popd > /dev/null
 
 # Post-install steps
 
-ln -s ${SCRIPT_DIR}/src/scripts/cmuts-align ${BIN_DIR}/cmuts-align
-ln -s ${SCRIPT_DIR}/src/scripts/cmuts-normalize ${BIN_DIR}/cmuts-normalize
-ln -s ${SCRIPT_DIR}/src/scripts/cmuts-stats ${BIN_DIR}/cmuts-stats
-
-chmod +x ${BIN_DIR}/cmuts-align
-chmod +x ${BIN_DIR}/cmuts-normalize
-chmod +x ${BIN_DIR}/cmuts-stats
+for script in ${SCRIPT_DIR}/src/scripts/*; do
+  name=$(basename $script)
+  ln -s $script ${BIN_DIR}/$name
+done
