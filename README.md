@@ -125,7 +125,7 @@ The `--mod` and `--nomod` flags specify which dataset in the input HDF5 file to 
 
 Additional flags which may be useful are:
 
-`--overwrite`: Overwrite an existing HDF5 file.
+`--overwrite`: Overwrite an existing HDF5 file (the whole file, not just the group).
 
 `--clip-reactivity`: Clip the reactivity values to the range $`[0,1]`$.
 
