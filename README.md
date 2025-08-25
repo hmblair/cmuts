@@ -110,6 +110,8 @@ The following lists all additional commands available:
 
 `--filter-coverage`: Apply the same filters to matches as are applied to modifications.
 
+`--disable-ambiguous`: Disable the ambiguous delection detection algorithm, relying on the deletion provided by the alignment.
+
 
 ## Normalization
 
