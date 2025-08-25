@@ -28,25 +28,15 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-if [[ -z "$FASTA" ]]; then
-    echo "Error: --fasta argument is required"
-    exit 1
-fi
-
-if [[ -z "$OUTPUT" ]]; then
-    echo "Error: --output argument is required"
-    exit 1
-fi
-
-if [[ "${#FILES[@]}" -eq 0 ]]; then
-    echo "Error: At least one input file is required"
-    exit 1
+if [[ -z "$FASTA" || -z "$OUTPUT" || "${#FILES[@]}" -eq 0 ]]; then
+  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [FILES ...]"
+  exit 1
 fi
 
 INDEX="index/index"
 TMPDIR=".tmp"
 mkdir -p index "$TMPDIR" "$OUTPUT"
-bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" > "cmuts-align.log" 2>&1
+bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> "cmuts-align.log" 2>&1
 
 for FILE in "${FILES[@]}"; do
 
@@ -56,9 +46,9 @@ for FILE in "${FILES[@]}"; do
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
   FINAL="${OUTPUT}/${BASENAME}.bam"
 
-  echo
-  echo " -- Aligning $NAME --"
-  echo
+  echo >> "cmuts-align.log"
+  echo " -- Aligning $NAME --" >> "cmuts-align.log"
+  echo >> "cmuts-align.log"
 
   bowtie2 \
     --threads "$THREADS" \
@@ -70,11 +60,11 @@ for FILE in "${FILES[@]}"; do
     --mp 3,1 \
     --rdg 5,1 \
     --rfg 5,1 \
-    "$FILE" > "$TMP" 2> "cmuts-align.log"
+    "$FILE" > "$TMP" 2>> "cmuts-align.log"
 
-  echo
-  echo " -- Sorting $NAME --"
-  echo
+  echo >> "cmuts-align.log"
+  echo " -- Sorting $NAME --" >> "cmuts-align.log"
+  echo >> "cmuts-align.log"
 
   samtools sort --threads "$THREADS" -o "$FINAL" "$TMP"
 
