@@ -156,6 +156,7 @@ public:
     float subsample;
     bool filter_coverage;
     bool ambiguous;
+    bool contiguous;
 
 };
 

@@ -68,6 +68,28 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
 
 
 
+int32_t _get_ambiguous_end_contiguous(
+    int32_t start,
+    int32_t end,
+    const seq_t& sequence
+) {
+
+    auto size = static_cast<int32_t>(sequence.size());
+    if (end >= size) { return size; }
+
+    int32_t M = start;
+    int32_t N = end;
+
+    while (N < size && sequence[M] == sequence[N]) { M++; N++; }
+
+    return N;
+
+}
+
+
+
+
+
 int32_t _get_ambiguous_end(
     int32_t start,
     int32_t end,
@@ -75,9 +97,7 @@ int32_t _get_ambiguous_end(
 ) {
 
     auto size = static_cast<int32_t>(sequence.size());
-    if (end >= size) {
-        return size;
-    }
+    if (end >= size) { return size; }
 
     // We wish to find the final base for which the deletion could
     // have occured at. Given a string S, with deletion starting at
@@ -459,7 +479,11 @@ static inline void __del(
     int32_t ambig_end   = end;
 
     if (params.ambiguous) {
-        ambig_end = _get_ambiguous_end(start, end, reference);
+        if (params.contiguous) {
+            ambig_end = _get_ambiguous_end_contiguous(start, end, reference);
+        } else {
+            ambig_end = _get_ambiguous_end(start, end, reference);
+        }
     }
 
     op.advance();
@@ -492,7 +516,7 @@ static inline void __count(
     const Params& params
 ) {
 
-    HTS::CIGAR& cigar = aln.cigar;
+    HTS::CIGAR& cigar       = aln.cigar;
     const HTS::PHRED& phred = aln.phred;
 
     // Initial reference and query positions

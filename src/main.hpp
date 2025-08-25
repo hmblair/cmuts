@@ -54,6 +54,7 @@ public:
     Arg<bool> tokenize;
     Arg<float> subsample;
     Arg<bool> filter_coverage;
+    Arg<bool> contiguous_ambiguous;
     Arg<bool> disable_ambiguous;
 
     cmutsProgram();
@@ -163,6 +164,10 @@ const std::string FILTER_COVERAGE_SHORT_NAME = "";
 const std::string FILTER_COVERAGE_LONG_NAME = "--filter-coverage";
 const std::string FILTER_COVERAGE_HELP = "Apply the same filters to matches as are applied to modifications.";
 
+const std::string CONTIGUOUS_AMBIGUOUS_SHORT_NAME = "";
+const std::string CONTIGUOUS_AMBIGUOUS_LONG_NAME = "--contiguous-ambiguous";
+const std::string CONTIGUOUS_AMBIGUOUS_HELP = "Allow only contiguous regions to be considered ambiguous deletions.";
+
 const std::string DISABLE_AMBIGUOUS_SHORT_NAME = "";
 const std::string DISABLE_AMBIGUOUS_LONG_NAME = "--disable-ambiguous";
 const std::string DISABLE_AMBIGUOUS_HELP = "Disable the ambiguous delection detection algorithm, relying on the deletion provided by the alignment.";
@@ -193,6 +198,7 @@ cmutsProgram::cmutsProgram()
       tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
       subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
       filter_coverage(_parser, FILTER_COVERAGE_SHORT_NAME, FILTER_COVERAGE_LONG_NAME, FILTER_COVERAGE_HELP),
+      contiguous_ambiguous(_parser, CONTIGUOUS_AMBIGUOUS_SHORT_NAME, CONTIGUOUS_AMBIGUOUS_LONG_NAME, CONTIGUOUS_AMBIGUOUS_HELP),
       disable_ambiguous(_parser, DISABLE_AMBIGUOUS_SHORT_NAME, DISABLE_AMBIGUOUS_LONG_NAME, DISABLE_AMBIGUOUS_HELP)
 {}
 
