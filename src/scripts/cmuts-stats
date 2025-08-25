@@ -24,6 +24,7 @@ ROI_DS = "ROI"
 SEQUENCE_DS = 'sequence'
 
 FIGURE_DIR = "figures"
+HEATMAP_MAX = 10_000
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -35,6 +36,7 @@ parser.add_argument(
     '--groups',
     help='The groups to print stats for.',
     nargs="+",
+    required=True,
 )
 
 
@@ -105,4 +107,8 @@ if __name__ == "__main__":
         plt.ylabel("Reactivity", fontsize=12)
         plt.title(f"{group} (Sequence #{ix})", fontsize=13)
         plt.savefig(FIGURE_DIR + f"/{group}-example.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+        plt.imshow(reactivity[:HEATMAP_MAP])
+        plt.savefig(FIGURE_DIR + f"/{group}-heatmap.png", dpi=300, bbox_inches="tight")
         plt.close()
