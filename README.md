@@ -119,9 +119,9 @@ The following lists all additional commands available:
 
 The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the Python dependencies in `requirements.txt` and can be run as
 ```
-cmuts-normalize -o reactivity.h5 --mod-ds MODS [--nomod-ds NOMODS] --out-groups OUTPUT_GROUPS INPUT.h5
+cmuts-normalize -o reactivity.h5 --mod MOD [--nomod NOMOD] --group GROUP INPUT.h5
 ```
-The `--mod-ds` and `--nomod-ds` flags specify which dataset(s) in the input HDF5 file to process. The latter is optional, but if given, the number of datasets for both must match. `--out-groups` specifies which group(s) in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
+The `--mod` and `--nomod` flags specify which dataset in the input HDF5 file to process, with the latter optional. `--group` specifies which group(s) in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
 
 Additional flags which may be useful are:
 
@@ -132,6 +132,12 @@ Additional flags which may be useful are:
 `--5p-primer-length`: The length of the 5' primer, which will be zeroed out. Default: 26
 
 `--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 20
+
+`--raw`: Do not normalize the reactivity values.
+
+`--norm-cutoff`: References with at least this many reads are used for normalization.
+
+`--norm-percentile`: The reactivity percentile to use for normalization.
 
 
 ## Tokenization
