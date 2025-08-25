@@ -181,34 +181,39 @@ $__cmuts \
     --collapse ${COLLAPSE} \
     --chunk-size ${CHUNKSIZE} \
     --filter-coverage \
+    --disable-ambiguous \
     ${NO_MISMATCHES} \
     ${NO_INSERTIONS} \
     ${NO_DELETIONS} \
     ${FILE}
 
-rf-count \
-    -wt ${THREADS} \
-    -f ${FASTA} \
-    -m \
-    --eval-surrounding \
-    --no-cov-low-qual \
-    --no-discard-duplicates \
-    --right-deletion \
-    --collapse-consecutive \
-    --max-collapse-distance ${COLLAPSE} \
-    --max-edit-distance 1.0 \
-    --map-quality ${MIN_MAPQ} \
-    --min-quality ${MIN_PHRED} \
-    --discard-shorter ${MIN_LENGTH} \
-    --max-deletion-len ${MAX_INDEL} \
-    --median-quality 0 \
-    ${NO_INSERTIONS} \
-    ${NO_DELETIONS} \
-    ${FILE}
+if [[ $USE_RF -eq 1 ]]; then
 
-rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > rf_muts.txt
-rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > rf_cov.txt
+    rf-count \
+        -wt ${THREADS} \
+        -f ${FASTA} \
+        -m \
+        --eval-surrounding \
+        --no-cov-low-qual \
+        --no-discard-duplicates \
+        --right-deletion \
+        --collapse-consecutive \
+        --max-collapse-distance ${COLLAPSE} \
+        --max-edit-distance 1.0 \
+        --map-quality ${MIN_MAPQ} \
+        --min-quality ${MIN_PHRED} \
+        --discard-shorter ${MIN_LENGTH} \
+        --max-deletion-len ${MAX_INDEL} \
+        --median-quality 0 \
+        ${NO_INSERTIONS} \
+        ${NO_DELETIONS} \
+        ${FILE}
 
-python3 ../compare.py ${CMUTS_H5} ${EXP_H5}
+    rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 3' > rf_muts.txt
+    rf-rctools view rf_count/aln.rc | awk 'NR % 5 == 4' > rf_cov.txt
+
+fi
+
+python3 ../compare.py ${CMUTS_H5} ${EXP_H5} ${USE_RF}
 
 popd > /dev/null
