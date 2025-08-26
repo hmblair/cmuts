@@ -306,7 +306,6 @@ std::string _get_version() {
 
     auto exe = _get_exe().parent_path();
     auto version_file = exe / "VERSION";
-    std::cout << "Exe: " << exe << std::endl;
 
     std::ifstream file(version_file);
     std::string version;
