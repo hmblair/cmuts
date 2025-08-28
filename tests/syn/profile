@@ -329,7 +329,7 @@ if ${LENGTHS_SET}; then
     echo " ─────────────────────────────"
 
 
-    for LENGTH in $((10 ** 2)) $((10 ** 4)) $((10 ** 6)); do
+    for LENGTH in $((10 ** 2)) $((10 ** 3)) $((10 ** 4)); do
 
         echo "   REFERENCE LENGTH: $LENGTH"
         echo " ─────────────────────────────"
