@@ -100,6 +100,7 @@ private:
     int64_t _aligned    = 0;
     int64_t _unaligned  = 0;
     int32_t _references = 0;
+    int32_t _length     = 0;
 
     const MPI::Manager& _mpi;
 
@@ -113,6 +114,7 @@ public:
         int64_t aligned,
         int64_t unaligned,
         int32_t references,
+        int32_t length,
         const MPI::Manager& mpi
     );
 

@@ -917,15 +917,18 @@ static inline double _percent(int64_t a, int64_t b) {
     return a_double / b_double * 100;
 }
 
-static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t references) {
+static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t references, int64_t length) {
 
     Utils::Line _print_references("References");
+    Utils::Line _print_length("Reference length");
     Utils::Line _print_aligned("Aligned reads");
     Utils::Line _print_unaligned("Unaligned reads");
 
     _print_references.print(references);
+    _print_length.print(length);
     _print_aligned.print(aligned);
     _print_unaligned.print(unaligned);
+
     Utils::divider();
     Utils::cursor_down(3);
     Utils::cursor_down(2);
@@ -945,8 +948,14 @@ static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t ref
 
 
 
-Stats::Stats(int64_t aligned, int64_t unaligned, int32_t references, const MPI::Manager& mpi) 
-    : _aligned(aligned), _unaligned(unaligned), _references(references), _mpi(mpi) {
+Stats::Stats(
+    int64_t aligned,
+    int64_t unaligned,
+    int32_t references,
+    int32_t length,
+    const MPI::Manager& mpi
+) 
+    : _aligned(aligned), _unaligned(unaligned), _references(references), _length(length), _mpi(mpi) {
 
         if (mpi.root()) {
             _processed += unaligned;
@@ -986,7 +995,7 @@ void Stats::aggregate() {
 
 void Stats::header() const {
     if (_mpi.root()) {
-        _print_header(_aligned, _unaligned, _references);
+        _print_header(_aligned, _unaligned, _references, _length);
     }
 }
 

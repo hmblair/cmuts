@@ -204,6 +204,7 @@ int main(int argc, char** argv) {
         files.aligned(),
         files.unaligned(),
         files.references(),
+        fasta.longest(),
         mpi
     );
     stats.header();
