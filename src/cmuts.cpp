@@ -439,7 +439,7 @@ static inline void __ins(
 
     // Insertions at the beginning of the sequence are ignored
 
-    if (rpos >= reference.size()) {
+    if (rpos > reference.size() || rpos <= 0) {
         qpos -= op.length();
         return;
     }
@@ -447,7 +447,7 @@ static inline void __ins(
     qpos--;
     base_t qbase = op.last();
     if (params.insertions && last - rpos >= params.collapse && qbase != IX_UNK) {
-        __ins_core<dtype, mode>(arr, rpos, qbase, mask[qpos]);
+        __ins_core<dtype, mode>(arr, rpos - 1, qbase, mask[qpos]);
         last = rpos;
     }
 
