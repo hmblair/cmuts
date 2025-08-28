@@ -42,6 +42,10 @@ This will download and build the `htscodecs` dependency as well. Don't forget to
 
 Running `./configure --mpi` will build the parallel version of `cmuts`. This requires `OpenMPI` and a copy of `HDF5` with parallel support enabled. This is available under `brew` as `hdf5-mpi`.
 
+## cmuts-normalize
+
+The normalization program requires `python >= 3.10` and the packages in `requirements.txt`.
+
 
 # Usage
 
@@ -117,11 +121,11 @@ The following lists all additional commands available:
 
 ## Normalization
 
-The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It relies on the Python dependencies in `requirements.txt` and can be run as
+The program `cmuts-normalize` will produce normalized reactivity profiles from the output of `cmuts`. It can be run as
 ```
 cmuts-normalize -o reactivity.h5 --mod MOD [--nomod NOMOD] --group GROUP INPUT.h5
 ```
-The `--mod` and `--nomod` flags specify which dataset in the input HDF5 file to process, with the latter optional. `--group` specifies which group(s) in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
+The `--mod` and `--nomod` flags specify which dataset(s) in the input HDF5 file to process, with the latter optional and specifying the control. `--group` specifies which group in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
 
 Additional flags which may be useful are:
 
