@@ -72,8 +72,10 @@ popd > /dev/null
 # Post-install steps
 
 for script in ${SCRIPT_DIR}/src/scripts/*; do
-  name=$(basename $script)
-  ln -s $script ${BIN_DIR}/$name
+  if [[ -x "$script" ]]; then
+    name=$(basename "$script")
+    ln -s "$script" "${BIN_DIR}/$name"
+  fi
 done
 
 echo $VERSION > ${BIN_DIR}/VERSION
