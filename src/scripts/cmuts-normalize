@@ -2,30 +2,40 @@
 
 import h5py
 import dask.array as da
-import dask
-import dask.dataframe as dd
-from dask.diagnostics import ProgressBar
 import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from enum import Enum
 
-VERSION = '1.0.0'
+
+class NormMethod(Enum):
+    RAW = 0
+    UBR = 1
+    OUTLIER = 2
+    WINSORIZING = 3
+    BOXPLOT = 4
+
+
+BOLD = '\033[1m'
+RESET = '\033[0m'
+
+with open(f"{os.path.dirname(os.path.abspath(__file__))}/VERSION", "r") as f:
+    VERSION = f.read().strip()
+
 NAME = 'cmuts-normalize'
-PBAR_WIDTH = 10
+PBAR_WIDTH = 20
+FIGURES = "figures"
 
 REACTIVITY_DS = 'reactivity'
 READS_DS = 'reads'
 ERROR_DS = "error"
-SNR_DS = "snr"
+SNR_DS = "SNR"
 NORM_DS = "norm"
 ROI_DS = "ROI"
+HEATMAP_DS = "heatmap"
 SEQUENCE_DS = 'sequence'
-
-
-def _all_unique(x: list):
-    return len(set(x)) == len(x)
 
 
 parser = argparse.ArgumentParser()
@@ -58,14 +68,13 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
-    '-t', '--threads',
-    help='The number of threads or processes to use.',
-    type=int,
-    default=1,
+    '--clip-low',
+    help='Clip negative reactivity values.',
+    action='store_true',
 )
 parser.add_argument(
-    '--clip-reactivity',
-    help='Clip the reactivity values to the range [0,1].',
+    '--clip-high',
+    help='Clip reactivity values above 1.',
     action='store_true',
 )
 parser.add_argument(
@@ -99,9 +108,10 @@ parser.add_argument(
 )
 
 
-def _title(name: str, version: str) -> str:
-    return f"""        {name} version {version}
-      ───────────────────────────────────"""
+def _title(program: str, version: str, name: str) -> str:
+    return f"""        {program} version {version}
+      ───────────────────────────────────
+        {BOLD}Statistics for {name}:{RESET}"""
 
 
 def _remove_if_exists(
@@ -135,15 +145,40 @@ def _error(reactivity: da.Array, coverage: da.Array) -> da.Array:
 
 def _snr(reactivity: da.Array, error: da.Array) -> da.Array:
 
-    return da.divide(
+    return np.divide(
         reactivity,
         error,
         where=(error > 0),
-        out=da.zeros_like(reactivity),
+        out=np.zeros_like(reactivity),
     ).mean(-1)
 
 
-def _heatmap(file: h5py.File, group: str) -> tuple[da.Array, ...]:
+def _print_stats(
+    reactivity: np.ndarray,
+    reads: np.ndarray,
+    snr: np.ndarray,
+    norm: np.ndarray,
+) -> None:
+
+    nseqs = reads.shape[0]
+    mr = np.mean(reads)
+    medr = np.median(reads)
+
+    msnr = np.mean(snr)
+    medsnr = np.median(snr)
+
+    mrr = np.mean(reactivity * norm)
+
+    print(f"        References:      {nseqs:,}")
+    print(f"        Mean reads:      {int(mr):,}")
+    print(f"        Mean SNR:        {msnr:.2f}")
+    print(f"        Mean reactivity: {mrr:.3f}")
+    print(f"        Median reads:    {int(medr):,}")
+    print(f"        Median SNR:      {medsnr:.2f}")
+    print()
+
+
+def _process(file: h5py.File, group: str) -> tuple[np.ndarray, ...]:
 
     # Lazily load the HDF5 files into dask arrays
 
@@ -153,20 +188,7 @@ def _heatmap(file: h5py.File, group: str) -> tuple[da.Array, ...]:
         print(f"Error loading the dataset {group}:")
         raise e
 
-    return 
-
-
-def _process(file: h5py.File, group: str) -> tuple[da.Array, ...]:
-
-    # Lazily load the HDF5 files into dask arrays
-
-    try:
-        arr = da.from_array(file[group], chunks='auto')
-    except Exception as e:
-        print(f"Error loading the dataset {group}:")
-        raise e
-
-    # Compute the heatmap
+    # Compute the modification heatmap
 
     heatmap = arr.mean((0, 1))
     heatmap = heatmap / heatmap.sum()
@@ -203,27 +225,96 @@ def _process(file: h5py.File, group: str) -> tuple[da.Array, ...]:
     err[:, :BLANK_OUT5] = 0
     err[:, BLANK_OUT3:] = 0
 
-    # Get the read counts
+    # Get the read counts and compute all values
 
     reads = da.max(coverage, axis=(-1,))
+    return da.compute(reactivity, reads, err, heatmap)
 
-    return reactivity, reads, err, heatmap
+
+def _get_norm_raw(reactivity: np.ndarray) -> np.ndarray:
+    """
+    No normalization.
+    """
+
+    return np.ones(1, dtype=reactivity.dtype)
 
 
-def normalise(
-    reactivity: da.Array,
-    reads: da.Array,
+def _get_norm_2_8(reactivity: np.ndarray) -> np.ndarray:
+    """
+    2-8% Normalization: From top 10%, ignore top 2% and divide by average of
+    remaining 8%
+    """
+
+    p90 = np.percentile(reactivity, 90)
+    p98 = np.percentile(reactivity, 98)
+
+    values = reactivity[(reactivity >= p90) & (reactivity < p98)]
+    return np.mean(values)
+
+
+def _get_norm_winsorizing(reactivity: np.ndarray) -> np.ndarray:
+    """
+    90% Winsorizing: Clip values to 5th-95th percentile range, then divide by
+    95th percentile
+    """
+
+    p5 = np.percentile(reactivity, 5)
+    p95 = np.percentile(reactivity, 95)
+
+    # TODO: fix
+
+    winsorized = np.clip(reactivity, p5, p95)
+    return winsorized / p95
+
+
+def _get_norm_boxplot(reactivity: np.ndarray) -> np.ndarray:
+    """
+    Box-plot Normalization: Remove outliers beyond 1.5x IQR above Q3,
+    then divide by average of next 10% of remaining values
+    """
+
+    q1 = np.percentile(reactivity, 25)
+    q3 = np.percentile(reactivity, 75)
+    iqr = q3 - q1
+
+    threshold = q3 + 1.5 * iqr
+    non_outliers = reactivity[reactivity <= threshold]
+    p90_non_outliers = np.percentile(non_outliers, 90)
+
+    top_10_percent = non_outliers[non_outliers >= p90_non_outliers]
+    return np.mean(top_10_percent)
+
+
+def _get_norm_ubr(
+    reactivity: np.ndarray,
+    reads: np.ndarray,
     cutoff: int,
-    percentile: int
-) -> da.Array:
-
-    # Get the reactivity of all high-read sequences
+    percentile: int,
+) -> np.ndarray:
 
     high_reactivity = reactivity[reads > cutoff]
+    return np.percentile(high_reactivity[:, UNBLANKED].flatten(), percentile)
 
-    # Find the 90th percentile of these reactivity values
 
-    return da.percentile(high_reactivity[:, UNBLANKED].flatten(), percentile)
+def _get_norm(
+    reactivity: np.ndarray,
+    reads: np.ndarray,
+    cutoff: int,
+    percentile: int,
+    method: NormMethod = NormMethod.RAW,
+) -> tuple[np.ndarray, ...]:
+
+    match method:
+        case NormMethod.RAW:
+            return _get_norm_raw(reactivity)
+        case NormMethod.UBR:
+            return _get_norm_ubr(reactivity, reads, cutoff, percentile)
+        case NormMethod.OUTLIER:
+            return _get_norm_2_8(reactivity)
+        case NormMethod.WINSORIZING:
+            return _get_norm_winsorizing(reactivity)
+        case NormMethod.BOXPLOT:
+            return _get_norm_boxplot(reactivity)
 
 
 def _get_sequences(file: h5py.File) -> da.Array:
@@ -243,19 +334,16 @@ def _plot_heatmap(heatmap: da.Array, name: str) -> None:
     plt.xticks(range(6), ["A", "C", "G", "U", "del", "ins"], fontsize=12)
     plt.yticks(range(4), ["A", "C", "G", "U"], fontsize=12)
 
-    plt.savefig(f"figures/{name}-heatmap.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{name}-heatmap.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
 if __name__ == '__main__':
 
     args = parser.parse_args()
-    print(_title(NAME, VERSION))
+    print(_title(NAME, VERSION, args.group))
 
     _remove_if_exists(args.out, args.overwrite)
-
-    pbar = ProgressBar(width=PBAR_WIDTH)
-    pbar.register()
 
     with h5py.File(args.file, 'r') as f:
 
@@ -268,67 +356,62 @@ if __name__ == '__main__':
         if args.nomod is not None:
             nomod_reactivity, nomod_reads, no_mod_err, no_mod_heatmap = _process(f, args.nomod)
             reads += nomod_reads
-            err = da.sqrt(err ** 2 + no_mod_err ** 2)
-
-        # We need the reads computed in advance in order to
-        # find all sequences with more than NORM_CUTOFF reads
-
-        _reads = reads.compute()
-
-        # Normalise the reactivity and its error
-        # SNR is unchanged
-
-        if args.raw:
-            norm = da.ones(1, dtype=reads.dtype)
-        else:
-            norm = normalise(
-                mod_reactivity,
-                _reads,
-                args.norm_cutoff,
-                args.norm_percentile,
-            )
-
-        err /= norm
+            err = np.sqrt(err ** 2 + no_mod_err ** 2)
 
         # Background subtract
 
         if args.nomod is not None:
-            reactivity = (mod_reactivity - nomod_reactivity) / norm
+            reactivity = mod_reactivity - nomod_reactivity
         else:
-            reactivity = mod_reactivity / norm
+            reactivity = mod_reactivity
+
+        # Normalize the reactivity and its error
+        # SNR is unchanged
+
+        norm = _get_norm(
+            reactivity,
+            reads,
+            args.norm_cutoff,
+            args.norm_percentile,
+        )
+        err /= norm
+        reactivity /= norm
 
         snr = _snr(reactivity, err)
 
         # Clip the reactivity if requested
 
-        if args.clip_reactivity:
-            reactivity = da.clip(reactivity, 0, 1)
+        if args.clip_low:
+            reactivity = da.clip(reactivity, 0, None)
+        if args.clip_high:
+            reactivity = da.clip(reactivity, None, 1)
 
         # Find the region of interest
 
-        roi = da.array([BLANK_OUT5, reactivity.shape[1] + BLANK_OUT3])
+        roi = np.array([BLANK_OUT5, reactivity.shape[1] + BLANK_OUT3])
 
         # Save to file
 
         data = {
-            args.group + '/' + REACTIVITY_DS: reactivity,
-            args.group + '/' + READS_DS: reads,
-            args.group + '/' + NORM_DS: norm,
-            args.group + '/' + ROI_DS: roi,
-            args.group + '/' + ERROR_DS: err,
-            args.group + '/' + SNR_DS: snr,
+            args.group + '/' + REACTIVITY_DS: da.from_array(reactivity),
+            args.group + '/' + READS_DS: da.from_array(reads),
+            args.group + '/' + NORM_DS: da.from_array(norm),
+            args.group + '/' + ROI_DS: da.from_array(roi),
+            args.group + '/' + ERROR_DS: da.from_array(err),
+            args.group + '/' + SNR_DS: da.from_array(snr),
+            args.group + '/' + HEATMAP_DS: da.from_array(heatmap),
         }
 
         da.to_hdf5(args.out, data)
 
+        # Print stats
+
+        _print_stats(reactivity, reads, snr, norm)
+
         # Plot heatmap
 
-        os.makedirs("figures")
+        os.makedirs(FIGURES)
         _plot_heatmap(heatmap, args.group)
-
-        heatmap[0, 0] = heatmap[1, 1] = heatmap[2, 2] = heatmap[3, 3] = 0
-        mods = heatmap.sum(0).compute()
-        print(mods)
 
         # Get the embedded sequences
 
