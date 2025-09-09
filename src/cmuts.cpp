@@ -912,6 +912,7 @@ std::unique_ptr<Main> _get_main(
 
 
 static inline double _percent(int64_t a, int64_t b) {
+    if (b == 0) return 0.0;
     double a_double = static_cast<double>(a);
     double b_double = static_cast<double>(b);
     return a_double / b_double * 100;
@@ -1006,7 +1007,7 @@ void Stats::body() const {
 
     if (_mpi.root()) {
         double processed = _percent(_processed, _aligned + _unaligned);
-        double skipped   = _percent(_skipped, _aligned + _unaligned);
+        double skipped   = _percent(_skipped, _processed);
         _print_processed.print(processed);
         _print_skipped.print(skipped);
         _print_elapsed.print(_mpi.time_str());
