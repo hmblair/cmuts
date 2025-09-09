@@ -91,7 +91,6 @@ fi
 if [[ $USE_RF -eq 1 ]]; then
     WINDOW=1
     MAX_LENGTH=$((2 * LENGTH + 1))
-    COLLAPSE=3
 
     NO_MISMATCHES=""
     NO_MISMATCHES_STR="FALSE"
@@ -198,7 +197,7 @@ if [[ $USE_RF -eq 1 ]]; then
         --no-discard-duplicates \
         --right-deletion \
         --collapse-consecutive \
-        --max-collapse-distance ${COLLAPSE} \
+        --max-collapse-distance $((COLLAPSE - 1)) \
         --max-edit-distance 1.0 \
         --map-quality ${MIN_MAPQ} \
         --min-quality ${MIN_PHRED} \
