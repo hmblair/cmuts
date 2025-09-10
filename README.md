@@ -133,9 +133,9 @@ Additional flags which may be useful are:
 
 `--clip-reactivity`: Clip the reactivity values to the range $`[0,1]`$.
 
-`--5p-primer-length`: The length of the 5' primer, which will be zeroed out. Default: 26
+`--5p-primer-length`: The length of the 5' primer, which will be zeroed out. Default: 0
 
-`--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 20
+`--3p-primer-length`: The length of the 3' primer, which will be zeroed out. Default: 0
 
 `--raw`: Do not normalize the reactivity values.
 
