@@ -72,7 +72,7 @@ mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted1.bam sorted2.bam ...
 ```
 The output file will contain one dataset per input, with name given by the path of the file (without any extension). Each is of shape $`n \times l \times 4 \times 6`$ for $`n`$ sequences with a maximum length of $`l`$. Dimension 2 specifies the original base and dimension 3 the mutated base; here, deletions are considered a mutation and are in the second to final row of the array. The final row contains all insertions, with dimension 2 specifying the base inserted.
 
-The following lists all additional commands available:
+The following lists all additional commands available. The flags `--no-insertions` and `--filter-coverage` are suggested for a standard MaP-seq analysis.
 
 `--overwrite`: Overwrite any existing HDF5 file.
 
