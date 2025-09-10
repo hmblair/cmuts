@@ -125,7 +125,7 @@ The program `cmuts-normalize` will produce normalized reactivity profiles from t
 ```
 cmuts-normalize -o reactivity.h5 --mod MOD [--nomod NOMOD] --group GROUP INPUT.h5
 ```
-The `--mod` and `--nomod` flags specify which dataset(s) in the input HDF5 file to process, with the latter optional and specifying the control. `--group` specifies which group in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
+The `--mod` and `--nomod` flags specify which dataset(s) in the input HDF5 file to process, with the latter optional and specifying the control. If more than one mod or nomod dataset is specified, the counts will be added as if they were coming from the same experiment, to accomodate the case of split BAM/CRAM files. `--group` specifies which group in the output HDF5 file to place the two datasets which are computed -- `reactivity` and `reads`.
 
 Additional flags which may be useful are:
 

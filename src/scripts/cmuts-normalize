@@ -45,12 +45,14 @@ parser.add_argument(
 )
 parser.add_argument(
     '--mod',
-    help='The name of the dataset containing the mutation counts of the modified sequences.',
+    nargs="+",
+    help='The names of the datasets containing the mutation counts of the modified sequences.',
     required=True,
 )
 parser.add_argument(
     '--nomod',
-    help='The name of the dataset containing the mutation counts of the non-modified sequences.',
+    nargs="+",
+    help='The names of the datasets containing the mutation counts of the non-modified sequences.',
 )
 parser.add_argument(
     '--group',
@@ -168,6 +170,7 @@ def _print_stats(
     medsnr = np.median(snr)
 
     mrr = np.mean(reactivity * norm)
+    fsnr = np.mean(snr >= 1)
 
     print(f"        References:      {nseqs:,}")
     print(f"        Mean reads:      {int(mr):,}")
@@ -175,18 +178,30 @@ def _print_stats(
     print(f"        Mean reactivity: {mrr:.3f}")
     print(f"        Median reads:    {int(medr):,}")
     print(f"        Median SNR:      {medsnr:.2f}")
+    print(f"        Usable SNR:      {fsnr:.2f}")
     print()
 
 
-def _process(file: h5py.File, group: str) -> tuple[np.ndarray, ...]:
+def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
+
+    if not groups:
+        raise ValueError("At least one group must be specified.")
 
     # Lazily load the HDF5 files into dask arrays
 
-    try:
-        arr = da.from_array(file[group], chunks='auto')
-    except Exception as e:
-        print(f"Error loading the dataset {group}:")
-        raise e
+    arr = 0
+    ix = 0
+
+    for group in groups:
+        try:
+            arr += da.from_array(file[group], chunks='auto')
+            ix += 1
+        except Exception as e:
+            print(f"Error loading the dataset {group}:")
+            raise e
+
+    if not ix:
+        raise RuntimeError("No datasets were successfully loaded.")
 
     # Compute the modification heatmap
 
@@ -347,7 +362,7 @@ if __name__ == '__main__':
     with h5py.File(args.file, 'r') as f:
 
         BLANK_OUT5 = getattr(args, "5p_primer_length")
-        BLANK_OUT3 = f[args.mod].shape[1] - getattr(args, "3p_primer_length")
+        BLANK_OUT3 = f[args.mod[0]].shape[1] - getattr(args, "3p_primer_length")
         UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
 
         mod_reactivity, reads, err, heatmap = _process(f, args.mod)
