@@ -352,6 +352,31 @@ def _plot_heatmap(heatmap: da.Array, name: str) -> None:
     plt.close()
 
 
+def _plot_read_hist(reads: np.ndarray, name: str) -> None:
+
+    # Compute log-read depths
+
+    with np.errstate(divide='ignore'):
+        lr = np.where(reads == 0, -1, np.log10(reads))
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.hist(lr, bins=100, color="red")
+    plt.xlabel("log10 Read Depth", fontsize=12)
+    plt.ylabel("Count", fontsize=12)
+
+    plt.savefig(f"{FIGURES}/{name}-reads-hist.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_examples(reactivty: np.ndarray, name: str, num: int = 500) -> None:
+
+    plt.imshow(reactivity[:num], cmap="RdPu")
+    plt.xlabel("Residue", fontsize=12)
+    plt.ylabel("Sequence Index", fontsize=12)
+    plt.savefig(f"{FIGURES}/{name}-examples.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
 if __name__ == '__main__':
 
     args = parser.parse_args()
@@ -422,10 +447,12 @@ if __name__ == '__main__':
 
         _print_stats(reactivity, reads, snr, norm)
 
-        # Plot heatmap
+        # Plot figures
 
-        os.makedirs(FIGURES)
+        os.makedirs(FIGURES, exist_ok=True)
         _plot_heatmap(heatmap, args.group)
+        _plot_read_hist(reads, args.group)
+        _plot_examples(reactivity, args.group)
 
         # Get the embedded sequences
 
