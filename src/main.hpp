@@ -30,6 +30,7 @@ public:
     Arg<std::vector<std::string>> files;
     Arg<std::string> output;
     Arg<std::string> fasta;
+    Arg<bool> stem;
 
     Arg<bool> joint;
     Arg<bool> lowmem;
@@ -72,6 +73,10 @@ const std::string FASTA_SHORT_NAME = "-f";
 const std::string FASTA_LONG_NAME = "--fasta";
 const std::string FASTA_HELP = "The reference FASTA file.";
 
+const std::string STEM_SHORT_NAME = "";
+const std::string STEM_LONG_NAME = "--stem-only";
+const std::string STEM_HELP = "Only use the stem of the path to name the output dataset.";
+
 const std::string OVERWRITE_SHORT_NAME = "";
 const std::string OVERWRITE_LONG_NAME = "--overwrite";
 const std::string OVERWRITE_HELP = "Overwrite an existing HDF5 file.";
@@ -83,12 +88,12 @@ const std::string COMPRESSION_HELP = "Compression level of the HDF5 output (0-9)
 
 const std::string MIN_PHRED_SHORT_NAME = "";
 const std::string MIN_PHRED_LONG_NAME = "--min-phred";
-const int MIN_PHRED_DEFAULT = 20;
+const int MIN_PHRED_DEFAULT = 10;
 const std::string MIN_PHRED_HELP = "PHRED score threshold for base processing.";
 
 const std::string MIN_MAPQ_SHORT_NAME = "";
 const std::string MIN_MAPQ_LONG_NAME = "--min-mapq";
-const int MIN_MAPQ_DEFAULT = 20;
+const int MIN_MAPQ_DEFAULT = 10;
 const std::string MIN_MAPQ_HELP = "Mapping quality threshold for alignment processing.";
 
 const std::string MAX_INDEL_LENGTH_SHORT_NAME = "";

@@ -86,9 +86,9 @@ The following lists all additional commands available:
 
 `--low-mem`: Compute modification locations and coverage only (i.e. modification type is not recorded). Decreases memory usage by at least 2x.
 
-`--min-mapq`: Mapping quality threshold for alignment processing. Default: 20
+`--min-mapq`: Mapping quality threshold for alignment processing. Default: 10
 
-`--min-phred`: PHRED score threshold for base processing. Default: 20
+`--min-phred`: PHRED score threshold for base processing. Default: 10
 
 `--max-indel-length`: The longest indels to consider as modifications. Default: 10
 
