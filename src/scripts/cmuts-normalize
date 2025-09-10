@@ -304,17 +304,16 @@ def _get_norm(
     method: NormMethod = NormMethod.RAW,
 ) -> tuple[np.ndarray, ...]:
 
-    match method:
-        case NormMethod.RAW:
-            return _get_norm_raw(reactivity)
-        case NormMethod.UBR:
-            return _get_norm_ubr(reactivity, reads, cutoff, percentile)
-        case NormMethod.OUTLIER:
-            return _get_norm_2_8(reactivity)
-        case NormMethod.WINSORIZING:
-            return _get_norm_winsorizing(reactivity)
-        case NormMethod.BOXPLOT:
-            return _get_norm_boxplot(reactivity)
+    if method == NormMethod.RAW:
+        return _get_norm_raw(reactivity)
+    if method == NormMethod.UBR:
+        return _get_norm_ubr(reactivity, reads, cutoff, percentile)
+    if method == NormMethod.OUTLIER:
+        return _get_norm_2_8(reactivity)
+    if method == NormMethod.WINSORIZING:
+        return _get_norm_winsorizing(reactivity)
+    if method == NormMethod.BOXPLOT:
+        return _get_norm_boxplot(reactivity)
 
 
 def _get_sequences(file: h5py.File) -> da.Array:
