@@ -33,6 +33,11 @@ if [[ -z "$FASTA" || -z "$OUTPUT" || "${#FILES[@]}" -eq 0 ]]; then
   exit 1
 fi
 
+# Convert to DNA before processing
+
+sed '/^>/!s/U/T/g' "$FASTA" > "${FASTA%.*}-T.${FASTA##*.}"
+FASTA="${FASTA%.*}-T.${FASTA##*.}"
+
 INDEX="index/index"
 TMPDIR=".tmp"
 mkdir -p index "$TMPDIR" "$OUTPUT"
