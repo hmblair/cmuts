@@ -51,14 +51,15 @@ using qual_t = uint8_t;
 
 // Indices of the bases in the output arrays
 
-const base_t IX_A   = 0;
-const base_t IX_C   = 1;
-const base_t IX_G   = 2;
-const base_t IX_U   = 3;
-const base_t IX_T   = 3;
-const base_t IX_DEL = 4;
-const base_t IX_INS = 5;
-const base_t IX_UNK = -1;
+const base_t IX_A    = 0;
+const base_t IX_C    = 1;
+const base_t IX_G    = 2;
+const base_t IX_U    = 3;
+const base_t IX_T    = 3;
+const base_t IX_DEL  = 4;
+const base_t IX_INS  = 5;
+const base_t IX_TERM = 6;
+const base_t IX_UNK  = -1;
 
 // BGZF/header constants
 
@@ -382,16 +383,22 @@ enum class FileType : uint8_t {
 
 enum class CIGAR_t : uint8_t {
 
+    // HTS operations
+
     UNKNOWN,  // Unknown
     MATCH,    // Match
-    MISMATCH, // Mismatch
     DEL,      // Deletion
     INS,      // Insertion
     SOFT,     // Soft clipping
     HARD,     // Hard clipping
     SKIP,     // ?
     PAD,      // ?
-    BACK      // ?
+    BACK,     // ?
+
+    // Additional cmuts operations
+
+    MISMATCH, // Mismatch
+    TERM      // Termination
 
 };
 
