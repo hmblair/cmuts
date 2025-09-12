@@ -1,35 +1,63 @@
 #!/bin/bash
 
 set -eou pipefail
+LOG="cmuts-align.log"
 
 FASTA=""
 OUTPUT=""
 THREADS="1"
+BARCODES=""
 FILES=()
+PAIRS=()
+
+print-usage() {
+  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [FILES ...] [--pairs PAIRS]"
+}
 
 while [[ "$#" -gt 0 ]]; do
-    case "$1" in
-        --fasta)
-            shift
-            FASTA="$1"
-            ;;
-        --output)
-            shift
-            OUTPUT="$1"
-            ;;
-        --threads)
-            shift
-            THREADS="$1"
-            ;;
-        *)
-            FILES+=("$1")
-            ;;
+  case "$1" in
+    -h|--help)
+      print-usage
+      exit 0
+      ;;
+    --fasta)
+      shift
+      FASTA="$1"
+      ;;
+    --output)
+      shift
+      OUTPUT="$1"
+      ;;
+    --threads)
+      shift
+      THREADS="$1"
+      ;;
+    --barcodes)
+      shift
+      BARCODES="$1"
+      ;;
+    --pairs)
+      shift
+      while [[ "$#" -gt 0 && ! "$1" =~ ^-- ]]; do
+        PAIRS+=("$1")
+        shift
+      done
+      continue
+      ;;
+    *)
+      FILES+=("$1")
+      ;;
     esac
     shift
 done
 
 if [[ -z "$FASTA" || -z "$OUTPUT" || "${#FILES[@]}" -eq 0 ]]; then
-  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [FILES ...]"
+  print-usage
+  exit 1
+fi
+
+if [[ ${#PAIRS[@]} -gt 0 && ${#FILES[@]} -ne ${#PAIRS[@]} ]]; then
+  echo "Error: If --pairs is specified, then there must be an equal amount as files." >&2
   exit 1
 fi
 
@@ -38,22 +66,76 @@ fi
 sed '/^>/!s/U/T/g' "$FASTA" > "${FASTA%.*}-T.${FASTA##*.}"
 FASTA="${FASTA%.*}-T.${FASTA##*.}"
 
+# Demultiplex if a barcode file is provided
+
+if [[ ! -z "$BARCODES" ]]; then
+
+  if [[ ${#PAIRS[@]} -gt 0 ]]; then
+
+    for IX in "${!FILES[@]}"; do
+
+      FILE="${FILES[IX]}"
+      PAIR="${PAIRS[IX]}"
+
+      echo >> $LOG
+      echo " -- Demultiplexing $FILE and $PAIR --" >> $LOG
+
+      ultraplex \
+        -i "$FILE" \
+        -i2 "$PAIR" \
+        -b "$BARCODES" \
+        -d dmux \
+        --dont_build_reference \
+        --ignore_no_match >> $LOG 2>&1
+
+    done
+
+  else
+
+    for FILE in "${FILES[@]}"; do
+
+      echo >> $LOG
+      echo " -- Demultiplexing $FILE --" >> $LOG
+
+      ultraplex \
+        -i "$FILE" \
+        -b "$BARCODES" \
+        -d dmux \
+        --dont_build_reference \
+        --ignore_no_match >> $LOG 2>&1
+
+    done
+
+  fi
+
+  # Rename to something simpler
+
+  cd dmux
+  for file in *.fastq.gz; do
+    mv $file ${file:20}
+  done
+  cd ..
+
+  FILES=(dmux/*.fastq.gz)
+
+fi
+
 INDEX="index/index"
 TMPDIR=".tmp"
 mkdir -p index "$TMPDIR" "$OUTPUT"
-bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> "cmuts-align.log" 2>&1
+bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> $LOG 2>&1
 
 for FILE in "${FILES[@]}"; do
 
   NAME=$(basename "$FILE")
-  BASENAME="${NAME%.*}"
+  BASENAME="${NAME%.fastq*}"
 
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
   FINAL="${OUTPUT}/${BASENAME}.bam"
 
-  echo >> "cmuts-align.log"
-  echo " -- Aligning $NAME --" >> "cmuts-align.log"
-  echo >> "cmuts-align.log"
+  echo >> $LOG
+  echo " -- Aligning $NAME --" >> $LOG
+  echo >> $LOG
 
   bowtie2 \
     --threads "$THREADS" \
@@ -65,11 +147,11 @@ for FILE in "${FILES[@]}"; do
     --mp 3,1 \
     --rdg 5,1 \
     --rfg 5,1 \
-    "$FILE" > "$TMP" 2>> "cmuts-align.log"
+    "$FILE" > "$TMP" 2>> $LOG
 
-  echo >> "cmuts-align.log"
-  echo " -- Sorting $NAME --" >> "cmuts-align.log"
-  echo >> "cmuts-align.log"
+  echo >> $LOG
+  echo " -- Sorting $NAME --" >> $LOG
+  echo >> $LOG
 
   samtools sort --threads "$THREADS" -o "$FINAL" "$TMP"
 
