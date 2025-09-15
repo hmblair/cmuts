@@ -13,6 +13,7 @@ namespace cmuts {
 
 
 
+static int32_t _MAX_ = 0;
 
 
 template <typename dtype, bool match>
@@ -20,24 +21,25 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
 
     if constexpr (match) {
 
-        for (int32_t jx = 0; jx < ix; jx++) {
+        for (int32_t jx = _MAX_; jx > ix; jx--) {
 
             dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
 
             arr(ix, jx, NOMOD, MOD)   += mask * nval;
-            arr(jx, ix, NOMOD, MOD)   += mask * nval;
+            arr(jx, ix, MOD, NOMOD)   += mask * nval;
 
             arr(ix, jx, NOMOD, NOMOD) += mask * nval_c;
             arr(jx, ix, NOMOD, NOMOD) += mask * nval_c;
 
         }
 
-        arr(ix, ix, NOMOD, NOMOD) += mask;
+        arr(ix, ix, NOMOD, NOMOD) += (mask * mask);
+        arr(ix, ix, MOD, MOD) += (1 - (mask * mask));
 
     } else {
 
-        for (int32_t jx = 0; jx < ix; jx++) {
+        for (int32_t jx = _MAX_; jx > ix; jx--) {
 
             dtype nval   = arr.periodic(jx, -1, 0, 0);
             dtype nval_c = 1 - nval;
@@ -46,11 +48,12 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
             arr(jx, ix, MOD, MOD)   += mask * nval;
 
             arr(ix, jx, MOD, NOMOD) += mask * nval_c;
-            arr(jx, ix, MOD, NOMOD) += mask * nval_c;
+            arr(jx, ix, NOMOD, MOD) += mask * nval_c;
 
         }
 
-        arr(ix, ix, MOD, MOD) += mask;
+        arr(ix, ix, MOD, MOD) += (mask * mask);
+        arr(ix, ix, NOMOD, NOMOD) += (1 - (mask * mask));
 
     }
 
@@ -278,7 +281,8 @@ static inline void __match_core(
 
     // Invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        __joint<dtype, true>(arr, rpos, mask);
+        arr.periodic(rpos, -1, 0, 0) = 0;
+        __joint<dtype, true>(arr, rpos, _val);
     }
 
 };
@@ -306,7 +310,7 @@ static inline void __mismatch_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) += mask;
+        arr.periodic(rpos, -1, 0, 0) = mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
@@ -332,7 +336,7 @@ static inline void __ins_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0) += mask;
+        arr.periodic(rpos, -1, 0, 0) = mask;
         __joint<dtype, false>(arr, rpos, mask);
     }
 
@@ -359,8 +363,35 @@ static inline void __del_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) += mask;
+        arr.periodic(rpos, -1, 0, 0) = mask;
         __joint<dtype, false>(arr, rpos, mask);
+    }
+
+};
+
+
+template <typename dtype, Mode mode>
+static inline void __term_core(
+    view_t<dtype, _ndims(mode)> arr,
+    int32_t rpos,
+    base_t rbase,
+    dtype mask
+) {
+
+    // Record the original base and position
+    if constexpr (mode == Mode::Normal) {
+        arr(rpos, rbase, IX_TERM) += mask;
+    }
+
+    // Record the position; no match
+    if constexpr (mode == Mode::LowMem) {
+        arr(rpos, LOWMEM_MOD) += mask;
+    }
+
+    // Store the modification in the temp dim and invoke the joint counter
+    if constexpr (mode == Mode::Joint) {
+        // arr.periodic(rpos, -1, 0, 0) = mask;
+        // __joint<dtype, false>(arr, rpos, mask);
     }
 
 };
@@ -526,6 +557,8 @@ static inline void __count(
     int32_t rpos = aln.offset + cigar.rlength();
     int32_t qpos = aln.length;
 
+    _MAX_ = rpos - 1;
+
     // Position of the most recent (3'-wise) mutation
 
     int32_t last = rpos + params.collapse;
@@ -615,6 +648,11 @@ static inline void __count(
 
     }
 
+    // Count termination events
+
+    HTS::CIGAR_op op(HTS::CIGAR_t::TERM);
+    __term_core<dtype, mode>(arr, rpos, reference[rpos], mask[qpos]);
+
 }
 
 
@@ -672,11 +710,6 @@ static inline void __count_reference(
 
         HTS::Alignment aln = iter.next();
         __count_with_quality_check<dtype, mode, subsample>(aln, reference, arr, params, stats);
-
-        // Zero out the temp portion of the array
-        if constexpr (mode == Mode::Joint) {
-            xt::view(arr, xt::all(), -1, 0).fill(0.0);
-        }
 
     }
 
@@ -805,9 +838,10 @@ TemplatedMain<dtype, mode>::TemplatedMain(
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
-    Stats& stats
+    Stats& stats,
+    const std::string& name
 ) : Main(file, fasta, hdf5, mpi, params, stats),
-    memspace(__memspace<dtype, _ndims(mode)>(fasta, hdf5, _path(file.name()), mode)) {}
+    memspace(__memspace<dtype, _ndims(mode)>(fasta, hdf5, name, mode)) {}
 
 template <typename dtype, Mode mode>
 void TemplatedMain<dtype, mode>::run() {
@@ -866,7 +900,8 @@ std::unique_ptr<Main> _get_main(
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
-    Stats& stats
+    Stats& stats,
+    const std::string& name
 ) {
 
     switch (params.mode) {
@@ -874,7 +909,7 @@ std::unique_ptr<Main> _get_main(
         case Mode::Normal: {
 
                 return std::make_unique<TemplatedMain<float, Mode::Normal>>(
-                    file, fasta, hdf5, mpi, params, stats
+                    file, fasta, hdf5, mpi, params, stats, name
                 );
 
        }
@@ -882,7 +917,7 @@ std::unique_ptr<Main> _get_main(
         case Mode::LowMem: {
 
                 return std::make_unique<TemplatedMain<float, Mode::LowMem>>(
-                    file, fasta, hdf5, mpi, params, stats
+                    file, fasta, hdf5, mpi, params, stats, name
                 );
 
        }
@@ -890,7 +925,7 @@ std::unique_ptr<Main> _get_main(
         case Mode::Joint: {
 
                 return std::make_unique<TemplatedMain<float, Mode::Joint>>(
-                    file, fasta, hdf5, mpi, params, stats
+                    file, fasta, hdf5, mpi, params, stats, name
                 );
 
        }
@@ -918,12 +953,16 @@ static inline double _percent(int64_t a, int64_t b) {
     return a_double / b_double * 100;
 }
 
-static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t references, int64_t length) {
+static inline void _print_header(int64_t files, int64_t aligned, int64_t unaligned, int64_t references, int64_t length) {
 
+    Utils::Line _print_files("Files");
     Utils::Line _print_references("References");
     Utils::Line _print_length("Reference length");
     Utils::Line _print_aligned("Aligned reads");
     Utils::Line _print_unaligned("Unaligned reads");
+
+    _print_files.print(files);
+    Utils::divider();
 
     _print_references.print(references);
     _print_length.print(length);
@@ -950,13 +989,14 @@ static inline void _print_header(int64_t aligned, int64_t unaligned, int64_t ref
 
 
 Stats::Stats(
+    int64_t files,
     int64_t aligned,
     int64_t unaligned,
     int32_t references,
     int32_t length,
     const MPI::Manager& mpi
 ) 
-    : _aligned(aligned), _unaligned(unaligned), _references(references), _length(length), _mpi(mpi) {
+    : _aligned(aligned), _unaligned(unaligned), _references(references), _length(length), _files(files), _mpi(mpi) {
 
         if (mpi.root()) {
             _processed += unaligned;
@@ -990,20 +1030,21 @@ void Stats::skipped(int64_t n) {
 
 void Stats::aggregate() {
     _processed = _mpi.reduce(_processed);
-    _skipped = _mpi.reduce(_skipped);
+    _skipped   = _mpi.reduce(_skipped);
 }
 
 
 void Stats::header() const {
     if (_mpi.root()) {
-        _print_header(_aligned, _unaligned, _references, _length);
+        _print_header(_files, _aligned, _unaligned, _references, _length);
     }
 }
 
 
 void Stats::body() const {
 
-    _mpi.up(3);
+    int fields = 3;
+    _mpi.up(fields);
 
     if (_mpi.root()) {
         double processed = _percent(_processed, _aligned + _unaligned);

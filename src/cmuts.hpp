@@ -11,7 +11,7 @@
 #include <random>
 
 const int32_t N_BASES    = 4;
-const int32_t N_DELBASES = 6;
+const int32_t N_DELBASES = 7;
 
 const std::string MODIFICATION_DS = "modifications";
 const std::string JOINT_DS        = "joint";
@@ -101,6 +101,7 @@ private:
     int64_t _unaligned  = 0;
     int32_t _references = 0;
     int32_t _length     = 0;
+    int64_t _files      = 0;
 
     const MPI::Manager& _mpi;
 
@@ -111,6 +112,7 @@ private:
 public:
 
     Stats(
+        int64_t files,
         int64_t aligned,
         int64_t unaligned,
         int32_t references,
@@ -159,6 +161,7 @@ public:
     bool filter_coverage;
     bool ambiguous;
     bool contiguous;
+    // std::vector<std::vector<bool>> valid;
 
 };
 
@@ -234,7 +237,8 @@ public:
         HDF5::File& hdf5,
         const MPI::Manager& mpi,
         const Params& params,
-        Stats& stats
+        Stats& stats,
+        const std::string& name
     );
 
     void run() override;
@@ -251,7 +255,8 @@ std::unique_ptr<Main> _get_main(
     HDF5::File& hdf5,
     const MPI::Manager& mpi,
     const Params& params,
-    Stats& stats
+    Stats& stats,
+    const std::string& name
 );
 
 

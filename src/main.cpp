@@ -201,6 +201,7 @@ int main(int argc, char** argv) {
     // Initialise the stats tracker, and print the header
 
     cmuts::Stats stats(
+        files.size(),
         files.aligned(),
         files.unaligned(),
         files.references(),
@@ -210,12 +211,14 @@ int main(int argc, char** argv) {
     stats.header();
 
     size_t processed = 0;
+
     for (auto& input : files) {
 
         std::unique_ptr<cmuts::Main> main;
+        std::string name = _path(input->name());;
 
         try {
-            main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats);
+            main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats, name);
             main->run();
             processed++;
         } catch (const std::exception& e) {

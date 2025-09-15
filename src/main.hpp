@@ -30,7 +30,6 @@ public:
     Arg<std::vector<std::string>> files;
     Arg<std::string> output;
     Arg<std::string> fasta;
-    Arg<bool> stem;
 
     Arg<bool> joint;
     Arg<bool> lowmem;
@@ -72,10 +71,6 @@ const std::string OUTPUT_HELP = "The output HDF5 file.";
 const std::string FASTA_SHORT_NAME = "-f";
 const std::string FASTA_LONG_NAME = "--fasta";
 const std::string FASTA_HELP = "The reference FASTA file.";
-
-const std::string STEM_SHORT_NAME = "";
-const std::string STEM_LONG_NAME = "--stem-only";
-const std::string STEM_HELP = "Only use the stem of the path to name the output dataset.";
 
 const std::string OVERWRITE_SHORT_NAME = "";
 const std::string OVERWRITE_LONG_NAME = "--overwrite";
