@@ -7,11 +7,12 @@ FASTA=""
 OUTPUT=""
 THREADS="1"
 BARCODES=""
+TRIM=""
 FILES=()
 PAIRS=()
 
 print-usage() {
-  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [FILES ...] [--pairs PAIRS]"
+  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim ADAPTER] [FILES ...] [--pairs PAIRS]"
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -36,6 +37,10 @@ while [[ "$#" -gt 0 ]]; do
       shift
       BARCODES="$1"
       ;;
+    --trim)
+      shift
+      TRIM="$1"
+      ;;
     --pairs)
       shift
       while [[ "$#" -gt 0 && ! "$1" =~ ^-- ]]; do
@@ -57,16 +62,44 @@ if [[ -z "$FASTA" || -z "$OUTPUT" || "${#FILES[@]}" -eq 0 ]]; then
 fi
 
 if [[ ${#PAIRS[@]} -gt 0 && ${#FILES[@]} -ne ${#PAIRS[@]} ]]; then
-  echo "Error: If --pairs is specified, then there must be an equal amount as files." >&2
+  echo "Error: If --pairs is specified, then there must be an equal amount as the number of files specified." >&2
   exit 1
 fi
+
+echo " -- cmuts align ($(date '+%d-%m-%Y %H:%M:%S')) -- " >> $LOG
 
 # Convert to DNA before processing
 
 sed '/^>/!s/U/T/g' "$FASTA" > "${FASTA%.*}-T.${FASTA##*.}"
 FASTA="${FASTA%.*}-T.${FASTA##*.}"
 
+# Trim if a sequence is provided
+
+
+if [[ ! -z "$TRIM" ]]; then
+
+  mkdir -p trimmed
+
+  for FILE in "${FILES[@]}"; do
+
+    NAME=$(basename "$FILE")
+    BASENAME="${NAME%.fastq*}"
+
+    cutadapt \
+      -g "$TRIM" \
+      -o "trimmed/$NAME" \
+      "$FILE"
+
+  done
+
+  FILES=("trimmed"/*.fastq*)
+
+fi
+
+
 # Demultiplex if a barcode file is provided
+
+DMDIR="dmux"
 
 if [[ ! -z "$BARCODES" ]]; then
 
@@ -84,7 +117,7 @@ if [[ ! -z "$BARCODES" ]]; then
         -i "$FILE" \
         -i2 "$PAIR" \
         -b "$BARCODES" \
-        -d dmux \
+        -d "$DMDIR" \
         --dont_build_reference \
         --ignore_no_match >> $LOG 2>&1
 
@@ -100,7 +133,7 @@ if [[ ! -z "$BARCODES" ]]; then
       ultraplex \
         -i "$FILE" \
         -b "$BARCODES" \
-        -d dmux \
+        -d "$DMDIR" \
         --dont_build_reference \
         --ignore_no_match >> $LOG 2>&1
 
@@ -110,20 +143,31 @@ if [[ ! -z "$BARCODES" ]]; then
 
   # Rename to something simpler
 
-  cd dmux
+  cd "$DMDIR"
   for file in *.fastq.gz; do
     mv $file ${file:20}
   done
   cd ..
 
-  FILES=(dmux/*.fastq.gz)
+  FILES=("$DMDIR"/*.fastq*)
 
 fi
 
-INDEX="index/index"
+# Build the index
+
+IXDIR="index"
 TMPDIR=".tmp"
-mkdir -p index "$TMPDIR" "$OUTPUT"
-bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> $LOG 2>&1
+INDEX="$IXDIR/index"
+if [[ ! -e "$IXDIR" ]]; then
+  mkdir index
+  bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> $LOG 2>&1
+fi
+
+# Align all files
+# The awk section is to prevent read names > 252
+# (which samtools doesn't like)
+
+mkdir -p "$TMPDIR" "$OUTPUT"
 
 for FILE in "${FILES[@]}"; do
 
@@ -147,14 +191,27 @@ for FILE in "${FILES[@]}"; do
     --mp 3,1 \
     --rdg 5,1 \
     --rfg 5,1 \
-    "$FILE" > "$TMP" 2>> $LOG
+    "$FILE" 2>> $LOG | \
+  awk 'BEGIN{FS=OFS="\t"} {
+    if($0 ~ /^@/) print $0
+    else {
+      if(length($1) > 250) $1 = substr($1, 1, 250)
+      print $0
+    }
+  }' > "$TMP"
 
   echo >> $LOG
-  echo " -- Sorting $NAME --" >> $LOG
+  echo " -- Sorting $TMP --" >> $LOG
   echo >> $LOG
 
-  samtools sort --threads "$THREADS" -o "$FINAL" "$TMP"
+  samtools sort --threads "$THREADS" -o "$FINAL" "$TMP" >> $LOG 2>&1
+
+  echo >> $LOG
+  echo " -- Sorted reads written to $FINAL --" >> $LOG
+  echo >> $LOG
 
 done
+
+# Cleanup
 
 rm -rf "$TMPDIR"
