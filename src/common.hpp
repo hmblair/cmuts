@@ -760,6 +760,7 @@ public:
     explicit FileGroup(const std::vector<std::string>& filenames);
 
     int32_t size() const;
+    int32_t size(FileType type) const;
     int64_t aligned();
     int64_t unaligned();
     int32_t references() const;

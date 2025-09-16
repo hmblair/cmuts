@@ -195,7 +195,8 @@ int main(int argc, char** argv) {
         opt.subsample,
         opt.filter_coverage,
         !opt.disable_ambiguous,
-        opt.contiguous_ambiguous
+        opt.contiguous_ambiguous,
+        opt.print_every
     };
 
     // Initialise the stats tracker, and print the header

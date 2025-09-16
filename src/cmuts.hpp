@@ -127,6 +127,7 @@ public:
     void aggregate();
     void header() const;
     void body() const;
+    bool mod(int64_t n) const;
 
 };
 
@@ -162,6 +163,7 @@ public:
     bool ambiguous;
     bool contiguous;
     // std::vector<std::vector<bool>> valid;
+    int64_t print_every;
 
 };
 

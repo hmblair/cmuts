@@ -14,16 +14,22 @@ namespace cmuts {
 
 
 static int32_t _MAX_ = 0;
+static std::vector<float> ARR_TMP;
 
 
 template <typename dtype, bool match>
-static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, dtype mask) {
+static inline void __joint(
+    view_t<dtype, _ndims(Mode::Joint)> arr,
+    std::vector<dtype> tmp,
+    int32_t ix,
+    dtype mask
+) {
 
     if constexpr (match) {
 
-        for (int32_t jx = _MAX_; jx > ix; jx--) {
+        for (int32_t jx = _MAX_ - 1; jx > ix; jx--) {
 
-            dtype nval   = arr.periodic(jx, -1, 0, 0);
+            dtype nval   = tmp[jx];
             dtype nval_c = 1 - nval;
 
             arr(ix, jx, NOMOD, MOD)   += mask * nval;
@@ -35,13 +41,13 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
         }
 
         arr(ix, ix, NOMOD, NOMOD) += (mask * mask);
-        arr(ix, ix, MOD, MOD) += (1 - (mask * mask));
+        arr(ix, ix, MOD, MOD)     += (1 - (mask * mask));
 
     } else {
 
-        for (int32_t jx = _MAX_; jx > ix; jx--) {
+        for (int32_t jx = _MAX_ - 1; jx > ix; jx--) {
 
-            dtype nval   = arr.periodic(jx, -1, 0, 0);
+            dtype nval   = tmp[jx];
             dtype nval_c = 1 - nval;
 
             arr(ix, jx, MOD, MOD)   += mask * nval;
@@ -52,7 +58,7 @@ static inline void __joint(view_t<dtype, _ndims(Mode::Joint)> arr, int32_t ix, d
 
         }
 
-        arr(ix, ix, MOD, MOD) += (mask * mask);
+        arr(ix, ix, MOD, MOD)     += (mask * mask);
         arr(ix, ix, NOMOD, NOMOD) += (1 - (mask * mask));
 
     }
@@ -281,8 +287,8 @@ static inline void __match_core(
 
     // Invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) = 0;
-        __joint<dtype, true>(arr, rpos, _val);
+        ARR_TMP[rpos] = 0;
+        __joint<dtype, true>(arr, ARR_TMP, rpos, _val);
     }
 
 };
@@ -310,8 +316,8 @@ static inline void __mismatch_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) = mask;
-        __joint<dtype, false>(arr, rpos, mask);
+        ARR_TMP[rpos] = mask;
+        __joint<dtype, false>(arr, ARR_TMP, rpos, mask);
     }
 
 };
@@ -336,8 +342,8 @@ static inline void __ins_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) = mask;
-        __joint<dtype, false>(arr, rpos, mask);
+        ARR_TMP[rpos] = mask;
+        __joint<dtype, false>(arr, ARR_TMP, rpos, mask);
     }
 
 };
@@ -363,8 +369,8 @@ static inline void __del_core(
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
-        arr.periodic(rpos, -1, 0, 0) = mask;
-        __joint<dtype, false>(arr, rpos, mask);
+        ARR_TMP[rpos] = mask;
+        __joint<dtype, false>(arr, ARR_TMP, rpos, mask);
     }
 
 };
@@ -381,11 +387,6 @@ static inline void __term_core(
     // Record the original base and position
     if constexpr (mode == Mode::Normal) {
         arr(rpos, rbase, IX_TERM) += mask;
-    }
-
-    // Record the position; no match
-    if constexpr (mode == Mode::LowMem) {
-        arr(rpos, LOWMEM_MOD) += mask;
     }
 
     // Store the modification in the temp dim and invoke the joint counter
@@ -557,7 +558,8 @@ static inline void __count(
     int32_t rpos = aln.offset + cigar.rlength();
     int32_t qpos = aln.length;
 
-    _MAX_ = rpos - 1;
+    _MAX_ = rpos;
+    ARR_TMP = std::vector<dtype>(_MAX_, 0);
 
     // Position of the most recent (3'-wise) mutation
 
@@ -611,6 +613,13 @@ static inline void __count(
 
             }
 
+            case HTS::CIGAR_t::TERM: {
+
+                __term_core<dtype, mode>(arr, rpos, reference[rpos], mask[qpos]);
+                break;
+
+            }
+
             case HTS::CIGAR_t::SOFT: {
 
                 qpos -= op.length();
@@ -650,7 +659,6 @@ static inline void __count(
 
     // Count termination events
 
-    HTS::CIGAR_op op(HTS::CIGAR_t::TERM);
     __term_core<dtype, mode>(arr, rpos, reference[rpos], mask[qpos]);
 
 }
@@ -706,10 +714,19 @@ static inline void __count_reference(
     Stats& stats
 ) {
 
+    HTS::Alignment aln;
+
     while (!iter.end()) {
 
-        HTS::Alignment aln = iter.next();
-        __count_with_quality_check<dtype, mode, subsample>(aln, reference, arr, params, stats);
+        aln = iter.next();
+        __count_with_quality_check<dtype, mode, subsample>(
+            aln, reference, arr, params, stats
+        );
+
+        if (stats.mod(params.print_every)) {
+            stats.aggregate();
+            stats.body();
+        }
 
     }
 
@@ -743,7 +760,7 @@ static inline std::vector<size_t> __dims(const BinaryFASTA& fasta, Mode mode) {
         }
 
         case Mode::Joint: {
-            return {size, length, length + 1, 2, 2};
+            return {size, length, length, 2, 2};
         }
 
         case Mode::Tokenize: {
@@ -859,8 +876,6 @@ void TemplatedMain<dtype, mode>::run() {
             memspace,
             ix
         );
-        stats.aggregate();
-        stats.body();
 
     }
 
@@ -1056,6 +1071,12 @@ void Stats::body() const {
 
     _mpi.divide();
     _mpi.up();
+
+}
+
+bool Stats::mod(int64_t n) const {
+
+    return (_processed % n) == 0;
 
 }
 

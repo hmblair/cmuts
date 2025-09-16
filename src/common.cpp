@@ -1742,6 +1742,18 @@ int32_t FileGroup::size() const {
 }
 
 
+int32_t FileGroup::size(FileType type) const {
+
+    int32_t _count = 0;
+    for (auto& file : _group) {
+        _count += static_cast<int32_t>(file->type() == type);
+    }
+
+    return _count;
+
+}
+
+
 int64_t FileGroup::aligned() {
 
     int64_t _reads = 0;

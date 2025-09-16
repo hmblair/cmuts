@@ -121,6 +121,8 @@ The following lists all additional commands available. The flags `--no-insertion
 
 `--contiguous-ambiguous`: Allow only contiguous regions to be considered ambiguous deletions.
 
+`--print-every`: Update the progress indicators each time this many reads is processed. Increasing this may improve performance by printing less often.
+
 
 ## Normalization
 

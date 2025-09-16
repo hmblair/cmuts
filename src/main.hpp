@@ -54,6 +54,7 @@ public:
     Arg<bool> filter_coverage;
     Arg<bool> contiguous_ambiguous;
     Arg<bool> disable_ambiguous;
+    Arg<int> print_every;
 
     cmutsProgram();
 
@@ -170,6 +171,11 @@ const std::string DISABLE_AMBIGUOUS_SHORT_NAME = "";
 const std::string DISABLE_AMBIGUOUS_LONG_NAME = "--disable-ambiguous";
 const std::string DISABLE_AMBIGUOUS_HELP = "Disable the ambiguous delection detection algorithm, relying on the deletion provided by the alignment.";
 
+const std::string PRINT_EVERY_SHORT_NAME = "";
+const std::string PRINT_EVERY_LONG_NAME = "--print-every";
+const int PRINT_EVERY_DEFAULT = 1000;
+const std::string PRINT_EVERY_HELP = "Update the progress indicators each time this many reads is processed.";
+
 
 cmutsProgram::cmutsProgram()
     : Program(PROGRAM, PROGRAM + " " + Utils::_get_version()),
@@ -197,7 +203,8 @@ cmutsProgram::cmutsProgram()
       subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
       filter_coverage(_parser, FILTER_COVERAGE_SHORT_NAME, FILTER_COVERAGE_LONG_NAME, FILTER_COVERAGE_HELP),
       contiguous_ambiguous(_parser, CONTIGUOUS_AMBIGUOUS_SHORT_NAME, CONTIGUOUS_AMBIGUOUS_LONG_NAME, CONTIGUOUS_AMBIGUOUS_HELP),
-      disable_ambiguous(_parser, DISABLE_AMBIGUOUS_SHORT_NAME, DISABLE_AMBIGUOUS_LONG_NAME, DISABLE_AMBIGUOUS_HELP)
+      disable_ambiguous(_parser, DISABLE_AMBIGUOUS_SHORT_NAME, DISABLE_AMBIGUOUS_LONG_NAME, DISABLE_AMBIGUOUS_HELP),
+      print_every(_parser, PRINT_EVERY_SHORT_NAME, PRINT_EVERY_LONG_NAME, PRINT_EVERY_HELP, PRINT_EVERY_DEFAULT)
 {}
 
 

@@ -142,7 +142,7 @@ Writer<dtype, N>::Writer(
         throw std::runtime_error("The number of dimensions does not match the template parameter.");
     }
 
-    chunkdims = dims;
+    chunkdims    = dims;
     chunkdims[0] = std::min(static_cast<size_t>(_chunksize), dims[0]);
 
     auto dsprops = __get_dsprops(chunkdims, compression);
@@ -162,7 +162,7 @@ void Writer<dtype, N>::write(
 ) const {
 
     std::vector<size_t> _offsetdims = offsetdims;
-    _offsetdims[0] = offset;
+    _offsetdims[0]                  = offset;
 
     dset.select(offsetdims, chunkdims)
         .write(data, wprops);
