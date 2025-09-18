@@ -37,6 +37,9 @@ ROI_DS = "ROI"
 HEATMAP_DS = "heatmap"
 SEQUENCE_DS = 'sequence'
 
+IX_DEL = 4
+IX_INS = 5
+IX_TERM = 6
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -57,7 +60,7 @@ parser.add_argument(
 parser.add_argument(
     '--group',
     help='The group in the output file to place the reads and reactivities.',
-    required=True,
+    default="",
 )
 parser.add_argument(
     '-o', '--out',
@@ -173,11 +176,13 @@ def _print_stats(
     fsnr = np.mean(snr >= 1)
 
     print(f"        References:      {nseqs:,}")
-    print(f"        Mean reads:      {int(mr):,}")
+    print(f"        Mean reads:      {mr:.2f}")
     print(f"        Mean SNR:        {msnr:.2f}")
     print(f"        Mean reactivity: {mrr:.3f}")
     print(f"        Median reads:    {int(medr):,}")
     print(f"        Median SNR:      {medsnr:.2f}")
+    with np.errstate(divide='ignore', invalid='ignore'):
+        print(f"        Mean-to-Median:  {(mr/medr):.2f}")
     print(f"        Usable SNR:      {fsnr:.2f}")
     print()
 
@@ -206,12 +211,20 @@ def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
     # Compute the modification heatmap
 
     heatmap = arr.mean((0, 1))
-    heatmap = heatmap / heatmap.sum()
+    heatmap[..., :IX_TERM] = heatmap[..., :IX_TERM] / heatmap[..., :IX_TERM].sum()
+    heatmap[..., IX_TERM] = heatmap[..., IX_TERM] / heatmap[..., IX_TERM].sum()
 
     # Compute the coverage as the sum of all mutated, non-mutated, and
-    # deleted bases
+    # deleted bases. Store the mean coverage as a function of position
+    # for later.
 
-    coverage = da.sum(arr[..., :-1], axis=(2, 3))
+    coverage = da.sum(arr[..., :IX_INS], axis=(2, 3))
+    mc = da.mean(coverage, axis=0)
+
+    # Get termination events
+
+    term = da.sum(arr[..., IX_TERM], axis=2)
+    term = term / term.sum()
 
     # Compute the trace to get the non-modified rates only
 
@@ -219,7 +232,7 @@ def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
 
     # Compute the insertions
 
-    ins = da.sum(arr[..., -1], axis=-1)
+    ins = da.sum(arr[..., IX_INS], axis=-1)
 
     # Subtract the trace to get the pure modifications
 
@@ -243,7 +256,14 @@ def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
     # Get the read counts and compute all values
 
     reads = da.max(coverage, axis=(-1,))
-    return da.compute(reactivity, reads, err, heatmap)
+
+    # Normalize the mean coverage based on the total reads
+
+    mc /= reads.sum()
+
+    # Compute all lazy results
+
+    return da.compute(reactivity, reads, err, heatmap, mc, term)
 
 
 def _get_norm_raw(reactivity: np.ndarray) -> np.ndarray:
@@ -341,18 +361,22 @@ def _get_sequences(file: h5py.File) -> da.Array:
 
 def _plot_heatmap(heatmap: da.Array, name: str) -> None:
 
-    im = plt.imshow(heatmap, cmap="RdPu", norm=LogNorm(vmin=1E-4, vmax=1E0))
-    plt.colorbar(im)
+    prefix = f"{name}-" if name else ""
 
-    plt.title("Modification Heatmap", fontsize=15)
-    plt.xticks(range(6), ["A", "C", "G", "U", "del", "ins"], fontsize=12)
+    im = plt.imshow(heatmap, cmap="RdPu", norm=LogNorm(vmin=1E-4, vmax=1E0))
+    plt.colorbar(im, label="Occurrence Probability")
+
+    plt.title(f"Modification Heatmap for {name}", fontsize=15)
+    plt.xticks(range(7), ["A", "C", "G", "U", "del", "ins", "term"], fontsize=12)
     plt.yticks(range(4), ["A", "C", "G", "U"], fontsize=12)
 
-    plt.savefig(f"{FIGURES}/{name}-heatmap.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{prefix}heatmap.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
 def _plot_read_hist(reads: np.ndarray, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
 
     # Compute log-read depths
 
@@ -360,20 +384,67 @@ def _plot_read_hist(reads: np.ndarray, name: str) -> None:
         lr = np.where(reads == 0, -1, np.log10(reads))
 
     plt.grid(axis="y", alpha=0.5)
-    plt.hist(lr, bins=100, color="red")
+    plt.hist(lr, bins=100, color=plt.cm.RdPu(0.6))
+    plt.title(f"Read distribution for {name}", fontsize=15)
     plt.xlabel("log10 Read Depth", fontsize=12)
     plt.ylabel("Count", fontsize=12)
 
-    plt.savefig(f"{FIGURES}/{name}-reads-hist.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{prefix}reads-hist.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def _plot_examples(reactivty: np.ndarray, name: str, num: int = 500) -> None:
+def _plot_termination(term: np.ndarray, name: str) -> None:
 
-    plt.imshow(reactivity[:num], cmap="RdPu")
-    plt.xlabel("Residue", fontsize=12)
-    plt.ylabel("Sequence Index", fontsize=12)
-    plt.savefig(f"{FIGURES}/{name}-examples.png", dpi=300, bbox_inches="tight")
+    prefix = f"{name}-" if name else ""
+
+    term = np.mean(term, axis=0)
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.fill_between(range(len(term)), term, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(term, color=plt.cm.RdPu(0.8), linewidth=1)
+
+    plt.xlabel("Residue", fontsize=13)
+    plt.ylabel("Termination density", fontsize=13)
+    plt.title(f"Termination by position for {name}", fontsize=14)
+    plt.savefig(f"{FIGURES}/{prefix}termination.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_examples(reactivity: np.ndarray, name: str, num: int = 500) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    if reactivity.shape[0] == 1:
+        reactivity = reactivity[0]
+
+        plt.grid(axis="y", alpha=0.5)
+        plt.fill_between(range(len(reactivity)), reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
+        plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
+        plt.xlabel("Residue", fontsize=12)
+        plt.ylabel("Reactivity", fontsize=12)
+        plt.title(f"Profile of {name}", fontsize=14)
+        plt.savefig(f"{FIGURES}/{prefix}profile.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+    else:
+        plt.imshow(reactivity[:num], cmap="RdPu")
+        plt.xlabel("Residue", fontsize=12)
+        plt.ylabel("Sequence Index", fontsize=12)
+        plt.title(f"Profile heatmap of {name}", fontsize=14)
+        plt.savefig(f"{FIGURES}/{prefix}examples.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+
+def _plot_coverage(coverage: np.ndarray, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    plt.fill_between(range(len(coverage)), coverage, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(coverage, color=plt.cm.RdPu(0.8))
+    plt.xlabel("Residue", fontsize=13)
+    plt.ylabel("Fraction of reads", fontsize=13)
+    plt.title(f"Coverage by position for {name}", fontsize=14)
+    plt.savefig(f"{FIGURES}/{prefix}coverage.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 
@@ -390,10 +461,10 @@ if __name__ == '__main__':
         BLANK_OUT3 = f[args.mod[0]].shape[1] - getattr(args, "3p_primer_length")
         UNBLANKED = slice(BLANK_OUT5, BLANK_OUT3)
 
-        mod_reactivity, reads, err, heatmap = _process(f, args.mod)
+        mod_reactivity, reads, err, heatmap, mc, term = _process(f, args.mod)
 
         if args.nomod is not None:
-            nomod_reactivity, nomod_reads, no_mod_err, no_mod_heatmap = _process(f, args.nomod)
+            nomod_reactivity, nomod_reads, no_mod_err, no_mod_heatmap, _, _ = _process(f, args.nomod)
             reads += nomod_reads
             err = np.sqrt(err ** 2 + no_mod_err ** 2)
 
@@ -453,6 +524,8 @@ if __name__ == '__main__':
         _plot_heatmap(heatmap, args.group)
         _plot_read_hist(reads, args.group)
         _plot_examples(reactivity, args.group)
+        _plot_termination(term, args.group)
+        _plot_coverage(mc, args.group)
 
         # Get the embedded sequences
 
