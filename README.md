@@ -9,6 +9,8 @@ It has four independent steps which it performs:
 
 ![cmuts-overview](./docs/figures/overview_new.png)
 
+Detailed documentation can be found at hmblair.github.io/cmuts.
+
 # Installation
 
 ## cmuts
