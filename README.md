@@ -97,7 +97,7 @@ The following lists all additional commands available. The flags `--no-insertion
 
 `--min-length`: Minimum length for alignment processing. Default: 2
 
-`--max-length`: Maximum length for alignment processing. Default: 10000
+`--max-length`: Maximum length for alignment processing. Default: 10,000
 
 `--quality-window`: Check the quality of each base in a window of this size around each base. Default: 2
 
@@ -121,7 +121,7 @@ The following lists all additional commands available. The flags `--no-insertion
 
 `--contiguous-ambiguous`: Allow only contiguous regions to be considered ambiguous deletions.
 
-`--print-every`: Update the progress indicators each time this many reads is processed. Increasing this may improve performance by printing less often.
+`--print-every`: Update the progress indicators each time this many reads is processed. Increasing this may improve performance by printing less often. Default: 1,000
 
 
 ## Normalization
@@ -162,9 +162,28 @@ will fill the `sequence` dataset in `out.h5`.
 
 To compute the joint distribution of modifications over all pairs of positions, the `--joint` flag can be passed.
 ```
-cmuts --joint -o out.h5 -f seq.fasta sorted.bam
+cmuts --joint -o joint.h5 -f seq.fasta sorted.bam
 ```
 The output file will contain one dataset per input with the same naming scheme as in the standard mode. It will be of shape $`n \times l \times l \times 2 \times 2`$, with the final two dimensions specifying whether each pair of positions has a modification ($`i=1`$) or no modification ($`i=0`$).
+
+Further processing can be done with the `cmuts-cov` command. A minimal command for computiong correlations between modifications at different residues would be
+```
+cmuts-cov --dataset sorted -o corr.h5 joint.h5 --correlation
+```
+There are four flags which dictate what is computed:
+   1. `--cooccurrence`
+   2. `--correlation`
+   3. `--conditional`
+   4. `--mutual-information`
+In addition, the following flags and arguments can be specified.
+
+`--overwrite`: Overwrite any existing HDF5 file.
+
+`--zero-diag`: Zero the diagonal of the output for better visualization.
+
+`--trim-5p`: Trim this many bases from the 5' end of the output. Default: 0
+
+`--trim-3p`: Trim this many bases from the 5' end of the output. Default: 0
 
 
 ## Tests
