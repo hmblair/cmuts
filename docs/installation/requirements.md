@@ -9,22 +9,8 @@ This page outlines the system requirements and dependencies needed to build and 
 
 cmuts is supported on:
 
-- **Linux** (Ubuntu 20.04+, CentOS 7+, etc.)
-- **macOS** (10.15+)
-- **Windows** (via WSL2 recommended)
-
-### Hardware Requirements
-
-=== "Minimum"
-    - **CPU**: 2 cores
-    - **RAM**: 4 GB
-    - **Storage**: 1 GB free space
-
-=== "Recommended"
-    - **CPU**: 8+ cores (for parallel processing)
-    - **RAM**: 16+ GB (for large datasets)
-    - **Storage**: 10+ GB free space
-    - **SSD**: For improved I/O performance
+- **Linux**
+- **macOS** (Intel and ARM)
 
 ## Core Dependencies
 
@@ -73,22 +59,6 @@ cmuts is supported on:
     # For MPI support  
     sudo yum install hdf5-openmpi-devel openmpi-devel
     ```
-
-### Stanford Sherlock Users
-
-If you're running on Stanford's Sherlock cluster:
-
-```bash
-ml load hdf5/1.14.4
-ml load biology samtools/1.16.1  
-ml load cmake/3.31.4
-
-# For MPI support
-ml load openmpi/4.1.2
-```
-
-!!! note "Module Availability"
-    Module versions may change. Use `ml avail` to see currently available versions.
 
 ## Python Dependencies (for cmuts-normalize)
 

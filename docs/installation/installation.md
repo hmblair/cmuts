@@ -1,10 +1,6 @@
 # Basic Installation
 
-This guide covers the installation of the single-threaded version of cmuts, which is suitable for most users and provides excellent performance for typical datasets.
-
-## Prerequisites
-
-Before starting, ensure you have all [required dependencies](requirements.md) installed on your system.
+This page covers the installation of the single-threaded version of `cmuts`. Before starting, ensure you have all [required dependencies](requirements.md) installed on your system.
 
 !!! tip "Verify Dependencies"
     Run these commands to verify your system is ready:
@@ -15,44 +11,35 @@ Before starting, ensure you have all [required dependencies](requirements.md) in
     pkg-config --modversion hdf5  # Should show HDF5 version
     ```
 
-## Installation Steps
+## Installation
 
-### 1. Clone the Repository
+### 1. Obtain `cmuts`
 
-Clone the cmuts repository with all submodules:
+Clone the `cmuts` repository with all submodules:
 
 ```bash
 git clone --recurse-submodules https://github.com/hmblair/cmuts
 cd cmuts
 ```
 
-!!! warning "Don't Forget Submodules"
-    The `--recurse-submodules` flag is essential as cmuts depends on several git submodules. Without this flag, the build will fail.
 
-### 2. Build the Program
+### 2. Build `cmuts`
 
-Run the configuration script:
+The configuration script contains all required setup and build steps.
 
-```bash
+```
 ./configure
 ```
 
-This script will:
-
-- Build the `htscodecs` dependency
-- Configure `cmake` with appropriate settings
-- Detect your system's HDF5 and `samtools` installations
-- Build `cmuts` and `cmuts-generate-tests`
-
-If successful, you'll see:
+If building the multithreaded version, pass the `--mpi` flag to the script.
 
 ```
--- Build completed successfully --
+./configure --mpi
 ```
 
-### 3. Add to PATH
+### 3. Modify PATH
 
-Add the `cmuts` binary directory to your PATH:
+Afterwards, add the `cmuts` binary directory to your PATH:
 
 === "Temporary (current session)"
     ```bash
@@ -70,18 +57,6 @@ Add the `cmuts` binary directory to your PATH:
     echo 'export PATH="'$(pwd)'/bin:$PATH"' >> ~/.zshrc
     source ~/.zshrc
     ```
-
-## Verify Installation
-
-### Test Basic Functionality
-
-```bash
-# Check that cmuts is available
-cmuts --help
-
-# Run the built-in synthetic tests
-./tests/syn/run
-```
 
 ## Troubleshooting
 
@@ -139,21 +114,6 @@ export HDF5_DIR=/path/to/preferred/hdf5
 ./configure
 ```
 
-## File Locations
-
-After successful installation:
-
-```
-cmuts/
-├── bin/
-│   └── cmuts              # Main executable
-├── tests/
-│   ├── run                # Test runner
-│   └── profile            # Performance profiler
-├── build/                 # Build artifacts
-└── external/              # Built dependencies
-```
-
 ## Next Steps
 
 Now that cmuts is installed:
@@ -180,4 +140,3 @@ git submodule update --recursive
     rm -rf build/ bin/
     ./configure
     ```
-```

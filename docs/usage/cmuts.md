@@ -1,7 +1,5 @@
 # cmuts
 
-`cmuts` is a program for counting mutations and computing reactivity profiles in MaP-seq experiments. It features fast, compiled C++ code with native multithreading support, streamed IO, and direct output to compressed HDF5 files.
-
 ## Basic Usage
 
 ### Modification Counting
@@ -108,14 +106,15 @@ The output HDF5 file contains one dataset per input file, named by the file path
 
 **`--print-every`** : Progress update frequency in reads processed (default: 1,000)
 
-## Special Use Cases
+
+## Example Use Cases
 
 ### Tokenization Only
 
 Generate tokenized sequences without processing alignments:
 
 ```bash
-cmuts --tokenize -f seq.fasta -o out.h5
+cmuts --tokenize -f seq.fasta -o counts.h5
 ```
 
 ### Joint Modification Analysis
