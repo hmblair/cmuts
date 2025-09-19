@@ -75,7 +75,6 @@ FASTA="${FASTA%.*}-T.${FASTA##*.}"
 
 # Trim if a sequence is provided
 
-
 if [[ ! -z "$TRIM" ]]; then
 
   mkdir -p trimmed
@@ -95,7 +94,6 @@ if [[ ! -z "$TRIM" ]]; then
   FILES=("trimmed"/*.fastq*)
 
 fi
-
 
 # Demultiplex if a barcode file is provided
 

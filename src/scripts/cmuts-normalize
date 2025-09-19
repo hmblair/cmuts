@@ -463,6 +463,11 @@ if __name__ == '__main__':
 
     _remove_if_exists(args.out, args.overwrite)
 
+    # Treat an empty nomod dataset as if it were not passed
+
+    if not args.nomod:
+        args.nomod = None
+
     with h5py.File(args.file, 'r') as f:
 
         BLANK_OUT5 = getattr(args, "5p_primer_length")
