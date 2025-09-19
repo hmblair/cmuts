@@ -4,7 +4,6 @@ bin/
 build/
 include/
 share/
-examples/
 *.bai
 *.crai
 *.cmix
@@ -12,5 +11,6 @@ examples/
 *.log
 onp/
 figures/
+outputs/
 __pycache__/
 site/
