@@ -34,7 +34,8 @@ nav:
     - Installation: installation/installation.md
     - Organization-Specific Notes: installation/org-notes.md
   - Usage:
-    - cmuts: usage/cmuts.md
+    - cmuts align: usage/cmuts-align.md
+    - cmuts core: usage/cmuts.md
     - cmuts normalize: usage/cmuts-normalize.md
     - Examples: usage/examples.md
 
@@ -45,6 +46,8 @@ plugins:
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
@@ -54,3 +57,8 @@ markdown_extensions:
       alternate_style: true
   - attr_list
   - md_in_html
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+

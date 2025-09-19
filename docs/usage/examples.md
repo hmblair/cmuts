@@ -69,7 +69,24 @@ cmuts core \
   "$ALIGNMENTS"/*
 ```
 
-This will output a single HDF5 file, `$COUNTS`, which will contain one dataset for each input. One can then loop over all input files, and pass the respective dataset to `cmuts normalize`.
+This will output a single HDF5 file, `$COUNTS`, which will contain one dataset for each input. The following statistics should also be printed:
+
+```
+        cmuts version 1.0.1
+      ───────────────────────────────────
+        References:                    1
+        Reference length:            615
+        Aligned reads:             9,965
+        Unaligned reads:              35
+      ───────────────────────────────────
+        File:                        4/4
+        Reads processed:          100.0%
+        Reads skipped:             18.3%
+        Time elapsed:           00:00:00
+      ───────────────────────────────────
+```
+
+One can then loop over all input files, and pass the respective dataset to `cmuts normalize`.
 
 ```bash
 for ((IX=0; IX<${#MODS[@]}; IX++)); do
@@ -83,6 +100,60 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
     --group "$NAME" \
     "$COUNTS"
 done
+```
+
+The following will also be printed:
+
+```
+        cmuts-normalize version 1.0.1
+      ───────────────────────────────────
+        Statistics for 2A3:
+        References:       1
+        Total reads:      3,088
+        Mean reads:       3088.00
+        Mean SNR:         1.28
+        Mean reactivity:  0.006
+        Median reads:     3,088
+        Median SNR:       1.28
+        Mean-to-Median:   1.00
+        Usable SNR:       1.00
+        Dropout Fraction: 0.00
+
+        cmuts-normalize version 1.0.1
+      ───────────────────────────────────
+        Statistics for DMS:
+        References:       1
+        Total reads:      3,716
+        Mean reads:       3716.00
+        Mean SNR:         2.51
+        Mean reactivity:  0.012
+        Median reads:     3,716
+        Median SNR:       2.51
+        Mean-to-Median:   1.00
+        Usable SNR:       1.00
+        Dropout Fraction: 0.00
+```
+
+The output HDF5 file will have the following structure:
+
+```
+/
+├── 2A3/
+│   ├── ROI
+│   ├── SNR
+│   ├── error
+│   ├── heatmap
+│   ├── norm
+│   ├── reactivity
+│   └── reads
+└── DMS/
+    ├── ROI
+    ├── SNR
+    ├── error
+    ├── heatmap
+    ├── norm
+    ├── reactivity
+    └── reads
 ```
 
 ## With Demultiplexing

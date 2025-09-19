@@ -1,41 +1,36 @@
-# cmuts
+`cmuts core` performs the main job of the `cmuts` pipeline, which is determining the location and type of mutations, insertions, and deletions in a collection of aligned reads.
 
-## Basic Usage
+## Inputs and Usage
 
-### Required Inputs
-
-`cmuts` requires two inputs to run:
+All modes of `cmuts core` require two inputs to run:
 
 1. **Reference sequences**, stored in a FASTA file,
 2. **Aligned reads**, stored in one or more SAM/BAM/CRAM files
 
-### Syntax
-
-A generic call to `cmuts` will look like
+A generic call will look like
 ```bash
-cmuts -o OUTPUT -f FASTA [OPTIONAL ARGUMENTS] FILE
+cmuts core -o OUTPUT -f FASTA [OPTIONAL ARGUMENTS] FILE
 ```
 
+!!! warning
+    The alignments must be sorted before passing to `cmuts`. If you are generating them via `cmuts align`, then they will automatically be sorted for you.
 
-### Modification Counting
+## Outputs
 
-To count modifications in a single aligned HTS file:
+The output of `cmuts core` depends on which mode it is run in.
 
-```bash
-cmuts -o out.h5 -f seq.fasta sorted.bam
-```
+### Standard
 
-For the MPI-enabled version, use multiple threads:
+Most uses of `cmuts core` (without any of the flags specified below) will output an HDF5 file with a dataset of shape \(n \times l \times 4 \times 7\). The former two dimensions specify the reference sequence and residue respectively, and the latter two specify the type of modification seen in accordance with the following array:
 
-```bash
-mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted.bam
-```
+![cmuts core heatmap](figures/heatmap.png)
 
-Multiple SAM/BAM/CRAM files can be processed simultaneously:
 
-```bash
-mpirun -np 8 cmuts -o out.h5 -f seq.fasta sorted1.bam sorted2.bam ...
-```
+### Joint
+
+The `--joint` flag instructs `cmuts core` to count *pairs* of mutations
+
+### Low-Mem
 
 ### Required Inputs
 
