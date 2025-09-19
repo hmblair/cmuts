@@ -70,8 +70,9 @@ echo " -- cmuts align ($(date '+%d-%m-%Y %H:%M:%S')) -- " >> $LOG
 
 # Convert to DNA before processing
 
-sed '/^>/!s/U/T/g' "$FASTA" > "${FASTA%.*}-T.${FASTA##*.}"
-FASTA="${FASTA%.*}-T.${FASTA##*.}"
+TEMP_FASTA="${TMPDIR}/$(basename "${FASTA%.*}")-T.${FASTA##*.}"
+sed '/^>/!s/U/T/g' "$FASTA" > "$TEMP_FASTA"
+FASTA="$TEMP_FASTA"
 
 # Trim if a sequence is provided
 
@@ -175,16 +176,16 @@ mkdir -p "$TMPDIR" "$OUTPUT"
 for IX in "${!FILES[@]}"; do
 
   FILE="${FILES[IX]}"
-  FARGS="-1 $FILE"
-  if [[ ${#PAIRS[@]} -gt 0 ]]; then
-    PAIR="${PAIRS[IX]}"
-    FARGS+=" -2 $PAIR"
-  else
-    PAIR=""
-  fi
-
   NAME=$(basename "$FILE")
   BASENAME="${NAME%.fastq*}"
+
+  if [[ ${#PAIRS[@]} -gt 0 ]]; then
+    PAIR="${PAIRS[IX]}"
+    FARGS=("-1" "$FILE" "-2" "$PAIR")
+  else
+    PAIR=""
+    FARGS=("-U" "$FILE")
+  fi
 
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
   FINAL="${OUTPUT}/${BASENAME}.bam"
@@ -194,7 +195,7 @@ for IX in "${!FILES[@]}"; do
   echo >> $LOG
 
   bowtie2 \
-    $FARGS \
+    "${FARGS[@]}" \
     --threads "$THREADS" \
     -x "$INDEX" \
     --dpad 30 \
