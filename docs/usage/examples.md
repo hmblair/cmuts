@@ -21,6 +21,9 @@ The `cmuts` pipeline consists of three parts:
   2. The `cmuts core` program, and
   3. Either `cmuts normalize` or `cmuts cov`, depending on whether 1D or 2D MaP-seq is being performed.
 
+!!! warning
+    Some sequencing vendors (e.g. Ultima) will provide pre-aligned BAM/CRAM files. In such a case, simply ignore the `cmuts align` step.
+
 # MaP-seq
 
 ```bash
