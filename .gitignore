@@ -12,5 +12,5 @@ examples/
 *.log
 onp/
 figures/
-!docs/figures
 __pycache__/
+site/
