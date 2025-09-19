@@ -1,0 +1,54 @@
+site_name: cmuts Documentation
+site_description: Fast mutation counting and reactivity profiling for MaP-seq experiments
+site_url: https://hmblair.github.io/cmuts
+repo_url: https://github.com/hmblair/cmuts
+repo_name: hmblair/cmuts
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Installation:
+    - Requirements: installation/requirements.md
+    - Installation: installation/installation.md
+    - Organization-Specific Notes: installation/org-notes.md
+  - Usage:
+    - cmuts: usage/cmuts.md
+
+plugins:
+  - search
+  - glightbox
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
