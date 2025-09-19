@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 cmake_policy(SET CMP0074 NEW)
 
 project(cmuts LANGUAGES C CXX)
+set(CORE "cmuts-core")
 set(TESTS "cmuts-generate-tests")
 
 set(CMAKE_CXX_STANDARD 20)
@@ -164,7 +165,7 @@ function(setup_target _target)
 
 endfunction()
 
-add_executable(${PROJECT_NAME}
+add_executable(${CORE}
     src/main.cpp
 )
 
@@ -172,9 +173,9 @@ add_executable(${TESTS}
     src/tests.cpp
 )
 
-setup_target(${PROJECT_NAME})
+setup_target(${CORE})
 setup_target(${TESTS})
 
-install(TARGETS ${PROJECT_NAME} ${TESTS}
+install(TARGETS ${CORE} ${TESTS}
     RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin
 )
