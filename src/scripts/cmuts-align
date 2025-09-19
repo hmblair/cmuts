@@ -149,7 +149,12 @@ if [[ ! -z "$BARCODES" ]]; then
   done
   cd ..
 
-  FILES=("$DMDIR"/*.fastq*)
+  if [[ ${#PAIRS[@]} -gt 0 ]]; then
+    FILES=("$DMDIR"/*_Fwd.fastq*)
+    PAIRS=("$DMDIR"/*_Rev.fastq*)
+  else
+    FILES=("$DMDIR"/*.fastq*)
+  fi
 
 fi
 
@@ -169,7 +174,16 @@ fi
 
 mkdir -p "$TMPDIR" "$OUTPUT"
 
-for FILE in "${FILES[@]}"; do
+for IX in "${!FILES[@]}"; do
+
+  FILE="${FILES[IX]}"
+  FARGS="-1 $FILE"
+  if [[ ${#PAIRS[@]} -gt 0 ]]; then
+    PAIR="${PAIRS[IX]}"
+    FARGS+=" -2 $PAIR"
+  else
+    PAIR=""
+  fi
 
   NAME=$(basename "$FILE")
   BASENAME="${NAME%.fastq*}"
@@ -182,6 +196,7 @@ for FILE in "${FILES[@]}"; do
   echo >> $LOG
 
   bowtie2 \
+    $FARGS \
     --threads "$THREADS" \
     -x "$INDEX" \
     --dpad 30 \
@@ -190,8 +205,7 @@ for FILE in "${FILES[@]}"; do
     --local \
     --mp 3,1 \
     --rdg 5,1 \
-    --rfg 5,1 \
-    "$FILE" 2>> $LOG | \
+    --rfg 5,1 2>> $LOG | \
   awk 'BEGIN{FS=OFS="\t"} {
     if($0 ~ /^@/) print $0
     else {
