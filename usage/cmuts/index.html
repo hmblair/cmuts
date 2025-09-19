@@ -764,57 +764,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#example-use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Use Cases
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example Use Cases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokenization-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tokenization Only
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#joint-modification-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Joint Modification Analysis
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-efficient-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Memory-Efficient Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recommended-map-seq-settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      Recommended MaP-seq Settings
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1048,57 +997,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#example-use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Use Cases
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example Use Cases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokenization-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tokenization Only
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#joint-modification-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Joint Modification Analysis
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-efficient-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Memory-Efficient Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recommended-map-seq-settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      Recommended MaP-seq Settings
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1194,27 +1092,6 @@ p_{00} &amp; p_{01} \\ p_{10} &amp; p_{11}
 <h3 id="performance">Performance</h3>
 <p><strong><code>--chunk-size</code></strong> : Internal buffer size per thread in references (default: 128)</p>
 <p><strong><code>--print-every</code></strong> : Progress update frequency in reads processed (default: 1,000)</p>
-<h2 id="example-use-cases">Example Use Cases</h2>
-<h3 id="tokenization-only">Tokenization Only</h3>
-<p>Generate tokenized sequences without processing alignments:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmuts<span class="w"> </span>--tokenize<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>-o<span class="w"> </span>counts.h5
-</code></pre></div>
-<h3 id="joint-modification-analysis">Joint Modification Analysis</h3>
-<p>Compute joint modification distributions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cmuts<span class="w"> </span>--joint<span class="w"> </span>-o<span class="w"> </span>joint.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<p>Output shape: <code>n × l × l × 2 × 2</code> where the final dimensions indicate modification presence (1) or absence (0) at each position pair.</p>
-<h3 id="memory-efficient-analysis">Memory-Efficient Analysis</h3>
-<p>For large datasets, use low-memory mode:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cmuts<span class="w"> </span>--low-mem<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<h2 id="recommended-map-seq-settings">Recommended MaP-seq Settings</h2>
-<p>For standard MaP-seq analysis, use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cmuts<span class="w"> </span>--no-insertions<span class="w"> </span>--filter-coverage<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<p>These flags:
-- Exclude insertions which are not relevant for chemical modification detection
-- Apply consistent quality filters to both modifications and coverage calculations</p>
 
 
 
