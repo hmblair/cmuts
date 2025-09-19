@@ -7,13 +7,11 @@
       
       
       
-        <link rel="canonical" href="https://hmblair.github.io/cmuts/usage/cmuts/">
+        <link rel="canonical" href="https://hmblair.github.io/cmuts/usage/examples/">
       
       
-        <link rel="prev" href="../../installation/org-notes/">
+        <link rel="prev" href="../cmuts/">
       
-      
-        <link rel="next" href="../examples/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -21,7 +19,7 @@
     
     
       
-        <title>cmuts - cmuts Documentation</title>
+        <title>Examples - cmuts Documentation</title>
       
     
     
@@ -83,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#cmuts" class="md-skip">
+        <a href="#environment-setup" class="md-skip">
           Skip to content
         </a>
       
@@ -117,7 +115,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              cmuts
+              Examples
             
           </span>
         </div>
@@ -271,7 +269,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../cmuts/" class="md-tabs__link">
           
   
   
@@ -523,6 +521,29 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../cmuts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    cmuts
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -532,15 +553,13 @@
       <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
       
       
-        
-      
       
         <label class="md-nav__link md-nav__link--active" for="__toc">
           
   
   
   <span class="md-ellipsis">
-    cmuts
+    Examples
     
   </span>
   
@@ -553,7 +572,7 @@
   
   
   <span class="md-ellipsis">
-    cmuts
+    Examples
     
   </span>
   
@@ -566,8 +585,6 @@
   
   
   
-    
-  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -576,55 +593,37 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#basic-usage" class="md-nav__link">
+  <a href="#environment-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Usage
+      Environment Setup
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Basic Usage">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#map-seq" class="md-nav__link">
+    <span class="md-ellipsis">
+      MaP-seq
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MaP-seq">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#required-inputs" class="md-nav__link">
+  <a href="#without-demultiplexing" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Inputs
+      Without Demultiplexing
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#syntax" class="md-nav__link">
+  <a href="#with-demultiplexing" class="md-nav__link">
     <span class="md-ellipsis">
-      Syntax
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#required-inputs_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      Required Inputs
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#output-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      Output Format
+      With Demultiplexing
     </span>
   </a>
   
@@ -636,82 +635,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#command-line-options" class="md-nav__link">
+  <a href="#two-dimensional-map-seq" class="md-nav__link">
     <span class="md-ellipsis">
-      Command Line Options
+      Two-Dimensional MaP-seq
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Command Line Options">
+    <nav class="md-nav" aria-label="Two-Dimensional MaP-seq">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#core-options" class="md-nav__link">
+  <a href="#residue-residue-correlations" class="md-nav__link">
     <span class="md-ellipsis">
-      Core Options
+      Residue-Residue Correlations
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#output-control" class="md-nav__link">
+  <a href="#mutate-and-map" class="md-nav__link">
     <span class="md-ellipsis">
-      Output Control
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#analysis-modes" class="md-nav__link">
-    <span class="md-ellipsis">
-      Analysis Modes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quality-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      Quality Filtering
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Detection
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deletion-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deletion Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling-and-coverage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Sampling and Coverage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      Performance
+      Mutate-And-Map
     </span>
   </a>
   
@@ -719,57 +664,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Use Cases
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example Use Cases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokenization-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tokenization Only
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#joint-modification-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Joint Modification Analysis
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-efficient-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Memory-Efficient Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recommended-map-seq-settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      Recommended MaP-seq Settings
-    </span>
-  </a>
   
 </li>
       
@@ -777,29 +671,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../examples/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Examples
-    
-  </span>
-  
-
-      </a>
     </li>
   
 
@@ -829,8 +700,6 @@
   
   
   
-    
-  
   
     <label class="md-nav__title" for="__toc">
       <span class="md-nav__icon md-icon"></span>
@@ -839,55 +708,37 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#basic-usage" class="md-nav__link">
+  <a href="#environment-setup" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Usage
+      Environment Setup
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Basic Usage">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#map-seq" class="md-nav__link">
+    <span class="md-ellipsis">
+      MaP-seq
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MaP-seq">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#required-inputs" class="md-nav__link">
+  <a href="#without-demultiplexing" class="md-nav__link">
     <span class="md-ellipsis">
-      Required Inputs
+      Without Demultiplexing
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#syntax" class="md-nav__link">
+  <a href="#with-demultiplexing" class="md-nav__link">
     <span class="md-ellipsis">
-      Syntax
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#required-inputs_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      Required Inputs
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#output-format" class="md-nav__link">
-    <span class="md-ellipsis">
-      Output Format
+      With Demultiplexing
     </span>
   </a>
   
@@ -899,82 +750,28 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#command-line-options" class="md-nav__link">
+  <a href="#two-dimensional-map-seq" class="md-nav__link">
     <span class="md-ellipsis">
-      Command Line Options
+      Two-Dimensional MaP-seq
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Command Line Options">
+    <nav class="md-nav" aria-label="Two-Dimensional MaP-seq">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#core-options" class="md-nav__link">
+  <a href="#residue-residue-correlations" class="md-nav__link">
     <span class="md-ellipsis">
-      Core Options
+      Residue-Residue Correlations
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#output-control" class="md-nav__link">
+  <a href="#mutate-and-map" class="md-nav__link">
     <span class="md-ellipsis">
-      Output Control
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#analysis-modes" class="md-nav__link">
-    <span class="md-ellipsis">
-      Analysis Modes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quality-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      Quality Filtering
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Detection
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deletion-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deletion Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling-and-coverage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Sampling and Coverage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      Performance
+      Mutate-And-Map
     </span>
   </a>
   
@@ -982,57 +779,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#example-use-cases" class="md-nav__link">
-    <span class="md-ellipsis">
-      Example Use Cases
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Example Use Cases">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#tokenization-only" class="md-nav__link">
-    <span class="md-ellipsis">
-      Tokenization Only
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#joint-modification-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Joint Modification Analysis
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#memory-efficient-analysis" class="md-nav__link">
-    <span class="md-ellipsis">
-      Memory-Efficient Analysis
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recommended-map-seq-settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      Recommended MaP-seq Settings
-    </span>
-  </a>
   
 </li>
       
@@ -1055,97 +801,107 @@
   
 
 
-<h1 id="cmuts">cmuts</h1>
-<h2 id="basic-usage">Basic Usage</h2>
-<h3 id="required-inputs">Required Inputs</h3>
-<p><code>cmuts</code> requires two inputs to run:</p>
+<h2 id="environment-setup">Environment Setup</h2>
+<p>These variables will be used throughout the examples; feel free to set them to a value appropriate for your computer. The latter three specify the location of various intermediate files and outputs from the pipeline.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">THREADS</span><span class="o">=</span><span class="m">8</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">ALIGNMENTS</span><span class="o">=</span><span class="s2">"examples/alignments"</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nv">COUNTS</span><span class="o">=</span><span class="s2">"examples/counts.h5"</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">PROFILES</span><span class="o">=</span><span class="s2">"examples/profiles.h5"</span>
+</code></pre></div>
+<p>All files used in these examples can be found in the repo, under <code>examples</code>.</p>
+<h1 id="map-seq">MaP-seq</h1>
+<p>A directory of FASTQ files and a reference FASTA file is required.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/map-seq/fastq"</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/map-seq/ref.fasta"</span>
+</code></pre></div>
+<p>In addition, <code>cmuts normalize</code> will need to know which datasets correspond to which condition. How this is specified depends on whether demultiplexing is performed or not.</p>
+<h2 id="without-demultiplexing">Without Demultiplexing</h2>
+<p>The following arrays contain the basenames of the FASTQ files corresponding to each condition. A parallel array containing the name of each condition is necessary as well.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">MODS</span><span class="o">=(</span><span class="s2">"bicine-2A3"</span>,<span class="w"> </span><span class="s2">"bicine-DMS"</span><span class="o">)</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">NOMODS</span><span class="o">=(</span><span class="s2">"bicine-DMSO"</span>,<span class="w"> </span><span class="s2">"bicine-ETH"</span><span class="o">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">NAMES</span><span class="o">=(</span><span class="s2">"2A3"</span>,<span class="w"> </span><span class="s2">"DMS"</span><span class="o">)</span>
+</code></pre></div>
+<p><code>NOMODS</code> may be empty, in the case where background subtraction is not to be performed.</p>
+<p>One can run <code>cmuts align</code> directly on the FASTQ files and then pass the output to <code>cmuts core</code> to locate modifications.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
+</code></pre></div>
+<p>This will output a single HDF5 file, <code>$COUNTS</code>, which will contain one dataset for each input. One can then loop over all input files, and pass the respective dataset to <code>cmuts normalize</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="s2">done</span>
+</code></pre></div>
+<h2 id="with-demultiplexing">With Demultiplexing</h2>
+<p>The main difference when working with FASTQ files which must be demultiplexed first is that <code>MODS</code> and <code>NOMODS</code> should refer to the <strong>barcodes</strong> for each condition, rather than the files themselves.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">MODS</span><span class="o">=(</span><span class="s2">"GCCTGGGTGGCT"</span>,<span class="w"> </span><span class="s2">"TGACCATGTATA"</span><span class="o">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">NOMODS</span><span class="o">=(</span><span class="s2">"AAGGACCACTGG"</span>,<span class="w"> </span><span class="s2">"CTTATTACACAC"</span><span class="o">)</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nv">NAMES</span><span class="o">=(</span><span class="s2">"2A3"</span>,<span class="w"> </span><span class="s2">"DMS"</span><span class="o">)</span>
+</code></pre></div>
+<p>We use a different directory of FASTQ files for this example. Naturally, in addition to the previous inputs, a comma-separated file containing the barcodes to use for demultiplexing must be provided to <code>cmuts align</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/map-seq/fastq-dmux"</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/map-seq/ref.fasta"</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nv">BARCODES</span><span class="o">=</span><span class="s2">"examples/map-seq/barcodes.fasta"</span>
+</code></pre></div>
+<p>Otherwise, the pipeline remains the same:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--barcodes<span class="w"> </span><span class="s2">"</span><span class="nv">$BARCODES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">    </span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="s2">done</span>
+</code></pre></div>
+<h1 id="two-dimensional-map-seq">Two-Dimensional MaP-seq</h1>
+<p>To analyse data from two-dimensional MaP-seq experiments, the pipeline is similar to that for the classical analysis, but with two changes:</p>
 <ol>
-<li><strong>Reference sequences</strong>, stored in a FASTA file,</li>
-<li><strong>Aligned reads</strong>, stored in one or more SAM/BAM/CRAM files</li>
+<li>The <code>--joint</code> flag is passed to <code>cmuts</code>, and</li>
+<li><code>cmuts cov</code> is used for post-processing rather than <code>cmuts normalize</code>.</li>
 </ol>
-<h3 id="syntax">Syntax</h3>
-<p>A generic call to <code>cmuts</code> will look like
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cmuts<span class="w"> </span>-o<span class="w"> </span>OUTPUT<span class="w"> </span>-f<span class="w"> </span>FASTA<span class="w"> </span><span class="o">[</span>OPTIONAL<span class="w"> </span>ARGUMENTS<span class="o">]</span><span class="w"> </span>FILE
-</code></pre></div><p></p>
-<h3 id="modification-counting">Modification Counting</h3>
-<p>To count modifications in a single aligned HTS file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cmuts<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
+<h2 id="residue-residue-correlations">Residue-Residue Correlations</h2>
+<p>This example uses <strong>MOHCA-seq</strong> data.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/mohca/fastq"</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/mohca/ref.fasta"</span>
 </code></pre></div>
-<p>For the MPI-enabled version, use multiple threads:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">8</span><span class="w"> </span>cmuts<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
+<h2 id="mutate-and-map">Mutate-And-Map</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/m2/fastq"</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/m2/ref.fasta"</span>
 </code></pre></div>
-<p>Multiple SAM/BAM/CRAM files can be processed simultaneously:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">8</span><span class="w"> </span>cmuts<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted1.bam<span class="w"> </span>sorted2.bam<span class="w"> </span>...
-</code></pre></div>
-<h3 id="required-inputs_1">Required Inputs</h3>
-<ol>
-<li><strong>Reference sequences</strong>: A FASTA file specified with the <code>-f</code> option</li>
-<li><strong>Aligned reads</strong>: One or more SAM/BAM/CRAM files</li>
-</ol>
-<p>The program will automatically create necessary index files (.bai or .crai) and a custom binary .binfa file from the FASTA file. If input files are not sorted, <code>samtools sort</code> will be called automatically.</p>
-<h3 id="output-format">Output Format</h3>
-<p>The output HDF5 file contains one dataset per input file, named by the file path (without extension). Each dataset has shape <code>n × l × 4 × 7</code> where:</p>
-<ul>
-<li><code>n</code> = number of sequences</li>
-<li><code>l</code> = maximum sequence length  </li>
-<li>Dimension 2 = original base (A, C, G, T)</li>
-<li>Dimension 3 = mutated base or inserted base</li>
-</ul>
-<h2 id="command-line-options">Command Line Options</h2>
-<h3 id="core-options">Core Options</h3>
-<p><strong><code>-o, --output</code></strong> : Output HDF5 filename (required)</p>
-<p><strong><code>-f, --fasta</code></strong> : Reference FASTA file (required)</p>
-<h3 id="output-control">Output Control</h3>
-<p><strong><code>--overwrite</code></strong> : Overwrite existing HDF5 file</p>
-<p><strong><code>--compression</code></strong> : HDF5 compression level (0-9, default: 3)</p>
-<h3 id="analysis-modes">Analysis Modes</h3>
-<p><strong><code>--tokenize</code></strong> : Tokenize reference sequences and store in <code>sequence</code> dataset</p>
-<p><strong><code>--joint</code></strong> : Compute joint distribution of mutations over all position pairs</p>
-<p><strong><code>--low-mem</code></strong> : Record only modification locations and coverage (not type), reducing memory usage by 2x+</p>
-<h3 id="quality-filtering">Quality Filtering</h3>
-<p><strong><code>--min-mapq</code></strong> : Mapping quality threshold (default: 10)</p>
-<p><strong><code>--min-phred</code></strong> : PHRED score threshold (default: 10)</p>
-<p><strong><code>--quality-window</code></strong> : Quality check window size around each base (default: 2)</p>
-<p><strong><code>--min-length</code></strong> : Minimum alignment length (default: 2)</p>
-<p><strong><code>--max-length</code></strong> : Maximum alignment length (default: 10,000)</p>
-<h3 id="modification-detection">Modification Detection</h3>
-<p><strong><code>--max-indel-length</code></strong> : Maximum indel length to consider (default: 10)</p>
-<p><strong><code>--collapse</code></strong> : Collapse modifications within this distance in a read (default: 2)</p>
-<p><strong><code>--no-mismatches</code></strong> : Exclude mismatches from modification counts</p>
-<p><strong><code>--no-insertions</code></strong> : Exclude insertions from modification counts (recommended for MaP-seq)</p>
-<p><strong><code>--no-deletions</code></strong> : Exclude deletions from modification counts</p>
-<h3 id="deletion-handling">Deletion Handling</h3>
-<p><strong><code>--uniform-spread</code></strong> : Uniformly spread ambiguous deletions</p>
-<p><strong><code>--mutation-spread</code></strong> : Spread ambiguous deletions according to existing mutation profile</p>
-<p><strong><code>--disable-ambiguous</code></strong> : Use alignment-provided deletions only</p>
-<p><strong><code>--contiguous-ambiguous</code></strong> : Allow only contiguous regions as ambiguous deletions</p>
-<h3 id="sampling-and-coverage">Sampling and Coverage</h3>
-<p><strong><code>--subsample</code></strong> : Random read acceptance probability (default: 1.0)</p>
-<p><strong><code>--filter-coverage</code></strong> : Apply modification filters to matches (recommended for MaP-seq)</p>
-<h3 id="performance">Performance</h3>
-<p><strong><code>--chunk-size</code></strong> : Internal buffer size per thread in references (default: 128)</p>
-<p><strong><code>--print-every</code></strong> : Progress update frequency in reads processed (default: 1,000)</p>
-<h2 id="example-use-cases">Example Use Cases</h2>
-<h3 id="tokenization-only">Tokenization Only</h3>
-<p>Generate tokenized sequences without processing alignments:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cmuts<span class="w"> </span>--tokenize<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>-o<span class="w"> </span>counts.h5
-</code></pre></div>
-<h3 id="joint-modification-analysis">Joint Modification Analysis</h3>
-<p>Compute joint modification distributions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cmuts<span class="w"> </span>--joint<span class="w"> </span>-o<span class="w"> </span>joint.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<p>Output shape: <code>n × l × l × 2 × 2</code> where the final dimensions indicate modification presence (1) or absence (0) at each position pair.</p>
-<h3 id="memory-efficient-analysis">Memory-Efficient Analysis</h3>
-<p>For large datasets, use low-memory mode:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cmuts<span class="w"> </span>--low-mem<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<h2 id="recommended-map-seq-settings">Recommended MaP-seq Settings</h2>
-<p>For standard MaP-seq analysis, use:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>cmuts<span class="w"> </span>--no-insertions<span class="w"> </span>--filter-coverage<span class="w"> </span>-o<span class="w"> </span>out.h5<span class="w"> </span>-f<span class="w"> </span>seq.fasta<span class="w"> </span>sorted.bam
-</code></pre></div>
-<p>These flags:
-- Exclude insertions which are not relevant for chemical modification detection
-- Apply consistent quality filters to both modifications and coverage calculations</p>
 
 
 
