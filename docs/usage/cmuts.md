@@ -2,6 +2,21 @@
 
 ## Basic Usage
 
+### Required Inputs
+
+`cmuts` requires two inputs to run:
+
+1. **Reference sequences**, stored in a FASTA file,
+2. **Aligned reads**, stored in one or more SAM/BAM/CRAM files
+
+### Syntax
+
+A generic call to `cmuts` will look like
+```bash
+cmuts -o OUTPUT -f FASTA [OPTIONAL ARGUMENTS] FILE
+```
+
+
 ### Modification Counting
 
 To count modifications in a single aligned HTS file:
