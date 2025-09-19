@@ -1,5 +1,6 @@
+## Overview
 
-## Environment Setup
+### Environment Setup
 
 These variables will be used throughout the examples; feel free to set them to a value appropriate for your computer. The latter three specify the location of various intermediate files and outputs from the pipeline.
 
@@ -11,6 +12,14 @@ PROFILES="examples/profiles.h5"
 ```
 
 All files used in these examples can be found in the repo, under `examples`.
+
+### Pipeline Steps
+
+The `cmuts` pipeline consists of three parts:
+
+  1. The `cmuts align` wrapper,
+  2. The `cmuts core` program, and
+  3. Either `cmuts normalize` or `cmuts cov`, depending on whether 1D or 2D MaP-seq is being performed.
 
 # MaP-seq
 
@@ -119,11 +128,6 @@ done
 
 # Two-Dimensional MaP-seq
 
-To analyse data from two-dimensional MaP-seq experiments, the pipeline is similar to that for the classical analysis, but with two changes:
-
-  1. The `--joint` flag is passed to `cmuts`, and
-  2. `cmuts cov` is used for post-processing rather than `cmuts normalize`.
-
 ## Residue-Residue Correlations
 
 This example uses **MOHCA-seq** data.
@@ -131,6 +135,37 @@ This example uses **MOHCA-seq** data.
 ```bash
 FASTQ="examples/mohca/fastq"
 FASTA="examples/mohca/ref.fasta"
+```
+
+The first two steps are the same, save for the `--joint` flag passed to `cmuts core`.
+
+```bash
+cmuts align \
+  --fasta "$FASTA" \
+  --threads "$THREADS" \
+  --output "$ALIGNMENTS" \
+  "$FASTQ"/*.fastq*
+
+cmuts core \
+  --joint \
+  -f "$FASTA" \
+  -o "$COUNTS" \
+  --filter-coverage \
+  --no-insertions \
+  "$ALIGNMENTS"/*
+```
+
+The third step uses `cmuts cov` to postprocess the 2D data.
+
+```bash
+for ((IX=0; IX<${#MODS[@]}; IX++)); do
+  MOD_DS="$ALIGNMENTS"/${MODS[IX]}
+  cmuts cov \
+    -o "$PROFILES" \
+    --dataset "$MOD_DS" \
+    --mutual-information \
+    $COUNTS"
+done
 ```
 
 ## Mutate-And-Map
