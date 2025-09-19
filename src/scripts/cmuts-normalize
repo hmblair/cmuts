@@ -166,6 +166,8 @@ def _print_stats(
 ) -> None:
 
     nseqs = reads.shape[0]
+
+    tr = np.sum(reads)
     mr = np.mean(reads)
     medr = np.median(reads)
 
@@ -175,15 +177,21 @@ def _print_stats(
     mrr = np.mean(reactivity * norm)
     fsnr = np.mean(snr >= 1)
 
-    print(f"        References:      {nseqs:,}")
-    print(f"        Mean reads:      {mr:.2f}")
-    print(f"        Mean SNR:        {msnr:.2f}")
-    print(f"        Mean reactivity: {mrr:.3f}")
-    print(f"        Median reads:    {int(medr):,}")
-    print(f"        Median SNR:      {medsnr:.2f}")
+    dr_f = (reads == 0).sum() / reads.shape[0]
+
     with np.errstate(divide='ignore', invalid='ignore'):
-        print(f"        Mean-to-Median:  {(mr/medr):.2f}")
-    print(f"        Usable SNR:      {fsnr:.2f}")
+        med2m = mr / medr
+
+    print(f"        References:       {nseqs:,}")
+    print(f"        Total reads:      {int(tr):,}")
+    print(f"        Mean reads:       {mr:.2f}")
+    print(f"        Mean SNR:         {msnr:.2f}")
+    print(f"        Mean reactivity:  {mrr:.3f}")
+    print(f"        Median reads:     {int(medr):,}")
+    print(f"        Median SNR:       {medsnr:.2f}")
+    print(f"        Mean-to-Median:   {med2m:.2f}")
+    print(f"        Usable SNR:       {fsnr:.2f}")
+    print(f"        Dropout Fraction: {dr_f:.2f}")
     print()
 
 
