@@ -15,14 +15,14 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: blue
-      accent: blue
+      primary: purple
+      accent: red
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: blue
-      accent: blue
+      primary: purple
+      accent: red
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -35,6 +35,8 @@ nav:
     - Organization-Specific Notes: installation/org-notes.md
   - Usage:
     - cmuts: usage/cmuts.md
+    - cmuts normalize: usage/cmuts-normalize.md
+    - Examples: usage/examples.md
 
 plugins:
   - search
