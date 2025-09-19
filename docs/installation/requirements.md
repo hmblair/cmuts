@@ -48,8 +48,10 @@ The following should install all (save for `python` and its packages) on a perso
 
 ### HDF5 Configuration
 
-If cmake has trouble finding your HDF5 installation:
+If `cmake` has trouble finding your HDF5 installation, you can set
 
 ```bash
 export HDF5_DIR=/path/to/hdf5/installation
 ```
+
+If installed via brew, the command `brew info hdf5` may be helpful for finding the desired path.
