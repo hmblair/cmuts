@@ -102,9 +102,11 @@ private:
     int32_t _references = 0;
     int32_t _length     = 0;
     int64_t _files      = 0;
+    int64_t _curr_file  = 0;
 
     const MPI::Manager& _mpi;
 
+    Utils::Line _print_files     = Utils::Line("File");
     Utils::Line _print_processed = Utils::Line("Reads processed", "%");
     Utils::Line _print_skipped   = Utils::Line("Reads skipped", "%");
     Utils::Line _print_elapsed   = Utils::Line("Time elapsed");
@@ -124,6 +126,7 @@ public:
     void processed(int64_t n);
     void skipped();
     void skipped(int64_t n);
+    void file();
     void aggregate();
     void header() const;
     void body() const;

@@ -970,14 +970,10 @@ static inline double _percent(int64_t a, int64_t b) {
 
 static inline void _print_header(int64_t files, int64_t aligned, int64_t unaligned, int64_t references, int64_t length) {
 
-    Utils::Line _print_files("Files");
     Utils::Line _print_references("References");
     Utils::Line _print_length("Reference length");
     Utils::Line _print_aligned("Aligned reads");
     Utils::Line _print_unaligned("Unaligned reads");
-
-    _print_files.print(files);
-    Utils::divider();
 
     _print_references.print(references);
     _print_length.print(length);
@@ -985,7 +981,7 @@ static inline void _print_header(int64_t files, int64_t aligned, int64_t unalign
     _print_unaligned.print(unaligned);
 
     Utils::divider();
-    Utils::cursor_down(3);
+    Utils::cursor_down(4);
     Utils::cursor_down(2);
     Utils::cursor_up(2);
 
@@ -1043,6 +1039,11 @@ void Stats::skipped(int64_t n) {
 }
 
 
+void Stats::file() {
+    _curr_file++;
+}
+
+
 void Stats::aggregate() {
     _processed = _mpi.reduce(_processed);
     _skipped   = _mpi.reduce(_skipped);
@@ -1058,12 +1059,14 @@ void Stats::header() const {
 
 void Stats::body() const {
 
-    int fields = 3;
+    int fields = 4;
     _mpi.up(fields);
 
     if (_mpi.root()) {
         double processed = _percent(_processed, _aligned + _unaligned);
         double skipped   = _percent(_skipped, _processed);
+        std::string file = std::to_string(_curr_file) + "/" + std::to_string(_files);
+        _print_files.print(file);
         _print_processed.print(processed);
         _print_skipped.print(skipped);
         _print_elapsed.print(_mpi.time_str());

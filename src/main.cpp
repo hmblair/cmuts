@@ -219,6 +219,7 @@ int main(int argc, char** argv) {
         std::string name = _path(input->name());;
 
         try {
+            stats.file();
             main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats, name);
             main->run();
             processed++;
