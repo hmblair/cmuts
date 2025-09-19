@@ -6,7 +6,7 @@ Fast mutation counting and reactivity profiling for MaP-seq experiments.
 
 ## Overview
 
-`cmuts` is a high-performance program designed for analyzing MaP-seq (Mutational Profiling with sequencing) experiments. It provides comprehensive tools for counting mutations and computing reactivity profiles with exceptional speed and accuracy.
+`cmuts` is a high-performance program designed for analyzing MaP-seq (Mutational Profiling via sequencing) experiments. It provides comprehensive tools for counting mutations and computing reactivity profiles with exceptional speed and accuracy.
 
 ### Key Features
 

@@ -74,7 +74,7 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
     --mod "$MOD_DS" \
     --nomod "$NOMOD_DS" \
     --group "$NAME" \
-    $COUNTS"
+    "$COUNTS"
 done
 ```
 
@@ -122,7 +122,7 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
     --mod "$MOD_DS" \
     --nomod "$NOMOD_DS" \
     --group "$NAME" \
-    $COUNTS"
+    "$COUNTS"
 done
 ```
 
@@ -164,7 +164,7 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
     -o "$PROFILES" \
     --dataset "$MOD_DS" \
     --mutual-information \
-    $COUNTS"
+    "$COUNTS"
 done
 ```
 
