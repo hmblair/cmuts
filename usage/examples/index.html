@@ -10,7 +10,7 @@
         <link rel="canonical" href="https://hmblair.github.io/cmuts/usage/examples/">
       
       
-        <link rel="prev" href="../cmuts/">
+        <link rel="prev" href="../cmuts-normalize/">
       
       
       
@@ -544,6 +544,29 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../cmuts-normalize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    cmuts normalize
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -898,97 +921,159 @@
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
 </code></pre></div>
-<p>This will output a single HDF5 file, <code>$COUNTS</code>, which will contain one dataset for each input. One can then loop over all input files, and pass the respective dataset to <code>cmuts normalize</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">done</span>
+<p>This will output a single HDF5 file, <code>$COUNTS</code>, which will contain one dataset for each input. The following statistics should also be printed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>        cmuts version 1.0.1
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>      ───────────────────────────────────
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        References:                    1
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>        Reference length:            615
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        Aligned reads:             9,965
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        Unaligned reads:              35
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>      ───────────────────────────────────
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        File:                        4/4
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        Reads processed:          100.0%
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>        Reads skipped:             18.3%
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>        Time elapsed:           00:00:00
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>      ───────────────────────────────────
+</code></pre></div>
+<p>One can then loop over all input files, and pass the respective dataset to <code>cmuts normalize</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="k">done</span>
+</code></pre></div>
+<p>The following will also be printed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>        cmuts-normalize version 1.0.1
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>      ───────────────────────────────────
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        Statistics for 2A3:
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        References:       1
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        Total reads:      3,088
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        Mean reads:       3088.00
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>        Mean SNR:         1.28
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>        Mean reactivity:  0.006
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>        Median reads:     3,088
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>        Median SNR:       1.28
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        Mean-to-Median:   1.00
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>        Usable SNR:       1.00
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>        Dropout Fraction: 0.00
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>        cmuts-normalize version 1.0.1
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>      ───────────────────────────────────
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>        Statistics for DMS:
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>        References:       1
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a>        Total reads:      3,716
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>        Mean reads:       3716.00
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>        Mean SNR:         2.51
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>        Mean reactivity:  0.012
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>        Median reads:     3,716
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>        Median SNR:       2.51
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>        Mean-to-Median:   1.00
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a>        Usable SNR:       1.00
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>        Dropout Fraction: 0.00
+</code></pre></div>
+<p>The output HDF5 file will have the following structure:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>/
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── 2A3/
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>│   ├── ROI
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│   ├── SNR
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>│   ├── error
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>│   ├── heatmap
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>│   ├── norm
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>│   ├── reactivity
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>│   └── reads
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>└── DMS/
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>    ├── ROI
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>    ├── SNR
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>    ├── error
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>    ├── heatmap
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>    ├── norm
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>    ├── reactivity
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>    └── reads
 </code></pre></div>
 <h2 id="with-demultiplexing">With Demultiplexing</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/map-seq-dmux"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/map-seq-dmux"</span>
 </code></pre></div>
 <p>The main difference when working with FASTQ files which must be demultiplexed first is that <code>MODS</code> and <code>NOMODS</code> should refer to the <strong>barcodes</strong> for each condition, rather than the files themselves.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">MODS</span><span class="o">=(</span><span class="s2">"GCCTGGGTGGCT"</span>,<span class="w"> </span><span class="s2">"TGACCATGTATA"</span><span class="o">)</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">NOMODS</span><span class="o">=(</span><span class="s2">"AAGGACCACTGG"</span>,<span class="w"> </span><span class="s2">"CTTATTACACAC"</span><span class="o">)</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nv">NAMES</span><span class="o">=(</span><span class="s2">"2A3"</span>,<span class="w"> </span><span class="s2">"DMS"</span><span class="o">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nv">MODS</span><span class="o">=(</span><span class="s2">"GCCTGGGTGGCT"</span>,<span class="w"> </span><span class="s2">"TGACCATGTATA"</span><span class="o">)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nv">NOMODS</span><span class="o">=(</span><span class="s2">"AAGGACCACTGG"</span>,<span class="w"> </span><span class="s2">"CTTATTACACAC"</span><span class="o">)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nv">NAMES</span><span class="o">=(</span><span class="s2">"2A3"</span>,<span class="w"> </span><span class="s2">"DMS"</span><span class="o">)</span>
 </code></pre></div>
 <p>We use a different directory of FASTQ files for this example. Naturally, in addition to the previous inputs, a comma-separated file containing the barcodes to use for demultiplexing must be provided to <code>cmuts align</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/fastq"</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/ref.fasta"</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">BARCODES</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/barcodes.fasta"</span>
-</code></pre></div>
-<p>Otherwise, the pipeline remains the same:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--barcodes<span class="w"> </span><span class="s2">"</span><span class="nv">$BARCODES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
-<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>
-<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
-<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="k">done</span>
-</code></pre></div>
-<h1 id="two-dimensional-map-seq">Two-Dimensional MaP-seq</h1>
-<h2 id="residue-residue-correlations">Residue-Residue Correlations</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/mohca"</span>
-</code></pre></div>
-<p>This example uses <strong>MOHCA-seq</strong> data.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/fastq"</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/ref.fasta"</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nv">BARCODES</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/barcodes.fasta"</span>
 </code></pre></div>
-<p>The first two steps are the same, save for the <code>--joint</code> flag passed to <code>cmuts core</code>.</p>
+<p>Otherwise, the pipeline remains the same:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span>--joint<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--barcodes<span class="w"> </span><span class="s2">"</span><span class="nv">$BARCODES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">  </span><span class="nv">NOMOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">NOMODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="w">  </span><span class="nv">NAME</span><span class="o">=</span><span class="si">${</span><span class="nv">NAMES</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="w">  </span>cmuts<span class="w"> </span>normalize<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="w">    </span>--mod<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">    </span>--nomod<span class="w"> </span><span class="s2">"</span><span class="nv">$NOMOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="w">    </span>--group<span class="w"> </span><span class="s2">"</span><span class="nv">$NAME</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="k">done</span>
+</code></pre></div>
+<h1 id="two-dimensional-map-seq">Two-Dimensional MaP-seq</h1>
+<h2 id="residue-residue-correlations">Residue-Residue Correlations</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/mohca"</span>
+</code></pre></div>
+<p>This example uses <strong>MOHCA-seq</strong> data.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/fastq"</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/ref.fasta"</span>
+</code></pre></div>
+<p>The first two steps are the same, save for the <code>--joint</code> flag passed to <code>cmuts core</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span>--joint<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
 </code></pre></div>
 <p>The third step uses <code>cmuts cov</code> to postprocess the 2D data.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span>cmuts<span class="w"> </span>cov<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span>--dataset<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span>--mutual-information<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">done</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span>cmuts<span class="w"> </span>cov<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span>--dataset<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span>--mutual-information<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">    </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="k">done</span>
 </code></pre></div>
 <h2 id="mutate-and-map">Mutate-And-Map</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/m2"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nv">PARENT</span><span class="o">=</span><span class="s2">"examples/m2"</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/fastq"</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/ref.fasta"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/fastq"</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PARENT</span><span class="s2">/ref.fasta"</span>
 </code></pre></div>
 
 
