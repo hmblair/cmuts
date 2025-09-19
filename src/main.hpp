@@ -9,9 +9,9 @@
 #include "utils.hpp"
 
 #ifdef MPI_BUILD
-const std::string PROGRAM = "cmuts MPI";
+const std::string PROGRAM = "cmuts core MPI";
 #else
-const std::string PROGRAM = "cmuts";
+const std::string PROGRAM = "cmuts core";
 #endif
 
 static inline bool __mpi_build() {

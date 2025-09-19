@@ -1,0 +1,28 @@
+#!/bin/bash
+
+print-usage() {
+  echo "Usage: $(basename $0) {align|core|normalize|cov|test}"
+}
+
+case "$1" in
+  align)
+    cmuts-align "${@:2}"
+    ;;
+  core)
+    cmuts-core "${@:2}"
+    ;;
+  normalize)
+    cmuts-normalize "${@:2}"
+    ;;
+  cov)
+    cmuts-cov "${@:2}"
+    ;;
+  test)
+    echo "Not implemented yet."
+    exit 1
+    ;;
+  *)
+    print-usage
+    exit 1
+    ;;
+esac

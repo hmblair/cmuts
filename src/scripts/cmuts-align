@@ -12,7 +12,7 @@ FILES=()
 PAIRS=()
 
 print-usage() {
-  echo "Usage: cmuts-align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim ADAPTER] [FILES ...] [--pairs PAIRS]"
+  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim ADAPTER] [FILES ...] [--pairs PAIRS ...]"
 }
 
 while [[ "$#" -gt 0 ]]; do
