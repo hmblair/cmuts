@@ -72,7 +72,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="purple" data-md-color-accent="red">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -81,7 +81,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#environment-setup" class="md-skip">
+        <a href="#overview" class="md-skip">
           Skip to content
         </a>
       
@@ -128,7 +128,7 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="purple" data-md-color-accent="red" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
     
       <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"></path></svg>
@@ -138,7 +138,7 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="blue" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="purple" data-md-color-accent="red" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
     
       <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"></path></svg>
@@ -593,11 +593,35 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#environment-setup" class="md-nav__link">
     <span class="md-ellipsis">
       Environment Setup
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pipeline Steps
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -708,11 +732,35 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#environment-setup" class="md-nav__link">
     <span class="md-ellipsis">
       Environment Setup
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      Pipeline Steps
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -801,7 +849,8 @@
   
 
 
-<h2 id="environment-setup">Environment Setup</h2>
+<h2 id="overview">Overview</h2>
+<h3 id="environment-setup">Environment Setup</h3>
 <p>These variables will be used throughout the examples; feel free to set them to a value appropriate for your computer. The latter three specify the location of various intermediate files and outputs from the pipeline.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">THREADS</span><span class="o">=</span><span class="m">8</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">ALIGNMENTS</span><span class="o">=</span><span class="s2">"examples/alignments"</span>
@@ -809,6 +858,13 @@
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nv">PROFILES</span><span class="o">=</span><span class="s2">"examples/profiles.h5"</span>
 </code></pre></div>
 <p>All files used in these examples can be found in the repo, under <code>examples</code>.</p>
+<h3 id="pipeline-steps">Pipeline Steps</h3>
+<p>The <code>cmuts</code> pipeline consists of three parts:</p>
+<ol>
+<li>The <code>cmuts align</code> wrapper,</li>
+<li>The <code>cmuts core</code> program, and</li>
+<li>Either <code>cmuts normalize</code> or <code>cmuts cov</code>, depending on whether 1D or 2D MaP-seq is being performed.</li>
+</ol>
 <h1 id="map-seq">MaP-seq</h1>
 <p>A directory of FASTQ files and a reference FASTA file is required.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/map-seq/fastq"</span>
@@ -888,19 +944,39 @@
 <a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="s2">done</span>
 </code></pre></div>
 <h1 id="two-dimensional-map-seq">Two-Dimensional MaP-seq</h1>
-<p>To analyse data from two-dimensional MaP-seq experiments, the pipeline is similar to that for the classical analysis, but with two changes:</p>
-<ol>
-<li>The <code>--joint</code> flag is passed to <code>cmuts</code>, and</li>
-<li><code>cmuts cov</code> is used for post-processing rather than <code>cmuts normalize</code>.</li>
-</ol>
 <h2 id="residue-residue-correlations">Residue-Residue Correlations</h2>
 <p>This example uses <strong>MOHCA-seq</strong> data.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/mohca/fastq"</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/mohca/ref.fasta"</span>
 </code></pre></div>
+<p>The first two steps are the same, save for the <code>--joint</code> flag passed to <code>cmuts core</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span>--joint<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span>-f<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$COUNTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span>--filter-coverage<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span>--no-insertions<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/*
+</code></pre></div>
+<p>The third step uses <code>cmuts cov</code> to postprocess the 2D data.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">for</span><span class="w"> </span><span class="o">((</span><span class="nv">IX</span><span class="o">=</span><span class="m">0</span><span class="p">;</span><span class="w"> </span>IX&lt;<span class="si">${#</span><span class="nv">MODS</span><span class="p">[@]</span><span class="si">}</span><span class="p">;</span><span class="w"> </span>IX++<span class="o">))</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nv">MOD_DS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span>/<span class="si">${</span><span class="nv">MODS</span><span class="p">[IX]</span><span class="si">}</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span>cmuts<span class="w"> </span>cov<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$PROFILES</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span>--dataset<span class="w"> </span><span class="s2">"</span><span class="nv">$MOD_DS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span>--mutual-information<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="nv">$COUNTS</span><span class="s2">"</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">done</span>
+</code></pre></div>
 <h2 id="mutate-and-map">Mutate-And-Map</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/m2/fastq"</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/m2/ref.fasta"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nv">FASTQ</span><span class="o">=</span><span class="s2">"examples/m2/fastq"</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nv">FASTA</span><span class="o">=</span><span class="s2">"examples/m2/ref.fasta"</span>
 </code></pre></div>
 
 
