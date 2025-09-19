@@ -23,11 +23,15 @@ The `cmuts` pipeline consists of three parts:
 
 # MaP-seq
 
+```bash
+PARENT="examples/map-seq"
+```
+
 A directory of FASTQ files and a reference FASTA file is required.
 
 ```bash
-FASTQ="examples/map-seq/fastq"
-FASTA="examples/map-seq/ref.fasta"
+FASTQ="$PARENT/fastq"
+FASTA="$PARENT/ref.fasta"
 ```
 
 In addition, `cmuts normalize` will need to know which datasets correspond to which condition. How this is specified depends on whether demultiplexing is performed or not.
@@ -80,6 +84,10 @@ done
 
 ## With Demultiplexing
 
+```bash
+PARENT="examples/map-seq-dmux"
+```
+
 The main difference when working with FASTQ files which must be demultiplexed first is that `MODS` and `NOMODS` should refer to the **barcodes** for each condition, rather than the files themselves.
 
 ```bash
@@ -91,9 +99,9 @@ NAMES=("2A3", "DMS")
 We use a different directory of FASTQ files for this example. Naturally, in addition to the previous inputs, a comma-separated file containing the barcodes to use for demultiplexing must be provided to `cmuts align`.
 
 ```bash
-FASTQ="examples/map-seq/fastq-dmux"
-FASTA="examples/map-seq/ref.fasta"
-BARCODES="examples/map-seq/barcodes.fasta"
+FASTQ="$PARENT/fastq"
+FASTA="$PARENT/ref.fasta"
+BARCODES="$PARENT/barcodes.fasta"
 ```
 
 Otherwise, the pipeline remains the same:
@@ -130,11 +138,15 @@ done
 
 ## Residue-Residue Correlations
 
+```bash
+PARENT="examples/mohca"
+```
+
 This example uses **MOHCA-seq** data.
 
 ```bash
-FASTQ="examples/mohca/fastq"
-FASTA="examples/mohca/ref.fasta"
+FASTQ="$PARENT/fastq"
+FASTA="$PARENT/ref.fasta"
 ```
 
 The first two steps are the same, save for the `--joint` flag passed to `cmuts core`.
@@ -171,7 +183,11 @@ done
 ## Mutate-And-Map
 
 ```bash
-FASTQ="examples/m2/fastq"
-FASTA="examples/m2/ref.fasta"
+PARENT="examples/m2"
+```
+
+```bash
+FASTQ="$PARENT/fastq"
+FASTA="$PARENT/ref.fasta"
 ```
 
