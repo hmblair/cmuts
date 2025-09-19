@@ -1,75 +1,48 @@
-```markdown
-# Requirements
 
-This page outlines the system requirements and dependencies needed to build and run cmuts.
+## Dependencies
 
-## System Requirements
+Installing and running the `cmuts` pipeline requires the following packages:
 
-### Operating Systems
+ - `python>=3.10` with all packages in `requirements.txt`
+ - `cmake>=3.29` with `pkg-config`
+ - `autoconf`
+ - `samtools` and `htslib`
+ - `hdf5`
 
-cmuts is supported on:
+The MPI build also requires
 
-- **Linux**
-- **macOS** (Intel and ARM)
+ - `openmpi`
+ - `hdf5-mpi`
 
-## Core Dependencies
+The following should install all (save for `python` and its packages) on a personal device. For installation on a managed cluster, consult the respective guidelines.
 
-### Required for Basic Installation
-
-| Dependency | Minimum Version | Purpose |
-|------------|----------------|---------|
-| **cmake** | 3.29+ | Build system |
-| **samtools** | 1.10+ | SAM/BAM/CRAM file handling |
-| **HTSlib** | 1.10+ | High-throughput sequencing data |
-| **HDF5** | 1.10+ | Output file format |
-| **autoconf** | 2.69+ | Building htscodecs dependency |
-
-### Additional for MPI Support
-
-| Dependency | Purpose |
-|------------|---------|
-| **OpenMPI** | Parallel processing |
-| **HDF5 with parallel support** | Parallel HDF5 I/O |
-
-## Installation Methods
-
-### Package Managers
-
-=== "Homebrew (macOS/Linux)"
+=== "Mac OS"
     ```bash
-    brew install cmake samtools hdf5 autoconf
-    
-    # For MPI support
-    brew install hdf5-mpi open-mpi
+    # Install brew from https://brew.sh
+    brew install cmake autoconf samtools
+    # For non-MPI builds only:
+    brew install hdf5
+    # For MPI builds only:
+    brew install openmpi hdf5-mpi
     ```
 
-=== "Ubuntu/Debian"
+=== "Linux"
     ```bash
-    sudo apt update
-    sudo apt install cmake samtools libhts-dev libhdf5-dev autoconf
-    
-    # For MPI support
-    sudo apt install libhdf5-openmpi-dev openmpi-bin libopenmpi-dev
     ```
 
-=== "CentOS/RHEL"
+!!! tip "Verify Dependencies"
+    Run these commands to verify the dependencies are successfully installed:
     ```bash
-    sudo yum install cmake samtools htslib-devel hdf5-devel autoconf
-    
-    # For MPI support  
-    sudo yum install hdf5-openmpi-devel openmpi-devel
+    cmake --version
+    pkg-config --modversion hdf5
+    autoreconf --version
+    samtools --version
+    h5ls --version
     ```
-
-## Python Dependencies (for cmuts-normalize)
-
-The normalization component requires:
-
-- **Python**: 3.10 or higher
-- **Packages**: Listed in `requirements.txt`
-
-```bash
-pip install -r requirements.txt
-```
+    For MPI builds, also run:
+    ```bash
+    mpirun --version
+    ```
 
 ## Environment Variables
 
@@ -80,58 +53,3 @@ If cmake has trouble finding your HDF5 installation:
 ```bash
 export HDF5_DIR=/path/to/hdf5/installation
 ```
-
-### For Custom Installations
-
-```bash
-# Add to your shell profile (.bashrc, .zshrc, etc.)
-export CMAKE_PREFIX_PATH="/usr/local:$CMAKE_PREFIX_PATH"
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-```
-
-## Verification
-
-### Check Dependencies
-
-Verify your installations:
-
-```bash
-# Check versions
-cmake --version        # Should be 3.29+
-samtools --version     # Should show version info
-pkg-config --modversion hdf5    # Should show HDF5 version
-
-# Check MPI (if needed)
-mpirun --version       # Should show OpenMPI version
-```
-
-### Test HDF5
-
-```bash
-# Test basic HDF5 functionality
-h5dump --version
-```
-
-## Common Issues
-
-!!! warning "HDF5 Detection Problems"
-    If cmake cannot find HDF5, try:
-    ```bash
-    export HDF5_DIR=$(brew --prefix hdf5)  # macOS with Homebrew
-    # or
-    export HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial  # Ubuntu
-    ```
-
-!!! tip "Samtools Version"
-    Older versions of samtools may not support all CRAM features. We recommend version 1.15 or newer for best compatibility.
-
-!!! info "MPI vs Single-threaded"
-    You can install and use the single-threaded version first, then add MPI support later if needed. The basic version is sufficient for most use cases.
-
-## Next Steps
-
-Once you have all dependencies installed:
-
-1. **[Basic Installation](basic-installation.md)** - Build the single-threaded version
-2. **[MPI Installation](mpi-installation.md)** - Add parallel processing support
-3. **[Quick Start Guide](../usage/quick-start.md)** - Begin using cmuts
