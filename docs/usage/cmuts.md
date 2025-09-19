@@ -1,3 +1,5 @@
+## Purpose
+
 `cmuts core` performs the main job of the `cmuts` pipeline, which is determining the location and type of mutations, insertions, and deletions in a collection of aligned reads.
 
 ## Inputs and Usage
@@ -23,30 +25,40 @@ The output of `cmuts core` depends on which mode it is run in.
 
 Most uses of `cmuts core` (without any of the flags specified below) will output an HDF5 file with a dataset of shape \(n \times l \times 4 \times 7\). The former two dimensions specify the reference sequence and residue respectively, and the latter two specify the type of modification seen in accordance with the following array:
 
-![cmuts core heatmap](figures/heatmap.png)
+![cmuts core heatmap](../figures/heatmap.png)
 
+The diagonal corresponds to matches, whereas the off-diagonal corresponds to mismatches. The final three columns correspond to deletions, insertions, and termination events respectively.
+
+The name of the dataset corresponds to the name of the input file. For example, the command
+
+```
+cmuts core -o OUT.h5 -f FASTA.fasta IN1.bam SUBDIR/IN2.bam
+```
+
+will create an HDF5 file `OUT.h5` with the structure
+
+```
+/
+├── IN1
+└── SUBDIR
+    └── IN2
+```
+
+and both `IN1` and `IN2` are datasets as described above. 
 
 ### Joint
 
-The `--joint` flag instructs `cmuts core` to count *pairs* of mutations
+The `--joint` flag instructs `cmuts core` to count *pairs* of mutations. The output is again an HDF5 file, with a dataset of shape \(n \times l \times l \times 2 \times 2\). The first dimension specifies the reference sequence, the next two specifies each pair of bases in that sequence, and the final two specify the four entries of the joint Bernoulli distribution:
+
+\[
+\begin{pmatrix}
+p_{00} & p_{01} \\ p_{10} & p_{11}
+\end{pmatrix}
+\]
 
 ### Low-Mem
 
-### Required Inputs
-
-1. **Reference sequences**: A FASTA file specified with the `-f` option
-2. **Aligned reads**: One or more SAM/BAM/CRAM files
-
-The program will automatically create necessary index files (.bai or .crai) and a custom binary .binfa file from the FASTA file. If input files are not sorted, `samtools sort` will be called automatically.
-
-### Output Format
-
-The output HDF5 file contains one dataset per input file, named by the file path (without extension). Each dataset has shape `n × l × 4 × 7` where:
-
-- `n` = number of sequences
-- `l` = maximum sequence length  
-- Dimension 2 = original base (A, C, G, T)
-- Dimension 3 = mutated base or inserted base
+The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation counts, not mutation types. Correspondingly, the output dataset has shape \(n \times l \times 2\), with the final dimension specifying coverage and mutation counts respectively.
 
 ## Command Line Options
 
