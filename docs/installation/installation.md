@@ -1,7 +1,3 @@
-# Basic Installation
-
-This page covers the installation of the single-threaded version of `cmuts`. Before starting, ensure you have all [required dependencies](requirements.md) installed on your system.
-
 ## Installation
 
 ### 1. Obtain `cmuts`
