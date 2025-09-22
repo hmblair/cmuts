@@ -223,6 +223,7 @@ int main(int argc, char** argv) {
             main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats, name);
             main->run();
             processed++;
+            stats.body();
         } catch (const std::exception& e) {
             mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
             continue;
