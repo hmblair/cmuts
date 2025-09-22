@@ -17,7 +17,11 @@ from cov import (
     correlation,
     cooccurrence,
 )
-from mpl_toolkits.mplot3d import Axes3D
+
+# Set the font for plotting
+
+plt.rcParams['font.family'] = 'Helvetica'
+
 
 BOLD = '\033[1m'
 RESET = '\033[0m'
@@ -162,8 +166,10 @@ def _plot_cooccurrence(data: np.ndarray, name: str) -> np.ndarray:
 
     im = plt.imshow(vals, cmap=CMAP, norm=norm)
     plt.colorbar(im, label="Co-Occurrence")
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Residue", fontsize=13)
+
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Residue", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"figures/{name}-cooccurrence.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -181,10 +187,13 @@ def _plot_conditional(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     norm = LogNorm(vmin=low, vmax=high)
 
     im = plt.imshow(vals, cmap=CMAP, norm=norm)
-    plt.colorbar(im, label="Conditional")
+    cbar = plt.colorbar(im)
+    cbar.set_label("Conditional", fontsize=14)
+    cbar.ax.tick_params(labelsize=13)
 
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Residue", fontsize=13)
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Residue", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"figures/{name}-conditional.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -202,10 +211,13 @@ def _plot_correlation(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     norm = LogNorm(vmin=low, vmax=high)
 
     im = plt.imshow(vals, cmap=CMAP, norm=norm)
-    plt.colorbar(im, label="Correlation")
+    cbar = plt.colorbar(im)
+    cbar.set_label("Correlation", fontsize=14)
+    cbar.ax.tick_params(labelsize=13)
 
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Residue", fontsize=13)
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Residue", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"figures/{name}-correlation.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -223,10 +235,13 @@ def _plot_mi(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     norm = LogNorm(vmin=low, vmax=high)
 
     im = plt.imshow(vals, cmap=CMAP, norm=norm)
-    plt.colorbar(im, label="Mutual Information")
+    cbar = plt.colorbar(im)
+    cbar.set_label("Mutual Information", fontsize=14)
+    cbar.ax.tick_params(labelsize=13)
 
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Residue", fontsize=13)
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Residue", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"figures/{name}-mi.png", dpi=300, bbox_inches="tight")
     plt.close()
 

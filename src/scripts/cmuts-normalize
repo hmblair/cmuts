@@ -9,13 +9,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from enum import Enum
 
+# Set the font for plotting
+
+plt.rcParams['font.family'] = 'Helvetica'
+
 
 class NormMethod(Enum):
     RAW = 0
     UBR = 1
     OUTLIER = 2
-    WINSORIZING = 3
-    BOXPLOT = 4
 
 
 BOLD = '\033[1m'
@@ -100,6 +102,11 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
+    '--norm-outlier',
+    help='Use the 2-8 outlier-based normalization method.',
+    action='store_true',
+)
+parser.add_argument(
     '--norm-cutoff',
     help='References with at least this many reads are used for normalization.',
     type=int,
@@ -126,6 +133,19 @@ def _remove_if_exists(
     if os.path.exists(path):
         if overwrite:
             os.remove(path)
+
+
+def _norm_method(raw: bool, outlier: bool) -> NormMethod:
+
+    if raw and outlier:
+        raise ValueError("The --raw and --norm-outlier flags are mutually exclusive.")
+
+    if raw:
+        return NormMethod.RAW
+    if outlier:
+        return NormMethod.OUTLIER
+    else:
+        return NormMethod.UBR
 
 
 def _reactivity(modifications: da.Array, coverage: da.Array) -> da.Array:
@@ -217,6 +237,7 @@ def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
         raise RuntimeError("No datasets were successfully loaded.")
 
     # Compute the modification heatmap
+    # The termination events are normalized separately
 
     heatmap = arr.mean((0, 1))
     heatmap[..., :IX_TERM] = heatmap[..., :IX_TERM] / heatmap[..., :IX_TERM].sum()
@@ -269,7 +290,7 @@ def _process(file: h5py.File, groups: list[str]) -> tuple[np.ndarray, ...]:
 
     mc /= reads.sum()
 
-    # Compute all lazy results
+    # Compute all values
 
     return da.compute(reactivity, reads, err, heatmap, mc, term)
 
@@ -285,7 +306,7 @@ def _get_norm_raw(reactivity: np.ndarray) -> np.ndarray:
 def _get_norm_2_8(reactivity: np.ndarray) -> np.ndarray:
     """
     2-8% Normalization: From top 10%, ignore top 2% and divide by average of
-    remaining 8%
+    remaining 8%.
     """
 
     p90 = np.percentile(reactivity, 90)
@@ -293,39 +314,6 @@ def _get_norm_2_8(reactivity: np.ndarray) -> np.ndarray:
 
     values = reactivity[(reactivity >= p90) & (reactivity < p98)]
     return np.mean(values)
-
-
-def _get_norm_winsorizing(reactivity: np.ndarray) -> np.ndarray:
-    """
-    90% Winsorizing: Clip values to 5th-95th percentile range, then divide by
-    95th percentile
-    """
-
-    p5 = np.percentile(reactivity, 5)
-    p95 = np.percentile(reactivity, 95)
-
-    # TODO: fix
-
-    winsorized = np.clip(reactivity, p5, p95)
-    return winsorized / p95
-
-
-def _get_norm_boxplot(reactivity: np.ndarray) -> np.ndarray:
-    """
-    Box-plot Normalization: Remove outliers beyond 1.5x IQR above Q3,
-    then divide by average of next 10% of remaining values
-    """
-
-    q1 = np.percentile(reactivity, 25)
-    q3 = np.percentile(reactivity, 75)
-    iqr = q3 - q1
-
-    threshold = q3 + 1.5 * iqr
-    non_outliers = reactivity[reactivity <= threshold]
-    p90_non_outliers = np.percentile(non_outliers, 90)
-
-    top_10_percent = non_outliers[non_outliers >= p90_non_outliers]
-    return np.mean(top_10_percent)
 
 
 def _get_norm_ubr(
@@ -344,7 +332,7 @@ def _get_norm(
     reads: np.ndarray,
     cutoff: int,
     percentile: int,
-    method: NormMethod = NormMethod.RAW,
+    method: NormMethod,
 ) -> tuple[np.ndarray, ...]:
 
     if method == NormMethod.RAW:
@@ -353,10 +341,6 @@ def _get_norm(
         return _get_norm_ubr(reactivity, reads, cutoff, percentile)
     if method == NormMethod.OUTLIER:
         return _get_norm_2_8(reactivity)
-    if method == NormMethod.WINSORIZING:
-        return _get_norm_winsorizing(reactivity)
-    if method == NormMethod.BOXPLOT:
-        return _get_norm_boxplot(reactivity)
 
 
 def _get_sequences(file: h5py.File) -> da.Array:
@@ -411,8 +395,9 @@ def _plot_termination(term: np.ndarray, name: str) -> None:
     plt.fill_between(range(len(term)), term, alpha=0.5, color=plt.cm.RdPu(0.3))
     plt.plot(term, color=plt.cm.RdPu(0.8), linewidth=1)
 
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Termination density", fontsize=13)
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Termination density", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.title(f"Termination by position for {name}", fontsize=14)
     plt.savefig(f"{FIGURES}/{prefix}termination.png", dpi=300, bbox_inches="tight")
     plt.close()
@@ -428,9 +413,10 @@ def _plot_examples(reactivity: np.ndarray, name: str, num: int = 500) -> None:
         plt.grid(axis="y", alpha=0.5)
         plt.fill_between(range(len(reactivity)), reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
         plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
-        plt.xlabel("Residue", fontsize=12)
-        plt.ylabel("Reactivity", fontsize=12)
+        plt.xlabel("Residue", fontsize=14)
+        plt.ylabel("Reactivity", fontsize=14)
         plt.title(f"Profile of {name}", fontsize=14)
+        plt.tick_params(axis='both', labelsize=13)
         plt.savefig(f"{FIGURES}/{prefix}profile.png", dpi=300, bbox_inches="tight")
         plt.close()
 
@@ -449,9 +435,10 @@ def _plot_coverage(coverage: np.ndarray, name: str) -> None:
 
     plt.fill_between(range(len(coverage)), coverage, alpha=0.5, color=plt.cm.RdPu(0.3))
     plt.plot(coverage, color=plt.cm.RdPu(0.8))
-    plt.xlabel("Residue", fontsize=13)
-    plt.ylabel("Fraction of reads", fontsize=13)
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Fraction of reads", fontsize=14)
     plt.title(f"Coverage by position for {name}", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"{FIGURES}/{prefix}coverage.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -491,12 +478,15 @@ if __name__ == '__main__':
         # Normalize the reactivity and its error
         # SNR is unchanged
 
+        method = _norm_method(args.raw, args.norm_outlier)
         norm = _get_norm(
             reactivity,
             reads,
             args.norm_cutoff,
             args.norm_percentile,
+            method,
         )
+
         err /= norm
         reactivity /= norm
 
