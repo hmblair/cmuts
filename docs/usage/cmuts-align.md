@@ -1,7 +1,7 @@
 
 ## Purpose
 
-`cmuts align` is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ files against a reference FASTA file.
+`cmuts align` is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ files against a reference FASTA file, and sorting of the resulting SAM files. This is required if running `cmuts` directly from raw sequencing data.
 
 ## Usage
 

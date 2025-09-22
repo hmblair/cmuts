@@ -2,28 +2,27 @@
 
 `cmuts core` performs the main job of the `cmuts` pipeline, which is determining the location and type of mutations, insertions, and deletions in a collection of aligned reads.
 
-## Inputs and Usage
+## Usage
 
 All modes of `cmuts core` require two inputs to run:
 
 1. **Reference sequences**, stored in a FASTA file,
 2. **Aligned reads**, stored in one or more SAM/BAM/CRAM files
 
-A generic call will look like
+The basic syntax is
 ```bash
-cmuts core -o OUTPUT -f FASTA [OPTIONAL ARGUMENTS] FILE
+cmuts core \
+  -o $OUTPUT \
+  -f $FASTA \
+  $FILES
 ```
 
 !!! warning
     The alignments must be sorted before passing to `cmuts`. If you are generating them via `cmuts align`, then they will automatically be sorted for you.
 
-## Outputs
+### Modification Counting
 
-The output of `cmuts core` depends on which mode it is run in.
-
-### Standard
-
-Most uses of `cmuts core` (without any of the flags specified below) will output an HDF5 file with a dataset of shape \(n \times l \times 4 \times 7\). The former two dimensions specify the reference sequence and residue respectively, and the latter two specify the type of modification seen in accordance with the following array:
+Most uses of `cmuts core` (without any of the flags specified later) will output an HDF5 file with a dataset of shape \(n \times l \times 4 \times 7\). The former two dimensions specify the reference sequence and residue respectively, and the latter two specify the type of modification seen in accordance with the following array:
 
 ![cmuts core heatmap](../figures/heatmap.png)
 
@@ -31,11 +30,14 @@ The diagonal corresponds to matches, whereas the off-diagonal corresponds to mis
 
 The name of the dataset corresponds to the name of the input file. For example, the command
 
-```
-cmuts core -o OUT.h5 -f FASTA.fasta IN1.bam SUBDIR/IN2.bam
+```bash
+cmuts core \
+  -o $OUTPUT \
+  -f $FASTA \
+  IN1.bam SUBDIR/IN2.bam
 ```
 
-will create an HDF5 file `OUT.h5` with the structure
+will create an HDF5 file `$OUTPUT` with the structure
 
 ```
 /
@@ -46,7 +48,7 @@ will create an HDF5 file `OUT.h5` with the structure
 
 and both `IN1` and `IN2` are datasets as described above. 
 
-### Joint
+### Pairwise Modification Counting
 
 The `--joint` flag instructs `cmuts core` to count *pairs* of mutations. The output is again an HDF5 file, with a dataset of shape \(n \times l \times l \times 2 \times 2\). The first dimension specifies the reference sequence, the next two specifies each pair of bases in that sequence, and the final two specify the four entries of the joint Bernoulli distribution:
 
