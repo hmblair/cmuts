@@ -3,6 +3,13 @@
 set -eou pipefail
 LOG="cmuts-align.log"
 
+handler() {
+    echo "Error occurred on line $1. Script exited early." >> "$LOG"
+    echo "Error occurred on line $1. Script exited early. See $LOG for details." >&2
+}
+
+trap 'handler $LINENO' ERR
+
 FASTA=""
 OUTPUT=""
 THREADS="1"
