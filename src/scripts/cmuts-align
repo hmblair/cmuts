@@ -170,6 +170,7 @@ IXDIR="index"
 TMPDIR=".tmp"
 INDEX="$IXDIR/index"
 if [[ ! -e "$IXDIR" ]]; then
+  echo " -- Building bowtie2 index --" >> $LOG
   mkdir index
   bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> $LOG 2>&1
 fi
