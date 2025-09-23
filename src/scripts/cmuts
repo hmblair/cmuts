@@ -5,6 +5,12 @@ print-usage() {
 }
 
 case "$1" in
+  --version)
+    DIR=$(dirname $(which cmuts))
+    VERSION=$(cat "$DIR/VERSION")
+    echo "cmuts version $VERSION"
+    exit 0
+    ;;
   align)
     cmuts-align "${@:2}"
     ;;
