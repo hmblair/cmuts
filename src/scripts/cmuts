@@ -1,7 +1,7 @@
 #!/bin/bash
 
 print-usage() {
-  echo "Usage: $(basename $0) {align|core|normalize|cov|test}"
+  echo "Usage: $(basename $0) {align|core|normalize|pairwise|test}"
 }
 
 case "$1" in
@@ -20,7 +20,7 @@ case "$1" in
   normalize)
     cmuts-normalize "${@:2}"
     ;;
-  cov)
+  pairwise)
     cmuts-cov "${@:2}"
     ;;
   test)
