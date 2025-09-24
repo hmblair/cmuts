@@ -306,7 +306,7 @@ public:
         query.push_back(qbase);
 
         if (mod && _last_mod - _rpos >= params.collapse && params.insertions) {
-            arr(_rpos, qbase, IX_INS) += mask(_qpos);
+            arr(_rpos - 1, qbase, IX_INS) += mask(_qpos);
             _last_mod = _rpos;
         }
 
@@ -368,7 +368,7 @@ public:
 
             case HTS::CIGAR_t::INS: {
 
-                if (op.length() <= params.max_indel_length && _rpos < reference.size()) {
+                if (op.length() <= params.max_indel_length && _rpos <= reference.size() && _rpos > 0) {
                     ins();
                     op.advance();
                 }
