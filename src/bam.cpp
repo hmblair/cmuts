@@ -552,6 +552,9 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
     _read_bgzf(_bgzf_file, &references, sizeof(uint32_t));
     for (int32_t ix = 0; ix < references; ix++) {
         _read_bgzf(_bgzf_file, &name_len, sizeof(uint32_t));
+        if (name_len >= BGZF_BUFFER) {
+            __throw_and_log(_LOG_FILE, "Header name larger than the buffer.");
+        }
         _read_bgzf(_bgzf_file, buffer, name_len);
         _read_bgzf(_bgzf_file, &ref_len, sizeof(uint32_t));
     }
