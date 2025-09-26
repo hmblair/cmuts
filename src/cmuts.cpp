@@ -236,6 +236,7 @@ static inline std::vector<dtype> _spread_weights(
             for (int32_t ix = start; ix < end; ix++) {
                 weights[ix - start] = mask / length;
             }
+            break;
 
         }
 
@@ -520,9 +521,6 @@ static inline void __del(
         }
     }
 
-    op.advance();
-    rpos--;
-
     std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, mask[qpos], params.spread);
 
     for (int32_t ix = ambig_end - 1; ix >= ambig_start; ix--) {
@@ -536,6 +534,9 @@ static inline void __del(
         }
 
     }
+
+    op.advance();
+    rpos--;
 
     __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
 
@@ -558,8 +559,10 @@ static inline void __count(
     int32_t rpos = aln.offset + cigar.rlength();
     int32_t qpos = aln.length;
 
-    _MAX_ = rpos;
-    ARR_TMP = std::vector<dtype>(_MAX_, 0);
+    if constexpr(mode == Mode::Joint) {
+        _MAX_ = rpos;
+        ARR_TMP = std::vector<dtype>(reference.size(), 0);
+    }
 
     // Position of the most recent (3'-wise) mutation
 
