@@ -30,7 +30,7 @@ CMAP = "RdPu"
 with open(f"{os.path.dirname(os.path.abspath(__file__))}/VERSION", "r") as f:
     VERSION = f.read().strip()
 
-NAME = 'cmuts-cov'
+NAME = 'cmuts pairwise'
 PBAR_WIDTH = 20
 FIGURES = "figures"
 
@@ -81,7 +81,15 @@ parser.add_argument(
 parser.add_argument(
     '--zero-diag',
     help='Zero the diagonal in the relevant outputs, for better visualization.',
-    action="store_true",
+    nargs='?',
+    const=1,
+    default=0,
+    type=int,
+)
+parser.add_argument(
+    '--low-rank',
+    type=int,
+    default=0,
 )
 parser.add_argument(
     '--trim-5p',
@@ -156,6 +164,24 @@ def plot_3d_coords(coords: np.ndarray, labels=None, title="3D Coordinates"):
     plt.show()
 
 
+def _trim_rank(data: np.ndarray, low: int = 0, high: int = 1) -> np.ndarray:
+
+    U, S, Vh = np.linalg.svd(data)
+    return U[:, low:-high] @ np.diag(S[low:-high]) @ Vh[low:-high, :]
+
+
+def _fft_denoise(signal: np.ndarray, threshold: int = 0.05) -> np.ndarray:
+
+    fft = np.fft.fft2(signal)
+    magnitude = np.abs(fft)
+    max_magnitude = np.max(magnitude)
+
+    mask = magnitude > threshold * max_magnitude
+    fft_denoised = fft * mask
+
+    return np.real(np.fft.ifft2(fft_denoised)).astype(np.float32)
+
+
 def _plot_cooccurrence(data: np.ndarray, name: str) -> np.ndarray:
 
     vals = cooccurrence(data)
@@ -170,17 +196,17 @@ def _plot_cooccurrence(data: np.ndarray, name: str) -> np.ndarray:
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Residue", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
-    plt.savefig(f"figures/{name}-cooccurrence.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{name}-cooccurrence.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     return vals
 
 
-def _plot_conditional(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
+def _plot_conditional(data: np.ndarray, name: str, zero: int) -> np.ndarray:
 
     vals = conditional(data)
     if zero:
-        vals = zero_diag(vals)
+        vals = zero_diag(vals, zero)
 
     low = 1E-3
     high = vals.max() / 2
@@ -194,17 +220,25 @@ def _plot_conditional(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Residue", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
-    plt.savefig(f"figures/{name}-conditional.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{name}-conditional.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     return vals
 
 
-def _plot_correlation(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
+def _plot_correlation(data: np.ndarray, name: str, zero: int, rank: int = 0) -> np.ndarray:
 
     vals = correlation(data)
     if zero:
-        vals = zero_diag(vals)
+        vals = zero_diag(vals, zero)
+
+    med = np.mean(vals, axis=0)
+    vals = vals - med[None, :]
+    med = np.mean(vals, axis=1)
+    vals = vals - med[:, None]
+
+    if rank: 
+        vals = _trim_rank(vals, rank)
 
     low = 1E-6
     high = vals.max() / 2
@@ -215,20 +249,23 @@ def _plot_correlation(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     cbar.set_label("Correlation", fontsize=14)
     cbar.ax.tick_params(labelsize=13)
 
+    plt.title(f"Correlation ({name})")
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Residue", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
-    plt.savefig(f"figures/{name}-correlation.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{name}-correlation.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     return vals
 
 
-def _plot_mi(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
+def _plot_mi(data: np.ndarray, name: str, zero: int, rank: int = 0) -> np.ndarray:
 
     vals = mutual_information(data)
     if zero:
-        vals = zero_diag(vals)
+        vals = zero_diag(vals, zero)
+    if rank: 
+        vals = _trim_rank(vals, rank)
 
     low = 1E-6
     high = vals.max() / 2
@@ -239,10 +276,11 @@ def _plot_mi(data: np.ndarray, name: str, zero: bool) -> np.ndarray:
     cbar.set_label("Mutual Information", fontsize=14)
     cbar.ax.tick_params(labelsize=13)
 
+    plt.title(f"Mutual Information ({name})")
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Residue", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
-    plt.savefig(f"figures/{name}-mi.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{FIGURES}/{name}-mi.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     return vals
@@ -260,9 +298,8 @@ if __name__ == '__main__':
 
         data = f[args.dataset]
         if data.shape[0] > 1:
-            raise ValueError("For now, cmuts-cov can only handle 1 datapoint at a time.")
+            raise ValueError("For now, cmuts pairwise can only handle 1 datapoint at a time.")
         data = data[0]
-
 
         low = args.trim_5p
         high = data.shape[1] - args.trim_3p
@@ -270,18 +307,20 @@ if __name__ == '__main__':
 
         out = {}
 
+        os.makedirs(FIGURES, exist_ok=True)
+
         if args.cooccurrence:
             vals = _plot_cooccurrence(data, name)
-            out["cooccurrence"] = da.from_array(vals)
+            out[name + "/" + "cooccurrence"] = da.from_array(vals)
         if args.conditional:
             vals = _plot_conditional(data, name, args.zero_diag)
-            out["conditional"] = da.from_array(vals)
+            out[name + "/" + "conditional"] = da.from_array(vals)
         if args.correlation:
-            vals = _plot_correlation(data, name, args.zero_diag)
-            out["correlation"] = da.from_array(vals)
+            vals = _plot_correlation(data, name, args.zero_diag, args.low_rank)
+            out[name + "/" + "correlation"] = da.from_array(vals)
         if args.mutual_information:
-            vals = _plot_mi(data, name, args.zero_diag)
-            out["mi"] = da.from_array(vals)
+            vals = _plot_mi(data, name, args.zero_diag, args.low_rank)
+            out[name + "/" + "mi"] = da.from_array(vals)
 
         if out:
             da.to_hdf5(args.output, out)
