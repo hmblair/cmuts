@@ -501,6 +501,13 @@ static inline void __del(
     const Params& params
 ) {
 
+    // Skip conditions
+
+    if (!params.deletions || op.length() > params.max_indel_length) {
+        __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
+        return;
+    }
+
     // Start and end indices of the deletion
 
     int32_t start = rpos - op.length();
@@ -524,19 +531,13 @@ static inline void __del(
     std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, mask[qpos], params.spread);
 
     for (int32_t ix = ambig_end - 1; ix >= ambig_start; ix--) {
-
         base_t rbase = reference[ix];
-        if (params.deletions && last - ix >= params.collapse) {
-            __del_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start]);
-            last = ix;
-        } else {
-            __match_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start], params);
-        }
-
+        __del_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start]);
     }
 
     op.advance();
     rpos--;
+    last = rpos;
 
     __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
 
@@ -593,11 +594,6 @@ static inline void __count(
             }
 
             case HTS::CIGAR_t::DEL: {
-
-                if (op.length() > params.max_indel_length) {
-                    __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
-                    break;
-                }
 
                 __del<dtype, mode>(arr, op, rpos, qpos, last, reference, mask, params);
                 break;
@@ -678,6 +674,7 @@ static inline bool __check_quality(
         aln.length  >= params.min_length  &&
         aln.length  <= params.max_length
     );
+
 }
 
 
@@ -1067,7 +1064,7 @@ void Stats::body() const {
 
     if (_mpi.root()) {
         double processed = _percent(_processed, _aligned + _unaligned);
-        double skipped   = _percent(_skipped, _processed);
+        double skipped   = _percent(_skipped, _aligned + _unaligned);
         std::string file = std::to_string(_curr_file) + "/" + std::to_string(_files);
         _print_files.print(file);
         _print_processed.print(processed);
