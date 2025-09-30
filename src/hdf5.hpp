@@ -14,6 +14,7 @@
 #include <xtensor/views/xview.hpp>
 
 #include "mpi.hpp"
+#include "utils.hpp"
 
 // The array type used internally
 template <typename dtype, size_t N>
@@ -26,8 +27,8 @@ namespace HDF5 {
 
 namespace H5 = HighFive;
 
-const H5::File::AccessMode R = H5::File::ReadOnly;
-const H5::File::AccessMode RW = H5::File::ReadWrite;
+const H5::File::AccessMode R   = H5::File::ReadOnly;
+const H5::File::AccessMode RW  = H5::File::ReadWrite;
 const H5::File::AccessMode RWC = H5::File::ReadWrite | H5::File::Create;
 
 class Manager{

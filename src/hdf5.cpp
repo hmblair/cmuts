@@ -59,6 +59,7 @@ File::File(
     _compression(compression) {
 
     _throw_if_bad_compression(compression);
+    __log(_LOG_FILE, "Successfully loaded " + _name + ".");
 
 }
 
@@ -147,6 +148,8 @@ Writer<dtype, N>::Writer(
 
     auto dsprops = __get_dsprops(chunkdims, compression);
     dset = file.createDataSet<dtype>(name, H5::DataSpace(dims), dsprops);
+
+    __log(_LOG_FILE, "Successfully created " + name + " in " + file.name() + ".");
 
 }
 
