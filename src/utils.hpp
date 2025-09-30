@@ -16,6 +16,7 @@
     #include <unistd.h>
 #endif
 
+#include "mpi.hpp"
 
 const std::string _LOG_FILE = "cmuts.log";
 constexpr int32_t MAX_TRACE = 256;
