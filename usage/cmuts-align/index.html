@@ -845,7 +845,7 @@
   <h1>cmuts align</h1>
 
 <h2 id="purpose">Purpose</h2>
-<p><code>cmuts align</code> is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ files against a reference FASTA file.</p>
+<p><code>cmuts align</code> is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ files against a reference FASTA file, and sorting of the resulting SAM files. This is required if running <code>cmuts</code> directly from raw sequencing data.</p>
 <h2 id="usage">Usage</h2>
 <h3 id="alignment">Alignment</h3>
 <p>By defaut, <code>cmuts align</code> will perform alignment only, which also includes building the <code>bowtie2</code> index files and sorting the output SAM files. The syntax is</p>
@@ -879,19 +879,24 @@
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
 </code></pre></div>
 <p>The sorted alignments will again be in BAM format under the directory <code>$ALIGNMENTS</code>. However, their names will be given by the respective barcode which they correspond to, not the name of the original FASTQ file.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If the barcodes are named in the CSV file, then the outputs will have those as names rather than the respective barcodes (see <code>ultraplex</code> documentation).</p>
+</div>
 <h3 id="trimming">Trimming</h3>
-<p>Pre-alignment trimming (via <code>cutadapt</code>) can be achieved by passing a sequence to the <code>--trim</code> argument.</p>
+<p>Pre-alignment trimming (via <code>cutadapt</code>) can be achieved by passing a sequence to either the <code>--trim-5</code> or <code>--trim-3</code> argument, depending on which side the adapter belongs to. Separate adapters can be passed for each.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmuts<span class="w"> </span>align<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--threads<span class="w"> </span><span class="s2">"</span><span class="nv">$THREADS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--trim<span class="w"> </span><span class="s2">"</span><span class="nv">$TRIM</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--trim-5<span class="w"> </span><span class="s2">"</span><span class="nv">$TRIM5</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--trim-3<span class="w"> </span><span class="s2">"</span><span class="nv">$TRIM3</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--output<span class="w"> </span><span class="s2">"</span><span class="nv">$ALIGNMENTS</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$FASTQ</span><span class="s2">"</span>/*.fastq*
 </code></pre></div>
 <p>Trimming does not change the format of the output.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>If both <code>--trim</code> and <code>--barcodes</code> are specified, the trimming will occur first.</p>
+<p>If at least one of <code>--trim-5</code> and <code>--trim-3</code> are passed with <code>--barcodes</code> specified, the trimming will occur first.</p>
 </div>
 
 
