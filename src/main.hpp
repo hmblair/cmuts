@@ -51,7 +51,9 @@ public:
     Arg<bool> no_deletion;
     Arg<bool> tokenize;
     Arg<float> subsample;
-    Arg<bool> filter_coverage;
+    Arg<bool> no_filter_matches;
+    Arg<bool> no_filter_insertions;
+    Arg<bool> no_filter_deletions;
     Arg<bool> contiguous_ambiguous;
     Arg<bool> disable_ambiguous;
     Arg<int> print_every;
@@ -159,9 +161,17 @@ const std::string SUBSAMPLE_LONG_NAME = "--subsample";
 const float SUBSAMPLE_DEFAULT = 1.0;
 const std::string SUBSAMPLE_HELP = "Randomly choose to use a read with this probability.";
 
-const std::string FILTER_COVERAGE_SHORT_NAME = "";
-const std::string FILTER_COVERAGE_LONG_NAME = "--filter-coverage";
-const std::string FILTER_COVERAGE_HELP = "Apply the same filters to matches as are applied to modifications.";
+const std::string NO_FILTER_MATCHES_SHORT_NAME = "";
+const std::string NO_FILTER_MATCHES_LONG_NAME = "--no-match-filter";
+const std::string NO_FILTER_MATCHES_HELP = "Do not filter matches based on their PHRED base score.";
+
+const std::string NO_FILTER_INSERTIONS_SHORT_NAME = "";
+const std::string NO_FILTER_INSERTIONS_LONG_NAME = "--no-insertion-filter";
+const std::string NO_FILTER_INSERTIONS_HELP = "Do not filter insertions based on their PHRED base score.";
+
+const std::string NO_FILTER_DELETIONS_SHORT_NAME = "";
+const std::string NO_FILTER_DELETIONS_LONG_NAME = "--no-deletion-filter";
+const std::string NO_FILTER_DELETIONS_HELP = "Do not filter deletions based on their PHRED base score.";
 
 const std::string CONTIGUOUS_AMBIGUOUS_SHORT_NAME = "";
 const std::string CONTIGUOUS_AMBIGUOUS_LONG_NAME = "--contiguous-ambiguous";
@@ -201,7 +211,9 @@ cmutsProgram::cmutsProgram()
       no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
       tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
       subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
-      filter_coverage(_parser, FILTER_COVERAGE_SHORT_NAME, FILTER_COVERAGE_LONG_NAME, FILTER_COVERAGE_HELP),
+      no_filter_matches(_parser, NO_FILTER_MATCHES_SHORT_NAME, NO_FILTER_MATCHES_LONG_NAME, NO_FILTER_MATCHES_HELP),
+      no_filter_insertions(_parser, NO_FILTER_INSERTIONS_SHORT_NAME, NO_FILTER_INSERTIONS_LONG_NAME, NO_FILTER_INSERTIONS_HELP),
+      no_filter_deletions(_parser, NO_FILTER_DELETIONS_SHORT_NAME, NO_FILTER_DELETIONS_LONG_NAME, NO_FILTER_DELETIONS_HELP),
       contiguous_ambiguous(_parser, CONTIGUOUS_AMBIGUOUS_SHORT_NAME, CONTIGUOUS_AMBIGUOUS_LONG_NAME, CONTIGUOUS_AMBIGUOUS_HELP),
       disable_ambiguous(_parser, DISABLE_AMBIGUOUS_SHORT_NAME, DISABLE_AMBIGUOUS_LONG_NAME, DISABLE_AMBIGUOUS_HELP),
       print_every(_parser, PRINT_EVERY_SHORT_NAME, PRINT_EVERY_LONG_NAME, PRINT_EVERY_HELP, PRINT_EVERY_DEFAULT)

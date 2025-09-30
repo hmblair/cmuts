@@ -193,7 +193,9 @@ int main(int argc, char** argv) {
         !opt.no_insertion,
         !opt.no_deletion,
         opt.subsample,
-        opt.filter_coverage,
+        opt.no_filter_matches,
+        opt.no_filter_insertions,
+        opt.no_filter_deletions,
         !opt.disable_ambiguous,
         opt.contiguous_ambiguous,
         opt.print_every

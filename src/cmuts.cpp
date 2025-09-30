@@ -191,15 +191,13 @@ static inline dtype _total_muts(
 }
 
 template <typename dtype>
-static inline void _normalize(std::vector<dtype>& arr) {
+static inline void _normalize(std::vector<dtype>& arr, dtype mask) {
 
     dtype total = 0;
     for (const dtype& val : arr) { total += val; }
 
     if (total == 0) {
-
-        auto ONE = static_cast<dtype>(1);
-        for (dtype& val : arr) { val = ONE / arr.size(); }
+        for (dtype& val : arr) { val = mask / arr.size(); }
 
     } else {
 
@@ -246,7 +244,7 @@ static inline std::vector<dtype> _spread_weights(
                 weights[ix - start] = _total_muts<dtype, mode>(arr, ix) * mask;
             }
 
-            _normalize<dtype>(weights);
+            _normalize<dtype>(weights, mask);
             break;
 
         }
@@ -274,7 +272,7 @@ static inline void __match_core(
     const Params& params
 ) {
 
-    dtype _val = mask || !params.filter_coverage;
+    dtype _val = mask || params.no_filter_matches;
 
     // Count the base type and position
     if constexpr (mode == Mode::Normal) {
@@ -301,7 +299,8 @@ static inline void __mismatch_core(
     int32_t rpos,
     base_t qbase,
     base_t rbase,
-    dtype mask
+    dtype mask,
+    const Params& params
 ) {
 
     // Record the original base, new base, and position
@@ -328,23 +327,26 @@ static inline void __ins_core(
     view_t<dtype, _ndims(mode)> arr,
     int32_t rpos,
     base_t qbase,
-    dtype mask
+    dtype mask,
+    const Params& params
 ) {
+
+    dtype _val = mask || params.no_filter_insertions;
 
     // Record the new base and position
     if constexpr (mode == Mode::Normal) {
-        arr(rpos, qbase, IX_INS) += mask;
+        arr(rpos, qbase, IX_INS) += _val;
     }
 
     // Record the position; no associated match
     if constexpr (mode == Mode::LowMem) {
-        arr(rpos, LOWMEM_MOD) += mask;
+        arr(rpos, LOWMEM_MOD) += _val;
     }
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         ARR_TMP[rpos] = mask;
-        __joint<dtype, false>(arr, ARR_TMP, rpos, mask);
+        __joint<dtype, false>(arr, ARR_TMP, rpos, _val);
     }
 
 };
@@ -354,24 +356,27 @@ static inline void __del_core(
     view_t<dtype, _ndims(mode)> arr,
     int32_t rpos,
     base_t rbase,
-    dtype mask
+    dtype mask,
+    const Params& params
 ) {
+
+    dtype _val = mask;
 
     // Record the original base and position
     if constexpr (mode == Mode::Normal) {
-        arr(rpos, rbase, IX_DEL) += mask;
+        arr(rpos, rbase, IX_DEL) += _val;
     }
 
     // Record the position and an associated match
     if constexpr (mode == Mode::LowMem) {
-        arr(rpos, LOWMEM_MOD) += mask;
-        arr(rpos, LOWMEM_COV) += mask;
+        arr(rpos, LOWMEM_MOD) += _val;
+        arr(rpos, LOWMEM_COV) += _val;
     }
 
     // Store the modification in the temp dim and invoke the joint counter
     if constexpr (mode == Mode::Joint) {
         ARR_TMP[rpos] = mask;
-        __joint<dtype, false>(arr, ARR_TMP, rpos, mask);
+        __joint<dtype, false>(arr, ARR_TMP, rpos, _val);
     }
 
 };
@@ -447,7 +452,7 @@ static inline void __mismatch(
     base_t qbase = op.last(rbase);
 
     if (params.mismatches && last - rpos >= params.collapse && qbase != IX_UNK) {
-        __mismatch_core<dtype, mode>(arr, rpos, qbase, rbase, mask[qpos]);
+        __mismatch_core<dtype, mode>(arr, rpos, qbase, rbase, mask[qpos], params);
         last = rpos;
     } else {
         __match_core<dtype, mode>(arr, rpos, rbase, mask[qpos], params);
@@ -480,7 +485,7 @@ static inline void __ins(
     qpos--;
     base_t qbase = op.last();
     if (params.insertions && last - rpos >= params.collapse && qbase != IX_UNK) {
-        __ins_core<dtype, mode>(arr, rpos - 1, qbase, mask[qpos]);
+        __ins_core<dtype, mode>(arr, rpos - 1, qbase, mask[qpos], params);
         last = rpos;
     }
 
@@ -528,11 +533,12 @@ static inline void __del(
         }
     }
 
-    std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, mask[qpos], params.spread);
+    dtype _val = mask[qpos] || params.no_filter_deletions;
+    std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, _val, params.spread);
 
     for (int32_t ix = ambig_end - 1; ix >= ambig_start; ix--) {
         base_t rbase = reference[ix];
-        __del_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start]);
+        __del_core<dtype, mode>(arr, ix, rbase, weights[ix - ambig_start], params);
     }
 
     op.advance();
@@ -927,7 +933,7 @@ std::unique_ptr<Main> _get_main(
                     file, fasta, hdf5, mpi, params, stats, name
                 );
 
-       }
+        }
 
         case Mode::LowMem: {
 
@@ -935,7 +941,7 @@ std::unique_ptr<Main> _get_main(
                     file, fasta, hdf5, mpi, params, stats, name
                 );
 
-       }
+        }
 
         case Mode::Joint: {
 
@@ -943,7 +949,13 @@ std::unique_ptr<Main> _get_main(
                     file, fasta, hdf5, mpi, params, stats, name
                 );
 
-       }
+        }
+
+        case Mode::Tokenize: {
+
+            throw std::runtime_error("Mode::Tokenize is not a valid input to _get_main.");
+
+        }
 
     }
 

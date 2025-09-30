@@ -162,7 +162,9 @@ public:
     bool insertions;
     bool deletions;
     float subsample;
-    bool filter_coverage;
+    bool no_filter_matches;
+    bool no_filter_insertions;
+    bool no_filter_deletions;
     bool ambiguous;
     bool contiguous;
     // std::vector<std::vector<bool>> valid;
