@@ -24,7 +24,15 @@ void __log(const std::string& filename, const std::string& message) {
         return;
     }
 
-    file << "MESSAGE: " << message << std::endl;
+    file << "MESSAGE: " << message;
+
+    #ifdef MPI_BUILD
+        int rank = 0;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        file << " (process " << std::to_string(rank) << ")";
+    #endif
+
+    file << std::endl;
 
 }
 
@@ -32,7 +40,23 @@ void __init_log(const std::string& filename) {
 
     std::time_t now = std::time(nullptr);
     std::ofstream file(filename, std::ios::app);
+
+    if (!file) {
+        std::cerr << "Error opening the log file \"" << filename << "\".\n";
+        return;
+    }
+
+    #ifdef MPI_BUILD
+        int rank = 0;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (rank == 0) {
+    #endif
+
     file << "--------------- " << std::ctime(&now);
+
+    #ifdef MPI_BUILD
+        }
+    #endif
 
 }
 
