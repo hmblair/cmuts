@@ -70,6 +70,8 @@ The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation 
 
 **`-f, --fasta`** : Reference FASTA file (required)
 
+**`-t, --threads`** : The number of MPI processes to use (if built with MPI, default: 1)
+
 ### Output Control
 
 **`--overwrite`** : Overwrite existing HDF5 file

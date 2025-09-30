@@ -50,15 +50,19 @@ cmuts align \
 
 The sorted alignments will again be in BAM format under the directory `$ALIGNMENTS`. However, their names will be given by the respective barcode which they correspond to, not the name of the original FASTQ file.
 
+!!! warning
+    If the barcodes are named in the CSV file, then the outputs will have those as names rather than the respective barcodes (see `ultraplex` documentation).
+
 ### Trimming
 
-Pre-alignment trimming (via `cutadapt`) can be achieved by passing a sequence to the `--trim` argument.
+Pre-alignment trimming (via `cutadapt`) can be achieved by passing a sequence to either the `--trim-5` or `--trim-3` argument, depending on which side the adapter belongs to. Separate adapters can be passed for each.
 
 ```bash
 cmuts align \
   --fasta "$FASTA" \
   --threads "$THREADS" \
-  --trim "$TRIM" \
+  --trim-5 "$TRIM5" \
+  --trim-3 "$TRIM3" \
   --output "$ALIGNMENTS" \
   "$FASTQ"/*.fastq*
 ```
@@ -66,4 +70,4 @@ cmuts align \
 Trimming does not change the format of the output.
 
 !!! warning
-    If both `--trim` and `--barcodes` are specified, the trimming will occur first.
+    If at least one of `--trim-5` and `--trim-3` are passed with `--barcodes` specified, the trimming will occur first.

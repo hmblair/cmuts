@@ -14,12 +14,13 @@ FASTA=""
 OUTPUT=""
 THREADS="1"
 BARCODES=""
-TRIM=""
+TRIM5=""
+TRIM3=""
 FILES=()
 PAIRS=()
 
 print-usage() {
-  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim ADAPTER] [FILES ...] [--pairs PAIRS ...]"
+  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim-5 5' ADAPTER] [--trim-3 3' ADAPTER] [FILES ...] [--pairs PAIRS ...]"
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -44,9 +45,13 @@ while [[ "$#" -gt 0 ]]; do
       shift
       BARCODES="$1"
       ;;
-    --trim)
+    --trim-5)
       shift
-      TRIM="$1"
+      TRIM5="$1"
+      ;;
+    --trim-3)
+      shift
+      TRIM3="$1"
       ;;
     --pairs)
       shift
@@ -89,7 +94,7 @@ FASTA="$TEMP_FASTA"
 
 TRDIR="trimmed"
 
-if [[ ! -z "$TRIM" ]]; then
+if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 
   mkdir -p trimmed
 
@@ -101,10 +106,19 @@ if [[ ! -z "$TRIM" ]]; then
     echo >> $LOG
     echo " -- Trimming $FILE --" >> $LOG
 
+    FARGS=()
+    if [[ ! -z "$TRIM5"  ]]; then
+      FARGS+=("-g" "$TRIM5")
+    fi
+    if [[ ! -z "$TRIM3"  ]]; then
+      FARGS+=("-a" "$TRIM3")
+    fi
+
+
     cutadapt \
       --cores "$THREADS" \
-      -g "$TRIM" \
       -o "$TRDIR/$NAME" \
+      "${FARGS[@]}" \
       "$FILE" >> $LOG 2>&1
 
   done
