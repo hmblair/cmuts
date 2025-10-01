@@ -841,6 +841,22 @@ bgzfFileStream::bgzfFileStream(BGZF* file, int32_t size)
     : ByteStream(size), _file(file) {}
 
 
+void bgzfFileStream::skip(int32_t length) {
+
+    char buffer[BGZF_BUFFER];
+    int32_t left = length;
+
+    while (left > 0) {
+        int32_t read = std::min(BGZF_BUFFER, left);
+        _read_bgzf(_file, buffer, read);
+        left -= read;
+    }
+
+    _remaining -= length;
+
+}
+
+
 uint8_t bgzfFileStream::byte() {
 
     _remaining--;
@@ -1052,7 +1068,7 @@ static inline bool _is_aux(const std::string& line) {
 }
 
 
-Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool read) {
 
     Header header;
     int32_t ix = 0;
@@ -1065,7 +1081,7 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
 
     // The next set of lines are for the reference sequences
 
-    while (ix < length) {
+    while (ix < length && read) {
 
         line = block->str();
         ix += static_cast<int32_t>(line.length() + 1);
@@ -1079,16 +1095,16 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length) {
 
     // Skip any remaining blank space
 
-    if (ix < length) { (void)block->bytes(length - ix); }
+    if (ix < length) { (void)block->skip(length - ix); }
 
     return header;
 
 }
 
 
-Header _read_sam_header(std::unique_ptr<ByteStream>& block) {
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, bool read) {
 
-    return _read_sam_header(block, block->remaining());
+    return _read_sam_header(block, block->remaining(), read);
 
 }
 

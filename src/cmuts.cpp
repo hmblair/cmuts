@@ -508,7 +508,11 @@ static inline void __del(
 
     // Skip conditions
 
-    if (!params.deletions || op.length() > params.max_indel_length) {
+    if (
+        !params.deletions                     ||
+        op.length() > params.max_indel_length ||
+        last - (rpos - 1) < params.collapse
+    ) {
         __match<dtype, mode, true, false>(arr, op, rpos, qpos, reference, mask, params);
         return;
     }

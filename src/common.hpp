@@ -210,6 +210,7 @@ public:
     ByteStream(const ByteStream&) = delete;
     ByteStream& operator=(const ByteStream&) = delete;
 
+    virtual void skip(int32_t length) {};
     virtual uint8_t byte()                               = 0;
     virtual std::vector<uint8_t> bytes(int32_t length)   = 0;
     virtual std::vector<uint8_t> line(uint8_t delimiter) = 0;
@@ -318,6 +319,7 @@ public:
 
     bgzfFileStream(BGZF* file, int32_t size);
 
+    void skip(int32_t length) override;
     uint8_t byte() override;
     std::vector<uint8_t> bytes(int32_t length) override;
     std::vector<uint8_t> line(uint8_t delimiter) override;
@@ -421,8 +423,8 @@ struct Header {
 
 
 FileType _get_filetype(BGZF* _bgzf_file);
-Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length);
-Header _read_sam_header(std::unique_ptr<ByteStream>& block);
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool read = true);
+Header _read_sam_header(std::unique_ptr<ByteStream>& block, bool read = true);
 
 
 

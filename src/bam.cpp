@@ -534,23 +534,27 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
 
     FileType type = _get_filetype(_bgzf_file);
     if (type != FileType::BAM) {
-        __throw_and_log(_LOG_FILE, "Opening a non-CRAM file using _read_bam_header.");
+        __throw_and_log(_LOG_FILE, "Opening a non-BAM file using _read_bam_header.");
     }
 
     auto length = _read_bgzf_single<int32_t>(_bgzf_file);
     std::unique_ptr<ByteStream> stream = std::make_unique<bgzfFileStream>(_bgzf_file, length);
 
-    // Read the initial, uncompressed SAM header
+    // Skip the initial, uncompressed SAM header
 
-    Header data = _read_sam_header(stream);
+    Header data = _read_sam_header(stream, false);
 
-    // Skip past the uncompressed portion
+    // Read the number of references
+
+    _read_bgzf(_bgzf_file, &data.references, sizeof(uint32_t));
+
+    // Skip the remainder of the compressed portion
 
     char buffer[BGZF_BUFFER];
-    uint32_t references, name_len, ref_len;
+    uint32_t name_len = 0;
+    uint32_t ref_len  = 0;
 
-    _read_bgzf(_bgzf_file, &references, sizeof(uint32_t));
-    for (int32_t ix = 0; ix < references; ix++) {
+    for (int32_t ix = 0; ix < data.references; ix++) {
         _read_bgzf(_bgzf_file, &name_len, sizeof(uint32_t));
         if (name_len >= BGZF_BUFFER) {
             __throw_and_log(_LOG_FILE, "Header name larger than the buffer.");
