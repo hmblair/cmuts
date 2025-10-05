@@ -507,12 +507,13 @@ Alignment bamIterator::next() {
 
     Alignment aln;
 
-    aln.aligned = _bam_aligned(_hts_aln);
-    aln.mapq    = _bam_mapq(_hts_aln);
-    aln.length  = _bam_length(_hts_aln);
-    aln.offset  = _bam_offset(_hts_aln);
-    aln.cigar   = _bam_cigar(_hts_aln);
-    aln.phred   = _bam_phred(_hts_aln);
+    aln.aligned  = _bam_aligned(_hts_aln);
+    aln.reversed = bam_is_rev(_hts_aln);
+    aln.mapq     = _bam_mapq(_hts_aln);
+    aln.length   = _bam_length(_hts_aln);
+    aln.offset   = _bam_offset(_hts_aln);
+    aln.cigar    = _bam_cigar(_hts_aln);
+    aln.phred    = _bam_phred(_hts_aln);
 
     return aln;
 

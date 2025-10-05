@@ -161,12 +161,13 @@ public:
     bool mismatches;
     bool insertions;
     bool deletions;
+    bool reverse;
     float subsample;
     bool no_filter_matches;
     bool no_filter_insertions;
     bool no_filter_deletions;
     bool ambiguous;
-    bool contiguous;
+    int32_t gap;
     // std::vector<std::vector<bool>> valid;
     int64_t print_every;
 

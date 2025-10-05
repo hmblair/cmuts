@@ -96,45 +96,63 @@ int32_t _get_ambiguous_end_contiguous(
 }
 
 
-
-
-
-int32_t _get_ambiguous_end(
+int32_t _get_ambiguous_start_contiguous(
     int32_t start,
     int32_t end,
     const seq_t& sequence
 ) {
 
+    int32_t M = start - 1;
+    int32_t N = end - 1;
+
+    while (M >= 0 && sequence[M] == sequence[N]) { M--; N--; }
+
+    return N;
+
+}
+
+
+int32_t _get_ambiguous_end(
+    int32_t start,
+    int32_t end,
+    const seq_t& sequence,
+    int32_t max_gap
+) {
+
     auto size = static_cast<int32_t>(sequence.size());
     if (end >= size) { return size; }
 
-    // We wish to find the final base for which the deletion could
-    // have occured at. Given a string S, with deletion starting at
-    // position M and ending at position N, we wish to find the largest
-    // K such that S[K] could potentially be part of the deletion.
-    // If D is the string with the deletion, then we make use of
-    // the fact that S[K] is a valid deletion if and only if 
-    // D[M:K] is a subsequence of S[M:K-1].
-
-    // We can find the largest such K in an efficient manner.
-    //    - Check if D[N] is in S[M:N]. While this is so,
-    //    - Advance M to the base after the first position in
-    //      S where D[N] occurs, and
-    //    - Update N -> N + 1.
-    // The final N is the furthest base in the 3' direction
-    // that can be deleted to yield the same deletion. If N
-    // ever reaches the end of the reference sequence, we
-    // must terminate.
-
     int32_t M = start;
     int32_t N = end;
+    int32_t gap = 0;
 
-    while (M < N && N < size) {
-        if (sequence[M] == sequence[N]) { N++; }
+    while (M < N && N < size && gap <= max_gap) {
+        if (sequence[M] == sequence[N]) { N++; } else { gap++; }
         M++;
     }
 
     // This is the position of the base _after_ the final base that can be deleted.
+    return N;
+
+}
+
+
+int32_t _get_ambiguous_start(
+    int32_t start,
+    int32_t end,
+    const seq_t& sequence,
+    int32_t max_gap
+) {
+
+    int32_t M = start - 1;
+    int32_t N = end - 1;
+    int32_t gap = 0;
+
+    while (M < N && M >= 0 && gap <= max_gap) {
+        if (sequence[M] == sequence[N]) { N--; } else { gap++; }
+        M--;
+    }
+
     return N;
 
 }
@@ -183,7 +201,7 @@ static inline dtype _total_muts(
     }
 
     if constexpr (mode == Mode::Joint) {
-        return arr.periodic(ix, -1, 0, 0);
+        return ARR_TMP[ix];
     }
 
     throw std::runtime_error("Invalid mode for _total_muts.");
@@ -530,11 +548,8 @@ static inline void __del(
     int32_t ambig_end   = end;
 
     if (params.ambiguous) {
-        if (params.contiguous) {
-            ambig_end = _get_ambiguous_end_contiguous(start, end, reference);
-        } else {
-            ambig_end = _get_ambiguous_end(start, end, reference);
-        }
+        ambig_start = _get_ambiguous_start(start, end, reference, params.gap);
+        ambig_end   = _get_ambiguous_end(start, end, reference, params.gap);
     }
 
     dtype _val = mask[qpos] || params.no_filter_deletions;
@@ -680,9 +695,10 @@ static inline bool __check_quality(
 
     return (
         aln.aligned                       &&
-        aln.mapq    >= params.min_mapq    &&
-        aln.length  >= params.min_length  &&
-        aln.length  <= params.max_length
+        (params.reverse || !aln.reversed) &&
+        aln.mapq   >= params.min_mapq     &&
+        aln.length >= params.min_length   &&
+        aln.length <= params.max_length
     );
 
 }
@@ -907,15 +923,15 @@ Mode mode(bool lowmem, bool joint) {
 
 }
 
-Spread spread(bool uniform, bool mutation_informed) {
+Spread spread(bool uniform, bool none) {
 
-    if (uniform && mutation_informed) {
-        throw std::runtime_error("--uniform-spread and --mutation-spread are mutually exclusive.");
+    if (uniform && none) {
+        throw std::runtime_error("--uniform-spread and --no-spread are mutually exclusive.");
     }
 
     if (uniform) { return Spread::Uniform; }
-    if (mutation_informed) { return Spread::MutationInformed; }
-    return Spread::None;
+    if (none) { return Spread::None; }
+    return Spread::MutationInformed;
 
 }
 

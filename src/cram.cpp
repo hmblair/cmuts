@@ -1399,7 +1399,8 @@ Alignment cramIterator::next() {
     if (reference == UNALIGNED) { return {}; }
     _curr++;
 
-    bool aligned = true;
+    bool aligned  = true;
+    bool reversed = false;
 
     // The FN field tells us the number of read features. In the case that there
     // is only one query, the FN field is not present, so we use the length of the
@@ -1451,7 +1452,7 @@ Alignment cramIterator::next() {
     std::vector<uint8_t> scores = at(ExtData_t::QS)->array(length);
     PHRED phred(scores);
 
-    return {aligned, mapq, length, _offset, reference, _cigar, phred};
+    return {aligned, reversed, mapq, length, _offset, reference, _cigar, phred};
 
 }
 

@@ -600,10 +600,11 @@ public:
 class Alignment {
 public:
 
-    bool aligned   = false;
-    qual_t mapq    = MISSING_MAPQ;
-    int32_t length = 0;
-    int32_t offset = 0;
+    bool aligned      = false;
+    bool reversed     = false;
+    qual_t mapq       = MISSING_MAPQ;
+    int32_t length    = 0;
+    int32_t offset    = 0;
     int32_t reference = -1;
     CIGAR cigar;
     PHRED phred;
