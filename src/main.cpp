@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
     cmuts::Spread spread;
     try {
         mode   = cmuts::mode(opt.lowmem, opt.joint);
-        spread = cmuts::spread(opt.uniform_spread, opt.mutation_spread);
+        spread = cmuts::spread(opt.uniform_spread, opt.no_spread);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
@@ -192,12 +192,13 @@ int main(int argc, char** argv) {
         !opt.no_mismatch,
         !opt.no_insertion,
         !opt.no_deletion,
+        !opt.no_reverse,
         opt.subsample,
         opt.no_filter_matches,
         opt.no_filter_insertions,
         opt.no_filter_deletions,
         !opt.disable_ambiguous,
-        opt.contiguous_ambiguous,
+        opt.deletion_gap,
         opt.print_every
     };
 
