@@ -1066,16 +1066,19 @@ p_{00} &amp; p_{01} \\ p_{10} &amp; p_{11}
 <p><strong><code>--max-indel-length</code></strong> : Maximum indel length to consider (default: 10)</p>
 <p><strong><code>--collapse</code></strong> : Collapse modifications within this distance in a read (default: 2)</p>
 <p><strong><code>--no-mismatches</code></strong> : Exclude mismatches from modification counts</p>
-<p><strong><code>--no-insertions</code></strong> : Exclude insertions from modification counts (recommended for MaP-seq)</p>
+<p><strong><code>--no-insertions</code></strong> : Exclude insertions from modification counts</p>
 <p><strong><code>--no-deletions</code></strong> : Exclude deletions from modification counts</p>
 <h3 id="deletion-handling">Deletion Handling</h3>
+<p><strong><code>--deletion-gap</code></strong> : The number of gaps to allow when detecting ambiguous deletions (default: 0)</p>
 <p><strong><code>--uniform-spread</code></strong> : Uniformly spread ambiguous deletions</p>
-<p><strong><code>--mutation-spread</code></strong> : Spread ambiguous deletions according to existing mutation profile</p>
+<p><strong><code>--no-spread</code></strong> : Do not spread ambiguous deletions</p>
 <p><strong><code>--disable-ambiguous</code></strong> : Use alignment-provided deletions only</p>
 <p><strong><code>--contiguous-ambiguous</code></strong> : Allow only contiguous regions as ambiguous deletions</p>
 <h3 id="sampling-and-coverage">Sampling and Coverage</h3>
 <p><strong><code>--subsample</code></strong> : Random read acceptance probability (default: 1.0)</p>
-<p><strong><code>--filter-coverage</code></strong> : Apply modification filters to matches (recommended for MaP-seq)</p>
+<p><strong><code>--no-match-filter</code></strong> : Do not filter matches based on their PHRED base score (as in <code>rf-count</code>)</p>
+<p><strong><code>--no-insertion-filter</code></strong> : Do not filter insertions based on their PHRED base score (as in <code>rf-count</code>)</p>
+<p><strong><code>--no-deletion-filter</code></strong> : Do not filter deletions based on their PHRED base score (as in <code>rf-count</code>)</p>
 <h3 id="performance">Performance</h3>
 <p><strong><code>--chunk-size</code></strong> : Internal buffer size per thread in references (default: 128)</p>
 <p><strong><code>--print-every</code></strong> : Progress update frequency in reads processed (default: 1,000)</p>
