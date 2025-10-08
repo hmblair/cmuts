@@ -12,7 +12,7 @@ cmuts normalize \
 The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated and untreated modification counts are stored, respectively. The latter is optional.
 
 !!! tip
-  More than one file can be passed to `cmuts normalize`. In such a case, the modification counts are summed across the files before normalization. This is useful in the case where the inputs to `cmuts core` were split across multiple files.
+    More than one file can be passed to `cmuts normalize`. In such a case, the modification counts are summed across the files before normalization. This is useful in the case where the inputs to `cmuts core` were split across multiple files.
 
 ## Command Line Options
 
@@ -81,6 +81,6 @@ The output of `cmuts normalize` will be an HDF5 file with the following structur
 **reads**: The number of reads used to compute each reactivity profile.
 
 !!! warning
-  If a value was passed to `--group`, then the above will be contained in an HDF5 group with that name.
+    If a value was passed to `--group`, then the above will be contained in an HDF5 group with that name.
 
 ### Figures
