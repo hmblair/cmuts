@@ -9,9 +9,17 @@
 #include "utils.hpp"
 
 #ifdef MPI_BUILD
+#ifdef DEBUG
+const std::string PROGRAM = "cmuts core MPI (DEBUG)";
+#else
 const std::string PROGRAM = "cmuts core MPI";
+#endif
+#else
+#ifdef DEBUG
+const std::string PROGRAM = "cmuts core (DEBUG)";
 #else
 const std::string PROGRAM = "cmuts core";
+#endif
 #endif
 
 static inline bool __mpi_build() {
@@ -196,7 +204,7 @@ const std::string PRINT_EVERY_HELP = "Update the progress indicators each time t
 
 
 cmutsProgram::cmutsProgram()
-    : Program(PROGRAM, PROGRAM + " " + Utils::_get_version()),
+    : Program(PROGRAM, PROGRAM + " " + VERSION),
       files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
       output(_parser, OUTPUT_SHORT_NAME, OUTPUT_LONG_NAME, OUTPUT_HELP),
       fasta(_parser, FASTA_SHORT_NAME, FASTA_LONG_NAME, FASTA_HELP),

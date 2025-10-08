@@ -24,8 +24,7 @@ public:
 
 };
 
-const std::string PROGRAM = "cmuts-test";
-const std::string VERSION = "1.0.0";
+const std::string PROGRAM = "cmuts generate";
 
 class testsProgram : public Program {
 public:

@@ -1,0 +1,786 @@
+#!/usr/bin/env python3
+
+import h5py
+import dask.array as da
+import os
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from enum import Enum
+from dataclasses import dataclass
+
+# The font for plotting
+
+plt.rcParams['font.family'] = 'Helvetica'
+
+
+@dataclass
+class ReacData:
+    mod: np.ndarray | None = None
+    nomod: np.ndarray | None = None
+    combined: np.ndarray | None = None
+
+
+class NormMethod(Enum):
+    RAW = 0
+    UBR = 1
+    OUTLIER = 2
+
+# ANSI escape codes (for printing)
+
+BOLD = '\033[1m'
+RESET = '\033[0m'
+
+with open(f"{os.path.dirname(os.path.abspath(__file__))}/VERSION", "r") as f:
+    VERSION = f.read().strip()
+
+NAME = 'cmuts normalize'
+PBAR_WIDTH = 20
+FIGURES = "figures"
+
+# Datasets in the output HDF5 file
+
+REACTIVITY_DS = 'reactivity'
+READS_DS = 'reads'
+ERROR_DS = "error"
+SNR_DS = "SNR"
+NORM_DS = "norm"
+ROI_DS = "roi-mask"
+HEATMAP_DS = "heatmap"
+SEQUENCE_DS = 'sequence'
+
+# Input array indices
+
+IX_DEL = 4
+IX_INS = 5
+IX_TERM = 6
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    'file',
+    help='The HDF5 file containing the input data.',
+)
+parser.add_argument(
+    '--mod',
+    nargs="+",
+    help='The names of the datasets containing the mutation counts of the modified sequences.',
+    required=True,
+)
+parser.add_argument(
+    '--nomod',
+    nargs="+",
+    help='The names of the datasets containing the mutation counts of the non-modified sequences.',
+)
+parser.add_argument(
+    '--group',
+    help='The group in the output file to place the reads and reactivities.',
+    default="",
+)
+parser.add_argument(
+    '-o', '--out',
+    help='The output HDF5 file to write to.',
+    default='reactivity.h5'
+)
+parser.add_argument(
+    '--overwrite',
+    help='Overwrite an existing HDF5 file (the whole file, not just the group).',
+    action='store_true',
+)
+parser.add_argument(
+    '--clip-low',
+    help='Clip negative reactivity values.',
+    action='store_true',
+)
+parser.add_argument(
+    '--clip-high',
+    help='Clip reactivity values above 1.',
+    action='store_true',
+)
+parser.add_argument(
+    '--blank-5p',
+    help='NaN out this many bases on the 5\' end.',
+    type=int,
+    default=0,
+)
+parser.add_argument(
+    '--blank-3p',
+    help='NaN out this many bases on the 3\' end.',
+    type=int,
+    default=0,
+)
+parser.add_argument(
+    '--blank-cutoff',
+    help='NaN out any positions with less than this many reads.',
+    type=int,
+    default=10,
+)
+parser.add_argument(
+    '--norm-independent',
+    help='Normalize each profile separately, rather than using experiment-wide statistics.',
+    action='store_true',
+)
+parser.add_argument(
+    '--raw',
+    help='Do not normalize the reactivity values.',
+    action='store_true',
+)
+parser.add_argument(
+    '--norm-outlier',
+    help='Use the 2-8 outlier-based normalization method.',
+    action='store_true',
+)
+parser.add_argument(
+    '--norm-cutoff',
+    help='References with at least this many reads are used for normalization.',
+    type=int,
+    default=500,
+)
+parser.add_argument(
+    '--norm-percentile',
+    help='The reactivity percentile to use for normalization.',
+    type=int,
+    default=90,
+)
+
+
+def _title(program: str, version: str, name: str) -> str:
+    return f"""        {program} version {version}
+      ───────────────────────────────────
+        {BOLD}Statistics for {name}:{RESET}"""
+
+
+def _remove_if_exists(
+    path: str,
+    overwrite: bool = False
+) -> None:
+    if os.path.exists(path):
+        if overwrite:
+            os.remove(path)
+
+
+def _norm_method(raw: bool, outlier: bool) -> NormMethod:
+
+    if raw and outlier:
+        raise ValueError("The --raw and --norm-outlier flags are mutually exclusive.")
+
+    if raw:
+        return NormMethod.RAW
+    if outlier:
+        return NormMethod.OUTLIER
+    else:
+        return NormMethod.UBR
+
+
+def _reactivity(
+    modifications: da.Array,
+    coverage: da.Array,
+    mask: da.Array,
+) -> da.Array:
+
+    reactivity = da.divide(
+        modifications,
+        coverage,
+        where=mask,
+        out=da.ones_like(modifications) * np.nan,
+    )
+    return da.clip(reactivity, 0, 1)
+
+
+def _error(
+    reactivity: da.Array,
+    coverage: da.Array,
+    mask: da.Array,
+) -> da.Array:
+
+    return da.divide(
+        da.sqrt(reactivity * (1 - reactivity)),
+        da.sqrt(coverage),
+        where=mask,
+        out=da.ones_like(reactivity) * np.nan,
+    )
+
+
+def _snr(reactivity: da.Array, error: da.Array) -> da.Array:
+
+    return np.divide(
+        reactivity,
+        error,
+        where=(error > 0),
+        out=np.zeros_like(reactivity),
+    ).mean(-1)
+
+
+def _print_stats(
+    reactivity: ReacData,
+    reads: ReacData,
+    mask: ReacData,
+    error: ReacData,
+    snr: ReacData,
+    norm: np.ndarray,
+) -> None:
+
+    nseqs = reads.combined.shape[0]
+    seqlen = reactivity.combined.shape[1]
+
+    # Total reads
+
+    tr = np.sum(reads.combined)
+
+    # Mean reads
+
+    mr = np.mean(reads.combined)
+    mr_mod = np.mean(reads.mod)
+    if reads.nomod is not None:
+        mr_nomod = np.mean(reads.nomod)
+
+    # Median reads
+
+    medr = np.median(reads.combined)
+    medr_mod = np.median(reads.mod)
+    if reads.nomod is not None:
+        medr_nomod = np.median(reads.nomod)
+
+    # Mean SNR
+
+    msnr = np.mean(snr.combined)
+    msnr_mod = np.mean(snr.mod)
+    if snr.nomod is not None:
+        msnr_nomod = np.mean(snr.nomod)
+
+    # Median SNR
+
+    mrr = np.mean(reactivity.combined[mask.combined])
+    mrr_mod = np.mean(reactivity.mod[mask.mod])
+    if reactivity.nomod is not None:
+        mrr_nomod = np.mean(reactivity.nomod[mask.nomod])
+
+    # Frac SNR > 1
+
+    fsnr = np.mean(snr.combined > 1)
+    fsnr_mod = np.mean(snr.mod > 1)
+    if snr.nomod is not None:
+        fsnr_nomod = np.mean(snr.nomod > 1)
+
+    # Frac reads == 0
+
+    dr_f_mod = (reads.mod == 0).sum() / nseqs
+    if reads.nomod is not None:
+        dr_f_nomod = (reads.nomod == 0).sum() / nseqs
+        dr_f = (reads.combined == 0).sum() / nseqs
+
+    # Mean error
+
+    me = error.combined[mask.combined].mean()
+    me_mod = error.mod[mask.mod].mean()
+    if error.nomod is not None:
+        me_nomod = error.nomod[mask.nomod].mean()
+
+    # Mean-to-Median
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        med2m = mr / medr
+        med2m_mod = mr_mod / medr_mod
+        if reads.nomod is not None:
+            med2m_nomod = mr_nomod / medr_nomod
+
+    print(f"         References:              {nseqs:,}")
+    print(f"         Reference length:        {seqlen:,}")
+    print(f"         Total reads:             {int(tr):,}")
+    print(f"         {BOLD}Treated (MOD):{RESET}")
+    print(f"          Mean reads:             {mr_mod:.2f}")
+    print(f"          Median reads:           {int(medr_mod):,}")
+    print(f"          Mean-to-Median:         {med2m_mod:.2f}")
+    print(f"          Mean reactivity:        {mrr_mod:.3f}")
+    print(f"          Mean error:             {me_mod:.3f}")
+    print(f"          Dropout fraction:       {dr_f_mod:.2f}")
+    print(f"          Mean SNR:               {msnr_mod:.2f}")
+    print(f"          SNR > 1:                {fsnr_mod:.2f}")
+    if reads.nomod is not None:
+        print(f"         {BOLD}Untreated (NOMOD):{RESET}")
+        print(f"          Mean reads:             {mr_nomod:.2f}")
+        print(f"          Median reads:           {int(medr_nomod):,}")
+        print(f"          Mean-to-Median:         {med2m_nomod:.2f}")
+        print(f"          Mean reactivity:        {mrr_nomod:.3f}")
+        print(f"          Mean error:             {me_nomod:.3f}")
+        print(f"          Dropout fraction:       {dr_f_nomod:.2f}")
+        print(f"          Mean SNR:               {msnr_nomod:.2f}")
+        print(f"          SNR > 1:                {fsnr_nomod:.2f}")
+        print(f"         {BOLD}Combined:{RESET}")
+        print(f"          Mean reads:             {mr:.2f}")
+        print(f"          Median reads:           {int(medr):,}")
+        print(f"          Mean-to-Median:         {med2m:.2f}")
+        print(f"          Mean reactivity:        {mrr:.3f}")
+        print(f"          Mean error:             {me:.3f}")
+        print(f"          Dropout fraction:       {dr_f:.2f}")
+        print(f"          Mean SNR:               {msnr:.2f}")
+        print(f"          SNR > 1:                {fsnr:.2f}")
+    print("      ───────────────────────────────────")
+    print()
+
+
+def _process_single(
+    file: h5py.File,
+    groups: list[str],
+    roi: slice,
+    min: int = 10,
+    use_dels: bool = True,
+    use_ins: bool = True,
+) -> tuple[np.ndarray | None, ...]:
+
+    if not groups:
+        NUM_OUTS = 7
+        return (None,) * NUM_OUTS
+
+    # Lazily load the HDF5 files into dask arrays
+
+    arr = 0
+    ix = 0
+
+    for group in groups:
+        try:
+            arr += da.from_array(file[group], chunks='auto')
+            ix += 1
+        except Exception as e:
+            print(f"Error loading the dataset {group}:")
+            raise e
+
+    if not ix:
+        raise RuntimeError("No datasets were successfully loaded.")
+
+    # Compute the modification heatmap
+    # The termination events are normalized separately
+
+    heatmap = arr.mean((0, 1))
+    heatmap = heatmap / heatmap.sum()
+
+    # Compute the coverage as the sum of all matches and mismatches.
+    # Store the mean coverage as a function of position for later.
+
+    coverage = da.sum(arr[..., :IX_DEL], axis=(2, 3))
+    mc = da.mean(coverage, axis=0)
+
+    # Compute the coverage mask
+
+    mask = (coverage > min)
+    mask[:, ~roi] = False
+
+    # Compute termination events
+
+    term = da.sum(arr[..., IX_TERM], axis=2)
+
+    # Compute the trace to get the non-modified rates only
+
+    trace = da.trace(arr, axis1=2, axis2=3)
+
+    # Subtract the trace to get the pure modifications
+
+    modifications = coverage - trace
+
+    # Account for insertions and deletions
+
+    if use_ins:
+        modifications += da.sum(arr[..., IX_INS], axis=-1)
+    if use_dels:
+        modifications += da.sum(arr[..., IX_DEL], axis=-1)
+
+    # Divide by the coverage to get the un-normalised reactivity
+
+    reactivity = _reactivity(modifications, coverage, mask)
+
+    # SEM of a Bernoulli random variable
+
+    err = _error(reactivity, coverage, mask)
+
+    # Get the read counts and compute all values
+
+    reads = da.max(coverage, axis=(-1,))
+
+    # Compute all values
+
+    return da.compute(reactivity, reads, err, mask, heatmap, mc, term)
+
+
+def _process(
+    file: h5py.File,
+    mod_groups: list[str],
+    nomod_groups: list[str],
+    roi: slice,
+    min: int = 10,
+    use_dels: bool = True,
+    use_ins: bool = True,
+) -> tuple[ReacData, ...]:
+
+    (
+        mod_reactivity,
+        mod_reads,
+        mod_err,
+        mod_mask,
+        mod_heatmap,
+        mod_mc,
+        mod_term,
+    ) = _process_single(file, mod_groups, roi, min, use_dels, use_ins)
+
+    (
+        nomod_reactivity,
+        nomod_reads,
+        nomod_err,
+        nomod_mask,
+        nomod_heatmap,
+        nomod_mc,
+        nomod_term
+    ) = _process_single(file, nomod_groups, roi, min, use_dels, use_ins)
+
+    # Reactivity
+
+    reactivity = ReacData(mod_reactivity, nomod_reactivity)
+    if reactivity.nomod is not None:
+        reactivity.combined = reactivity.mod - reactivity.nomod
+    else:
+        reactivity.combined = reactivity.mod
+
+    # Reads
+
+    reads = ReacData(mod_reads, nomod_reads)
+    if reads.nomod is not None:
+        reads.combined = reads.mod + reads.nomod
+    else:
+        reads.combined = reads.mod
+
+    # Error
+
+    err = ReacData(mod_err, nomod_err)
+    if reads.nomod is not None:
+        err.combined = np.sqrt(err.mod ** 2 + err.nomod ** 2)
+    else:
+        err.combined = err.mod
+
+    # Mask
+
+    mask = ReacData(mod_mask, nomod_mask)
+    if mask.nomod is not None:
+        mask.combined = mask.mod & mask.nomod
+    else:
+        mask.combined = mask.mod
+
+    # Heatmap
+
+    heatmap = ReacData(mod_heatmap, nomod_heatmap)
+    heatmap.combined = heatmap.mod
+
+    # Mean coverage
+
+    mc = ReacData(mod_mc, nomod_mc)
+    if mc.nomod is not None:
+        mc.combined = mc.mod + mc.nomod
+    else:
+        mc.combined = mc.mod
+    mc.combined /= reads.combined.mean()
+
+    # Termination events
+
+    term = ReacData(mod_term, nomod_term)
+    if term.nomod is not None:
+        term.combined = term.mod + term.nomod
+    else:
+        term.combined = term.mod
+    term.combined /= term.combined.sum(axis=1)[:, None]
+
+    return reactivity, reads, err, mask, heatmap, mc, term
+
+
+def _get_norm_raw(reactivity: np.ndarray) -> np.ndarray:
+    """
+    No normalization.
+    """
+
+    return np.ones(1, dtype=reactivity.dtype)
+
+
+def _get_norm_2_8_OLD(reactivity: np.ndarray) -> np.ndarray:
+    """
+    2-8% Normalization: From top 10%, ignore top 2% and divide by average of
+    remaining 8%.
+    """
+
+    p90 = np.percentile(reactivity, 90)
+    p98 = np.percentile(reactivity, 98)
+
+    values = reactivity[(reactivity >= p90) & (reactivity < p98)]
+    return np.mean(values)
+
+
+def _get_norm_2_8(reactivity: np.ndarray) -> np.ndarray:
+    """
+    2-8% Normalization: From top 10%, ignore top 2% and divide by average of
+    remaining 8%.
+    """
+
+    def norm_1d(arr):
+        p2 = max(1, round(len(arr) * 0.02) - 1)
+        p10 = max(1, round(len(arr) * 0.1) - 1)
+
+        sarr = np.sort(arr)[::-1]  # descending sort
+        m = np.mean(sarr[p2:p10+1])
+        if m < 1E-3:
+            m = 1
+        return np.float32(m)
+
+    def norm_1d_OLD(arr):
+        p90 = np.percentile(arr, 90)
+        p98 = np.percentile(arr, 98)
+        values = arr[(arr >= p90) & (arr < p98)]
+        return np.mean(values) if len(values) > 0 else 0
+
+    return np.apply_along_axis(norm_1d, axis=1, arr=reactivity)
+
+
+def _get_norm_ubr(
+    reactivity: np.ndarray,
+    reads: np.ndarray,
+    mask: np.ndarray,
+    cutoff: int,
+    percentile: int,
+) -> np.ndarray:
+
+    _good_pos = mask & (reads > cutoff)[:, None]
+    high_reactivity = reactivity[_good_pos]
+
+    return np.percentile(high_reactivity.flatten(), percentile)
+
+
+def _get_norm(
+    reactivity: np.ndarray,
+    reads: np.ndarray,
+    mask: np.ndarray,
+    cutoff: int,
+    percentile: int,
+    method: NormMethod,
+) -> tuple[np.ndarray, ...]:
+
+    if method == NormMethod.RAW:
+        return _get_norm_raw(reactivity)
+    if method == NormMethod.UBR:
+        return _get_norm_ubr(reactivity, reads, mask, cutoff, percentile)
+    if method == NormMethod.OUTLIER:
+        return _get_norm_2_8(reactivity)
+
+
+def _get_sequences(file: h5py.File) -> da.Array:
+
+    # Get the tokenized sequences if they exist
+
+    if SEQUENCE_DS in file:
+        return da.from_array(file[SEQUENCE_DS], chunks='auto')
+
+    return None
+
+
+def _plot_heatmap(heatmap: da.Array, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    im = plt.imshow(heatmap, cmap="RdPu", norm=LogNorm(vmin=1E-4, vmax=1E0))
+    plt.colorbar(im, label="Occurrence Probability")
+
+    plt.title(f"Modification Heatmap for {name}", fontsize=15)
+    plt.xticks(range(7), ["A", "C", "G", "U", "del", "ins", "term"], fontsize=12)
+    plt.yticks(range(4), ["A", "C", "G", "U"], fontsize=12)
+
+    plt.savefig(f"{FIGURES}/{prefix}heatmap.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_read_hist(reads: np.ndarray, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    with np.errstate(divide='ignore'):
+        lr = np.where(reads == 0, -1, np.log10(reads))
+
+    counts, bins, patches = plt.hist(lr, bins=100)
+    plt.grid(axis="y", alpha=0.5)
+
+    norm = plt.Normalize(counts.min(), counts.max())
+    for count, patch in zip(counts, patches):
+        patch.set_facecolor(plt.cm.RdPu(norm(count)))
+
+    plt.title(f"Read distribution for {name}", fontsize=15)
+    plt.xlabel("log10 Read Depth", fontsize=12)
+    plt.ylabel("Count", fontsize=12)
+
+    plt.savefig(f"{FIGURES}/{prefix}reads-hist.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_termination(term: np.ndarray, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    term = np.mean(term, axis=0)
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.fill_between(range(len(term)), term, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(term, color=plt.cm.RdPu(0.8), linewidth=1)
+
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Termination density", fontsize=14)
+    plt.ylim(0, 1)
+    plt.tick_params(axis='both', labelsize=13)
+    plt.title(f"Termination by position for {name}", fontsize=14)
+    plt.savefig(f"{FIGURES}/{prefix}termination.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_examples(reactivity: np.ndarray, name: str, num: int = 250) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    if reactivity.shape[0] == 1:
+        reactivity = reactivity[0]
+
+        plt.grid(axis="y", alpha=0.5)
+        plt.fill_between(range(len(reactivity)), reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
+        plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
+        plt.xlabel("Residue", fontsize=14)
+        plt.ylabel("Reactivity", fontsize=14)
+        plt.title(f"Profile of {name}", fontsize=14)
+        plt.tick_params(axis='both', labelsize=13)
+        plt.savefig(f"{FIGURES}/{prefix}profile.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+    else:
+        vals = reactivity[:num]
+        im = plt.imshow(vals, cmap="RdPu", vmin=0, vmax=1)
+        plt.colorbar(im, label="Reactivity")
+        plt.xlabel("Residue", fontsize=12)
+        plt.ylabel("Sequence Index", fontsize=12)
+        plt.title(f"Profile heatmap of {name}", fontsize=14)
+        plt.savefig(f"{FIGURES}/{prefix}examples.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+
+def _plot_coverage(coverage: np.ndarray, name: str) -> None:
+
+    prefix = f"{name}-" if name else ""
+
+    plt.fill_between(range(len(coverage)), coverage, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(coverage, color=plt.cm.RdPu(0.8))
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Fraction of reads", fontsize=14)
+    plt.title(f"Coverage by position for {name}", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
+    plt.savefig(f"{FIGURES}/{prefix}coverage.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+if __name__ == '__main__':
+
+    args = parser.parse_args()
+    print(_title(NAME, VERSION, args.group))
+
+    _remove_if_exists(args.out, args.overwrite)
+
+    # Treat an empty nomod dataset as if it were not passed
+
+    if not args.nomod:
+        args.nomod = None
+
+    with h5py.File(args.file, 'r') as f:
+
+        n = f[args.mod[0]].shape[1]
+
+        BLANK_OUT5 = args.blank_5p
+        BLANK_OUT3 = n - args.blank_3p
+
+        ROI = np.ones(n, dtype=bool)
+        ROI[:BLANK_OUT5] = False
+        ROI[BLANK_OUT3:] = False
+
+        reactivity, reads, err, mask, heatmap, mc, term = _process(
+            f, args.mod, args.nomod, ROI, args.blank_cutoff,
+        )
+
+        # Normalize the reactivity and its error
+        # SNR is unchanged
+
+        method = _norm_method(args.raw, args.norm_outlier)
+        norm = _get_norm(
+            reactivity.combined,
+            reads.combined,
+            mask.combined,
+            args.norm_cutoff,
+            args.norm_percentile,
+            method,
+        )
+
+        err.mod /= norm[..., None]
+        err.combined /= norm[..., None]
+        if err.nomod is not None:
+            err.nomod /= norm[..., None]
+
+        reactivity.mod /= norm[..., None]
+        reactivity.combined /= norm[..., None]
+        if reactivity.nomod is not None:
+            reactivity.nomod /= norm[..., None]
+
+        snr_mod = _snr(reactivity.mod, err.mod)
+        if reactivity.nomod is not None:
+            snr_nomod = _snr(reactivity.nomod, err.nomod)
+        else:
+            snr_nomod = None
+
+        snr = ReacData(snr_mod, snr_nomod)
+        snr.combined = _snr(reactivity.combined, err.combined)
+
+        # Clip the reactivity if requested
+
+        if args.clip_low:
+            reactivity.mod = da.clip(reactivity.mod, 0, None)
+            reactivity.combined = da.clip(reactivity.combined, 0, None)
+            if reactivity.nomod is not None:
+                reactivity.nomod = da.clip(reactivity.nomod, 0, None)
+        if args.clip_high:
+            reactivity.mod = da.clip(reactivity.mod, None, 1)
+            reactivity.combined = da.clip(reactivity.combined, None, 1)
+            if reactivity.nomod is not None:
+                reactivity.nomod = da.clip(reactivity.nomod, None, 1)
+
+        # Save to file
+
+        data = {
+            args.group + '/' + REACTIVITY_DS: da.from_array(reactivity.combined),
+            args.group + '/' + READS_DS: da.from_array(reads.combined),
+            args.group + '/' + NORM_DS: da.from_array(norm),
+            args.group + '/' + ROI_DS: da.from_array(ROI),
+            args.group + '/' + ERROR_DS: da.from_array(err.combined),
+            args.group + '/' + SNR_DS: da.from_array(snr.combined),
+            args.group + '/' + HEATMAP_DS: da.from_array(heatmap.combined),
+        }
+
+        da.to_hdf5(args.out, data)
+
+        # Print stats
+
+        _print_stats(reactivity, reads, mask, err, snr, norm)
+
+        # Plot figures
+
+        os.makedirs(FIGURES, exist_ok=True)
+
+        _plot_heatmap(heatmap.combined, args.group)
+        _plot_read_hist(reads.combined, args.group)
+        _plot_examples(reactivity.combined, args.group)
+        _plot_termination(term.combined, args.group)
+        _plot_coverage(mc.combined, args.group)
+
+        # Get the embedded sequences
+
+        sequences = _get_sequences(f)
+
+        if sequences is not None:
+
+            aux_data = {
+                SEQUENCE_DS: sequences,
+            }
+            da.to_hdf5(args.out, aux_data)

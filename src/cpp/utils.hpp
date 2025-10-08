@@ -8,14 +8,6 @@
 #include <execinfo.h>
 #include <argparse/argparse.hpp>
 
-#ifdef _WIN32
-    #include <windows.h>
-#elif __APPLE__
-    #include <mach-o/dyld.h>
-#elif __linux__
-    #include <unistd.h>
-#endif
-
 #include "mpi.hpp"
 
 const std::string _LOG_FILE = "cmuts.log";

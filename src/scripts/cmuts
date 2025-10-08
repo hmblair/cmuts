@@ -21,7 +21,7 @@ case "$1" in
     cmuts-normalize "${@:2}"
     ;;
   pairwise)
-    cmuts-cov "${@:2}"
+    cmuts-pairwise "${@:2}"
     ;;
   test)
     echo "Not implemented yet."

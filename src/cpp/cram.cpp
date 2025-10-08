@@ -242,14 +242,33 @@ static inline Codec_t _codec_from_cram(int32_t value) {
 
     switch (value) {
 
-        case 1:  { return Codec_t::ID;     }
-        case 3:  { return Codec_t::Huffman;  }
+        case 1:  { return Codec_t::ID;           }
+        case 3:  { return Codec_t::Huffman;      }
         case 4:  { return Codec_t::ByteArrayLen; }
-        case 5:  { return Codec_t::ByteStop; }
-        case 6:  { return Codec_t::Beta;     }
-        case 7:  { return Codec_t::SubExp;     }
+        case 5:  { return Codec_t::ByteStop;     }
+        case 6:  { return Codec_t::Beta;         }
+        case 7:  { return Codec_t::SubExp;       }
         default: {
             __throw_and_log(_LOG_FILE, "Invalid codec \"" + std::to_string(value) + "\".");
+        }
+
+    }
+
+}
+
+
+static inline std::string _get_codec_name(Codec_t codec) {
+
+    switch (codec) {
+
+        case Codec_t::ID: { return "CORE"; }
+        case Codec_t::Huffman: { return  "HUFFMAN"; }
+        case Codec_t::ByteArrayLen: { return "BYTEARRAYLEN"; }
+        case Codec_t::ByteStop: { return "BYTESTOP"; }
+        case Codec_t::Beta: { return "BETA"; }
+        case Codec_t::SubExp: { return "SUBEXP"; }
+        default: {
+            __throw_and_log(_LOG_FILE, "Invalid codec \"" + std::to_string(static_cast<int32_t>(codec)) + "\".");
         }
 
     }
@@ -298,7 +317,7 @@ int64_t cramContainer::unaligned() {
 cramSlice cramContainer::slice(int32_t ix) {
 
     if (ix >= slices.size()) {
-        __throw_and_log(_LOG_FILE, "The slice index (" + std::to_string(ix) + ") is out of bounds.");
+        __throw_and_log(_LOG_FILE, "The CRAM slice index (" + std::to_string(ix) + ") is out of bounds.");
     }
 
     return slices[ix];
@@ -476,13 +495,13 @@ int32_t Codec::integer() { return _stream->itf8(); }
 
 std::vector<uint8_t> Codec::array() {
 
-    __throw_and_log(_LOG_FILE, "No default for array().");
+    __throw_and_log(_LOG_FILE, "No default for Codec::array().");
 
 }
 
 std::vector<uint8_t> Codec::array(int32_t length) {
 
-    __throw_and_log(_LOG_FILE, "No default for array(int32_t).");
+    __throw_and_log(_LOG_FILE, "No default for Codec::array(int32_t).");
 
 }
 
@@ -945,6 +964,10 @@ cramSlice::cramSlice(uint8_t*& data, CodecMap _codecs, bool crc)
 
                 if (codec.second->id() == -1) {
                     codec.second->attach(stream);
+                    #ifdef DEBUG
+                        std::string _codec_name = _get_codec_name(codec.second->type());
+                        __log(_LOG_FILE, "Attached codec of type " + _codec_name + " to block " + std::to_string(block.content) + ".");
+                    #endif
                 }
 
             }
@@ -1206,7 +1229,7 @@ static inline cramHeader _read_cram_header(BGZF* file) {
     // Read the raw SAM header.
 
     if (version >= 30) {
-        container.stream->bytes(sizeof(int32_t));
+        (void)container.stream->bytes(sizeof(int32_t));
     }
     Header _tmp_header = _read_sam_header(container.stream);
 
