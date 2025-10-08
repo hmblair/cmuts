@@ -60,17 +60,17 @@ void __init_log(const std::string& filename) {
 
 }
 
-void __throw_and_log(const std::string& filename, const std::string& err) {
+[[noreturn]] void __throw_and_log(const std::string& filename, const std::string& err) {
 
     std::ofstream file(filename, std::ios::app);
 
     if (!file) {
         std::cerr << "Error opening the log file \"" << filename << "\".\n";
-        return;
+    } else {
+        file << "ERROR: " << err << std::endl;
+        __log_trace(file);
     }
 
-    file << "ERROR: " << err << std::endl;
-    __log_trace(file);
     throw std::runtime_error(err);
 
 }
