@@ -106,15 +106,17 @@ The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation 
 
 **`--no-mismatches`** : Exclude mismatches from modification counts
 
-**`--no-insertions`** : Exclude insertions from modification counts (recommended for MaP-seq)
+**`--no-insertions`** : Exclude insertions from modification counts
 
 **`--no-deletions`** : Exclude deletions from modification counts
 
 ### Deletion Handling
 
+**`--deletion-gap`** : The number of gaps to allow when detecting ambiguous deletions (default: 0)
+
 **`--uniform-spread`** : Uniformly spread ambiguous deletions
 
-**`--mutation-spread`** : Spread ambiguous deletions according to existing mutation profile
+**`--no-spread`** : Do not spread ambiguous deletions
 
 **`--disable-ambiguous`** : Use alignment-provided deletions only
 
@@ -124,7 +126,11 @@ The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation 
 
 **`--subsample`** : Random read acceptance probability (default: 1.0)
 
-**`--filter-coverage`** : Apply modification filters to matches (recommended for MaP-seq)
+**`--no-match-filter`** : Do not filter matches based on their PHRED base score (as in `rf-count`)
+
+**`--no-insertion-filter`** : Do not filter insertions based on their PHRED base score (as in `rf-count`)
+
+**`--no-deletion-filter`** : Do not filter deletions based on their PHRED base score (as in `rf-count`)
 
 ### Performance
 
