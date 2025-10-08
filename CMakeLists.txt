@@ -67,14 +67,14 @@ FetchContent_MakeAvailable_If_Not_Already_Present(xtensor)
 
 
 add_library(libcmuts STATIC
-    src/fasta.cpp
-    src/common.cpp
-    src/cmuts.cpp
-    src/bam.cpp
-    src/cram.cpp
-    src/mpi.cpp
-    src/hdf5.cpp
-    src/utils.cpp
+    src/cpp/fasta.cpp
+    src/cpp/common.cpp
+    src/cpp/cmuts.cpp
+    src/cpp/bam.cpp
+    src/cpp/cram.cpp
+    src/cpp/mpi.cpp
+    src/cpp/hdf5.cpp
+    src/cpp/utils.cpp
 )
 
 set_target_properties(libcmuts PROPERTIES PREFIX "")
@@ -100,6 +100,7 @@ target_link_libraries(libcmuts PRIVATE
     htscodecs
 )
 
+target_compile_definitions(libcmuts PRIVATE VERSION="${VERSION}")
 
 if (DEFINED MPI_BUILD AND MPI_BUILD)
     target_include_directories(libcmuts PRIVATE ${MPI_C_INCLUDE_DIRS})
@@ -150,6 +151,8 @@ function(setup_target _target)
         BUILD_WITH_INSTALL_RPATH TRUE
     )
 
+    target_compile_definitions(${_target} PRIVATE VERSION="${VERSION}")
+
     if (DEFINED MPI_BUILD AND MPI_BUILD)
         target_include_directories(${_target} PRIVATE ${MPI_C_INCLUDE_DIRS})
         target_link_libraries(${_target} PRIVATE MPI::MPI_CXX)
@@ -159,6 +162,7 @@ function(setup_target _target)
     if (DEFINED DEBUG AND DEBUG)
         target_compile_options(${_target} PRIVATE ${SANITIZER_COMPILE_FLAGS})
         target_link_options(${_target} PRIVATE ${SANITIZER_LINK_FLAGS})
+        target_compile_options(${_target} PRIVATE "-DDEBUG")
     else()
         target_compile_options(${_target} PRIVATE -O3 -fno-math-errno)
     endif()
@@ -166,11 +170,11 @@ function(setup_target _target)
 endfunction()
 
 add_executable(${CORE}
-    src/main.cpp
+    src/cpp/main.cpp
 )
 
 add_executable(${TESTS}
-    src/tests.cpp
+    src/cpp/tests.cpp
 )
 
 setup_target(${CORE})

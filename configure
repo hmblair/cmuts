@@ -56,7 +56,7 @@ pushd ${BUILD_DIR} > /dev/null
 
 # Run cmake with appropriate options
 
-CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR}"
+CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR} -DVERSION=${VERSION}"
 [[ -n "${HDF5_DIR}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
 [[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDEBUG=1"
 [[ "${MPI_BUILD:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DMPI_BUILD=1"
@@ -71,7 +71,7 @@ popd > /dev/null
 
 # Post-install steps
 
-for script in ${SCRIPT_DIR}/src/scripts/*; do
+for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
   if [[ -f "$script" && -x "$script" ]]; then
     name=$(basename "$script")
     ln -s "$script" "${BIN_DIR}/$name"
