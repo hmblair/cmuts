@@ -40,11 +40,11 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 **`--clip-high`** : Clip reactivity values above 1
 
-**`--blank-5p`** : NaN out this many bases on the 5\' end
+**`--blank-5p`** : NaN out this many bases on the 5' end (default: 0)
 
-**`--blank-3p`** : NaN out this many bases on the 3\' end
+**`--blank-3p`** : NaN out this many bases on the 3' end (default: 0)
 
-**`--blank-cutoff`** : NaN out any positions with less than this many reads
+**`--blank-cutoff`** : NaN out any positions with less than this many reads (default: 10)
 
 **`--norm-independent`** : Normalize each profile separately, rather than using experiment-wide statistics 
 
