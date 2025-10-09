@@ -295,15 +295,15 @@ static inline std::string __repeat(const std::string& str, size_t count) {
 
 #ifdef MPI_BUILD
 #ifdef DEBUG
-const std::string PROGRAM = "cmuts MPI (DEBUG)";
+const std::string PROGRAM = "cmuts core MPI (DEBUG)";
 #else
-const std::string PROGRAM = "cmuts MPI";
+const std::string PROGRAM = "cmuts core MPI";
 #endif
 #else
 #ifdef DEBUG
-const std::string PROGRAM = "cmuts (DEBUG)";
+const std::string PROGRAM = "cmuts core (DEBUG)";
 #else
-const std::string PROGRAM = "cmuts";
+const std::string PROGRAM = "cmuts core";
 #endif
 #endif
 
