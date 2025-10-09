@@ -217,6 +217,7 @@ def _print_stats(
     mask: ReacData,
     error: ReacData,
     snr: ReacData,
+    heatmap: ReacData,
     norm: np.ndarray,
 ) -> None:
 
@@ -284,6 +285,13 @@ def _print_stats(
         if reads.nomod is not None:
             med2m_nomod = mr_nomod / medr_nomod
 
+    # Deletion rate
+
+    dr = heatmap.combined[:, IX_DEL].mean()
+    dr_mod = heatmap.mod[:, IX_DEL].mean()
+    if heatmap.nomod is not None:
+        dr_nomod = heatmap.nomod[:, IX_DEL].mean()
+
     print(f"         References:              {nseqs:,}")
     print(f"         Reference length:        {seqlen:,}")
     print(f"         Total reads:             {int(tr):,}")
@@ -293,6 +301,7 @@ def _print_stats(
     print(f"          Mean-to-Median:         {med2m_mod:.2f}")
     print(f"          Mean reactivity:        {mrr_mod:.3f}")
     print(f"          Mean error:             {me_mod:.3f}")
+    print(f"          Deletion rate:          {dr_mod:.3f}")
     print(f"          Dropout fraction:       {dr_f_mod:.2f}")
     print(f"          Mean SNR:               {msnr_mod:.2f}")
     print(f"          SNR > 1:                {fsnr_mod:.2f}")
@@ -303,6 +312,7 @@ def _print_stats(
         print(f"          Mean-to-Median:         {med2m_nomod:.2f}")
         print(f"          Mean reactivity:        {mrr_nomod:.3f}")
         print(f"          Mean error:             {me_nomod:.3f}")
+        print(f"          Deletion rate:          {dr_nomod:.3f}")
         print(f"          Dropout fraction:       {dr_f_nomod:.2f}")
         print(f"          Mean SNR:               {msnr_nomod:.2f}")
         print(f"          SNR > 1:                {fsnr_nomod:.2f}")
@@ -312,6 +322,7 @@ def _print_stats(
         print(f"          Mean-to-Median:         {med2m:.2f}")
         print(f"          Mean reactivity:        {mrr:.3f}")
         print(f"          Mean error:             {me:.3f}")
+        print(f"          Deletion rate:          {dr:.3f}")
         print(f"          Dropout fraction:       {dr_f:.2f}")
         print(f"          Mean SNR:               {msnr:.2f}")
         print(f"          SNR > 1:                {fsnr:.2f}")
@@ -682,6 +693,7 @@ def _plot_coverage(coverage: np.ndarray, name: str) -> None:
     plt.plot(coverage, color=plt.cm.RdPu(0.8))
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Fraction of reads", fontsize=14)
+    plt.ylim(0, 1)
     plt.title(f"Coverage by position for {name}", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"{FIGURES}/{prefix}coverage.png", dpi=300, bbox_inches="tight")
@@ -776,7 +788,7 @@ if __name__ == '__main__':
 
         # Print stats
 
-        _print_stats(reactivity, reads, mask, err, snr, norm)
+        _print_stats(reactivity, reads, mask, err, snr, heatmap, norm)
 
         # Plot figures
 
