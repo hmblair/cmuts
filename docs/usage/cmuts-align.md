@@ -19,6 +19,8 @@ cmuts align \
 
 The sorted alignments will be in BAM format and can be found in the directory `$ALIGNMENTS`, with the same basename as the original FASTQ files.
 
+The default is for `cmuts align` to use `--end-to-end` alignment. To use `--local` alignment instead, simply pass the `--local` argument.
+
 ### Paired-End Alignment
 
 To specify mates for paired-end sequencing, pass the additional FASTQ files to the `--pairs` argument *after* the forward reads.

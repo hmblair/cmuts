@@ -16,17 +16,22 @@ THREADS="1"
 BARCODES=""
 TRIM5=""
 TRIM3=""
+LOCAL=""
 FILES=()
 PAIRS=()
 
 print-usage() {
-  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim-5 5' ADAPTER] [--trim-3 3' ADAPTER] [FILES ...] [--pairs PAIRS ...]"
+  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim-5 5' ADAPTER] [--trim-3 3' ADAPTER] [--local] [FILES ...] [--pairs PAIRS ...]"
 }
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     -h|--help)
       print-usage
+      exit 0
+      ;;
+    -v|--version)
+      echo "cmuts align"
       exit 0
       ;;
     --fasta)
@@ -52,6 +57,9 @@ while [[ "$#" -gt 0 ]]; do
     --trim-3)
       shift
       TRIM3="$1"
+      ;;
+    --trim-3)
+      LOCAL="--local"
       ;;
     --pairs)
       shift
@@ -82,7 +90,8 @@ if [[ ${#PAIRS[@]} -gt 0 && ${#FILES[@]} -ne ${#PAIRS[@]} ]]; then
   exit 1
 fi
 
-echo " -- cmuts align ($(date '+%d-%m-%Y %H:%M:%S')) -- " >> $LOG
+echo " -- $("$0" --version) ($(date '+%d-%m-%Y %H:%M:%S')) -- " >> "$LOG"
+echo >> "$LOG"
 
 IXDIR="index"
 TMPDIR=".tmp"
@@ -107,9 +116,9 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
     NAME=$(basename "$FILE")
     BASENAME="${NAME%.fastq*}"
 
-    echo >> $LOG
-    echo " -- Trimming $FILE --" >> $LOG
-    echo >> $LOG
+    echo >> "$LOG"
+    echo " -- Trimming $FILE --" >> "$LOG"
+    echo >> "$LOG"
 
     FARGS=()
     if [[ ! -z "$TRIM5"  ]]; then
@@ -124,7 +133,7 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
       --cores "$THREADS" \
       -o "$TRDIR/$NAME" \
       "${FARGS[@]}" \
-      "$FILE" >> $LOG 2>&1
+      "$FILE" >> "$LOG" 2>&1
 
   done
 
@@ -145,9 +154,9 @@ if [[ ! -z "$BARCODES" ]]; then
       FILE="${FILES[IX]}"
       PAIR="${PAIRS[IX]}"
 
-      echo >> $LOG
-      echo " -- Demultiplexing $FILE and $PAIR --" >> $LOG
-      echo >> $LOG
+      echo >> "$LOG"
+      echo " -- Demultiplexing $FILE and $PAIR --" >> "$LOG"
+      echo >> "$LOG"
 
       ultraplex \
         -i "$FILE" \
@@ -155,7 +164,7 @@ if [[ ! -z "$BARCODES" ]]; then
         -b "$BARCODES" \
         -d "$DMDIR" \
         --dont_build_reference \
-        --ignore_no_match >> $LOG 2>&1
+        --ignore_no_match >> "$LOG" 2>&1
 
     done
 
@@ -163,16 +172,16 @@ if [[ ! -z "$BARCODES" ]]; then
 
     for FILE in "${FILES[@]}"; do
 
-      echo >> $LOG
-      echo " -- Demultiplexing $FILE --" >> $LOG
-      echo >> $LOG
+      echo >> "$LOG"
+      echo " -- Demultiplexing $FILE --" >> "$LOG"
+      echo >> "$LOG"
 
       ultraplex \
         -i "$FILE" \
         -b "$BARCODES" \
         -d "$DMDIR" \
         --dont_build_reference \
-        --ignore_no_match >> $LOG 2>&1
+        --ignore_no_match >> "$LOG" 2>&1
 
     done
 
@@ -199,15 +208,15 @@ fi
 
 INDEX="$IXDIR/index"
 if [[ ! -e "$IXDIR" ]]; then
-  echo >> $LOG
-  echo " -- Building bowtie2 index --" >> $LOG
-  echo >> $LOG
+  echo >> "$LOG"
+  echo " -- Building bowtie2 index --" >> "$LOG"
+  echo >> "$LOG"
   mkdir index
   bowtie2-build \
     --quiet \
     --threads "$THREADS" \
     "$FASTA" \
-    "$INDEX" >> $LOG 2>&1
+    "$INDEX" >> "$LOG" 2>&1
 fi
 
 # Align all files
@@ -231,9 +240,9 @@ for IX in "${!FILES[@]}"; do
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
   FINAL="${OUTPUT}/${BASENAME}.bam"
 
-  echo >> $LOG
-  echo " -- Aligning $NAME --" >> $LOG
-  echo >> $LOG
+  echo >> "$LOG"
+  echo " -- Aligning $NAME --" >> "$LOG"
+  echo >> "$LOG"
 
   bowtie2 \
     "${FARGS[@]}" \
@@ -242,10 +251,10 @@ for IX in "${!FILES[@]}"; do
     --dpad 30 \
     --maxins=800 \
     --ignore-quals \
-    --local \
+    "$LOCAL" \
     --mp 3,1 \
     --rdg 5,1 \
-    --rfg 5,1 2>> $LOG | \
+    --rfg 5,1 2>> "$LOG" | \
   awk 'BEGIN{FS=OFS="\t"} {
     if($0 ~ /^@/) print $0
     else {
@@ -254,15 +263,15 @@ for IX in "${!FILES[@]}"; do
     }
   }' > "$TMP"
 
-  echo >> $LOG
-  echo " -- Sorting $TMP --" >> $LOG
-  echo >> $LOG
+  echo >> "$LOG"
+  echo " -- Sorting $TMP --" >> "$LOG"
+  echo >> "$LOG"
 
   samtools sort --threads "$THREADS" -o "$FINAL" "$TMP" >> $LOG 2>&1
 
-  echo >> $LOG
-  echo " -- Sorted reads written to $FINAL --" >> $LOG
-  echo >> $LOG
+  echo >> "$LOG"
+  echo " -- Sorted reads written to $FINAL --" >> "$LOG"
+  echo >> "$LOG"
 
 done
 
