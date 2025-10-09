@@ -4,11 +4,14 @@ set -eou pipefail
 
 USE_CRAM=0
 USE_RF=0
+KEEP_TMP=0
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --cram) USE_CRAM=1
                 ;;
         --rf-count) USE_RF=1
+                ;;
+        --keep-tmp) KEEP_TMP=1
                 ;;
         *) echo "Unknown option: $1"
            exit 1
@@ -20,7 +23,7 @@ done
 # Clean and create working directory
 
 SCRIPT_DIR=$(pwd)
-WORK_DIR=${SCRIPT_DIR}"/.tmp"
+WORK_DIR=${SCRIPT_DIR}"/.cmuts-test"
 rm -rf ${WORK_DIR}
 mkdir -p ${WORK_DIR}
 pushd ${WORK_DIR} > /dev/null
@@ -210,3 +213,7 @@ fi
 cmuts-test-compare ${CMUTS_H5} ${EXP_H5} ${USE_RF}
 
 popd > /dev/null
+
+if [[ $KEEP_TMP -eq 0 ]]; then
+  rm -rf "$WORK_DIR"
+fi
