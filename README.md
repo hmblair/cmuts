@@ -5,9 +5,9 @@
 * Streamed IO and direct output to compressed HDF5 files
 * Handling of arbitrary-length ambiguous deletions, including mutation-informed deletion spreading
 
-It has four independent steps which it performs:
+In a picture:
 
-![cmuts-overview](./docs/figures/overview_new.png)
+![cmuts-overview](./docs/figures/overview.png)
 
 Detailed documentation can be found at [hmblair.github.io/cmuts](https://hmblair.github.io/cmuts).
 

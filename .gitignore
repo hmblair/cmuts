@@ -11,6 +11,7 @@ share/
 *.log
 onp/
 figures/
+!/docs/figures
 outputs/
 __pycache__/
 site/
