@@ -651,8 +651,13 @@ def _plot_examples(reactivity: np.ndarray, name: str, num: int = 250) -> None:
 
     else:
         vals = reactivity[:num]
-        im = plt.imshow(vals, cmap="RdPu", vmin=0, vmax=1)
+        masked_vals = np.ma.masked_where(np.isnan(vals), vals)
+
+        cmap = plt.cm.RdPu.copy()
+        cmap.set_bad(color='grey')
+        im = plt.imshow(masked_vals, cmap=cmap, vmin=0, vmax=1)
         plt.colorbar(im, label="Reactivity")
+
         plt.xlabel("Residue", fontsize=12)
         plt.ylabel("Sequence Index", fontsize=12)
         plt.title(f"Profile heatmap of {name}", fontsize=14)
