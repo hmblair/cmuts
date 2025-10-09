@@ -484,7 +484,13 @@ def _process(
         term.combined = term.mod + term.nomod
     else:
         term.combined = term.mod
-    term.combined /= term.combined.sum(axis=1)[:, None]
+    quot = term.combined.sum(axis=1)[:, None]
+    term.combined = np.divide(
+        term.combined,
+        quot,
+        where=(quot > 0),
+        out=term.combined,
+    )
 
     return reactivity, reads, err, mask, heatmap, mc, term
 
@@ -545,6 +551,9 @@ def _get_norm_ubr(
 
     _good_pos = mask & (reads > cutoff)[:, None]
     high_reactivity = reactivity[_good_pos]
+
+    if not high_reactivity.size:
+        return _get_norm_raw(reactivity)
 
     return np.percentile(high_reactivity.flatten(), percentile)
 
