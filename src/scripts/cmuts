@@ -5,7 +5,11 @@ print-usage() {
 }
 
 case "$1" in
-  --version)
+  -h|--help)
+    print-usage
+    exit 0
+    ;;
+  -v|--version)
     DIR=$(dirname $(which cmuts))
     VERSION=$(cat "$DIR/VERSION")
     echo "cmuts version $VERSION"
