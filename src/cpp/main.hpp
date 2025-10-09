@@ -118,12 +118,12 @@ const std::string CHUNK_SIZE_HELP = "The number of references to process at a ti
 const std::string MIN_LENGTH_SHORT_NAME = "";
 const std::string MIN_LENGTH_LONG_NAME = "--min-length";
 const int MIN_LENGTH_DEFAULT = 2;
-const std::string MIN_LENGTH_HELP = "Minimum length for alignment processing.";
+const std::string MIN_LENGTH_HELP = "Skip reads shorter than this length.";
 
 const std::string MAX_LENGTH_SHORT_NAME = "";
 const std::string MAX_LENGTH_LONG_NAME = "--max-length";
-const int MAX_LENGTH_DEFAULT = 10000;
-const std::string MAX_LENGTH_HELP = "Maximum length for alignment processing.";
+const int MAX_LENGTH_DEFAULT = 1L << 10;
+const std::string MAX_LENGTH_HELP = "Skip reads longer than this length.";
 
 const std::string JOINT_SHORT_NAME = "";
 const std::string JOINT_LONG_NAME = "--joint";
