@@ -109,6 +109,7 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 
     echo >> $LOG
     echo " -- Trimming $FILE --" >> $LOG
+    echo >> $LOG
 
     FARGS=()
     if [[ ! -z "$TRIM5"  ]]; then
@@ -146,6 +147,7 @@ if [[ ! -z "$BARCODES" ]]; then
 
       echo >> $LOG
       echo " -- Demultiplexing $FILE and $PAIR --" >> $LOG
+      echo >> $LOG
 
       ultraplex \
         -i "$FILE" \
@@ -163,6 +165,7 @@ if [[ ! -z "$BARCODES" ]]; then
 
       echo >> $LOG
       echo " -- Demultiplexing $FILE --" >> $LOG
+      echo >> $LOG
 
       ultraplex \
         -i "$FILE" \
@@ -196,9 +199,15 @@ fi
 
 INDEX="$IXDIR/index"
 if [[ ! -e "$IXDIR" ]]; then
+  echo >> $LOG
   echo " -- Building bowtie2 index --" >> $LOG
+  echo >> $LOG
   mkdir index
-  bowtie2-build --threads "$THREADS" "$FASTA" "$INDEX" >> $LOG 2>&1
+  bowtie2-build \
+    --quiet \
+    --threads "$THREADS" \
+    "$FASTA" \
+    "$INDEX" >> $LOG 2>&1
 fi
 
 # Align all files
