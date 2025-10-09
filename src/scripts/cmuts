@@ -24,8 +24,7 @@ case "$1" in
     cmuts-pairwise "${@:2}"
     ;;
   test)
-    echo "Not implemented yet."
-    exit 1
+    cmuts-test "${@:2}"
     ;;
   *)
     print-usage
