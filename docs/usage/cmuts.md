@@ -98,6 +98,8 @@ The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation 
 
 **`--max-length`** : Maximum alignment length (default: 10,000)
 
+**`--no-reverse`** : Skip reverse-complemented reads
+
 ### Modification Detection
 
 **`--max-indel-length`** : Maximum indel length to consider (default: 10)
