@@ -388,10 +388,18 @@ static inline void _fasta_to_hdf5(
 
 
 
+static inline std::string _cmfa_extension(const std::string& filename) {
+
+    size_t last_dot = filename.find_last_of('.');
+    std::string base = (last_dot != std::string::npos) ? filename.substr(0, last_dot) : filename;
+
+    return base + ".cmfa";
+
+}
 
 
 BinaryFASTA::BinaryFASTA(const std::string& fasta)
-    : _fasta_name(fasta), _name(fasta + ".binary") {
+    : _fasta_name(fasta), _name(_cmfa_extension(fasta)) {
 
     _throw_if_not_exists(_fasta_name);
 

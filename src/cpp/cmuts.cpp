@@ -585,6 +585,13 @@ static inline void __count(
     int32_t rpos = aln.offset + cigar.rlength();
     int32_t qpos = aln.length;
 
+    if (rpos > reference.size()) {
+        throw std::out_of_range(
+            "Reference position " + std::to_string(rpos) + 
+            " exceeds reference sequence length " + std::to_string(reference.size())
+        );
+    }
+
     if constexpr(mode == Mode::Joint) {
         _MAX_ = rpos;
         ARR_TMP = std::vector<dtype>(reference.size(), 0);
