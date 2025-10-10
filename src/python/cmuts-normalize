@@ -249,7 +249,7 @@ def _print_stats(
     if snr.nomod is not None:
         msnr_nomod = np.mean(snr.nomod)
 
-    # Median SNR
+    # Mean reactivity
 
     mrr = np.mean(reactivity.combined[mask.combined])
     mrr_mod = np.mean(reactivity.mod[mask.mod])
@@ -448,7 +448,7 @@ def _process(
     if reactivity.nomod is not None:
         reactivity.combined = reactivity.mod - reactivity.nomod
     else:
-        reactivity.combined = reactivity.mod
+        reactivity.combined = reactivity.mod.copy()
 
     # Reads
 
@@ -456,7 +456,7 @@ def _process(
     if reads.nomod is not None:
         reads.combined = reads.mod + reads.nomod
     else:
-        reads.combined = reads.mod
+        reads.combined = reads.mod.copy()
 
     # Error
 
@@ -464,7 +464,7 @@ def _process(
     if reads.nomod is not None:
         err.combined = np.sqrt(err.mod ** 2 + err.nomod ** 2)
     else:
-        err.combined = err.mod
+        err.combined = err.mod.copy()
 
     # Mask
 
@@ -472,12 +472,12 @@ def _process(
     if mask.nomod is not None:
         mask.combined = mask.mod & mask.nomod
     else:
-        mask.combined = mask.mod
+        mask.combined = mask.mod.copy()
 
     # Heatmap
 
     heatmap = ReacData(mod_heatmap, nomod_heatmap)
-    heatmap.combined = heatmap.mod
+    heatmap.combined = heatmap.mod.copy()
 
     # Mean coverage
 
@@ -485,7 +485,7 @@ def _process(
     if mc.nomod is not None:
         mc.combined = mc.mod + mc.nomod
     else:
-        mc.combined = mc.mod
+        mc.combined = mc.mod.copy()
     mc.combined /= reads.combined.mean()
 
     # Termination events
@@ -494,7 +494,7 @@ def _process(
     if term.nomod is not None:
         term.combined = term.mod + term.nomod
     else:
-        term.combined = term.mod
+        term.combined = term.mod.copy()
     quot = term.combined.sum(axis=1)[:, None]
     term.combined = np.divide(
         term.combined,
@@ -533,21 +533,20 @@ def _get_norm_2_8(reactivity: np.ndarray) -> np.ndarray:
     remaining 8%.
     """
 
-    def norm_1d(arr):
+    def norm_1d(arr: np.ndarray) -> np.ndarray:
+
+        arr = arr[~np.isnan(arr)]
+
         p2 = max(1, round(len(arr) * 0.02) - 1)
         p10 = max(1, round(len(arr) * 0.1) - 1)
 
-        sarr = np.sort(arr)[::-1]  # descending sort
-        m = np.mean(sarr[p2:p10+1])
-        if m < 1E-3:
+        sarr = np.sort(arr)[::-1]
+        if sarr.size == 0:
             m = 1
-        return np.float32(m)
+        else:
+            m = np.mean(sarr[p2:p10+1])
 
-    def norm_1d_OLD(arr):
-        p90 = np.percentile(arr, 90)
-        p98 = np.percentile(arr, 98)
-        values = arr[(arr >= p90) & (arr < p98)]
-        return np.mean(values) if len(values) > 0 else 0
+        return np.float32(m)
 
     return np.apply_along_axis(norm_1d, axis=1, arr=reactivity)
 
@@ -739,6 +738,9 @@ if __name__ == '__main__':
             args.norm_percentile,
             method,
         )
+
+        if norm.ndim > 0:
+            norm[norm == 0] = 1
 
         err.mod /= norm[..., None]
         err.combined /= norm[..., None]
