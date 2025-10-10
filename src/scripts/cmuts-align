@@ -58,7 +58,7 @@ while [[ "$#" -gt 0 ]]; do
       shift
       TRIM3="$1"
       ;;
-    --trim-3)
+    --local)
       LOCAL="--local"
       ;;
     --pairs)
