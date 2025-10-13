@@ -13,6 +13,8 @@
 #include <span>
 #include <filesystem>
 #include <algorithm>
+#include <ranges>
+
 extern "C" {
     #include <htslib/sam.h>
     #include <htslib/hts.h>
@@ -22,6 +24,7 @@ extern "C" {
     #include <zlib.h>
     #include <rANS_static.h>
 }
+
 #include "utils.hpp"
 
 // Canonical bases
@@ -360,6 +363,7 @@ namespace HTS {
 
 void _disable_logging();
 base_t _from_char(char base);
+std::string str(const seq_t& sequence, int32_t start, int32_t end);
 std::string str(const seq_t& sequence);
 
 
@@ -544,6 +548,10 @@ public:
     // The Hamming distance to the reference sequence
 
     int32_t hamming() const;
+
+    // Collapse neighbouring modificaitons
+
+    CIGAR revcol(int32_t window) const;
 
     // Iterator stuff
 

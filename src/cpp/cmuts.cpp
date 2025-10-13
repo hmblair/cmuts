@@ -77,41 +77,6 @@ static inline void __joint(
 
 
 
-int32_t _get_ambiguous_end_contiguous(
-    int32_t start,
-    int32_t end,
-    const seq_t& sequence
-) {
-
-    auto size = static_cast<int32_t>(sequence.size());
-    if (end >= size) { return size; }
-
-    int32_t M = start;
-    int32_t N = end;
-
-    while (N < size && sequence[M] == sequence[N]) { M++; N++; }
-
-    return N;
-
-}
-
-
-int32_t _get_ambiguous_start_contiguous(
-    int32_t start,
-    int32_t end,
-    const seq_t& sequence
-) {
-
-    int32_t M = start - 1;
-    int32_t N = end - 1;
-
-    while (M >= 0 && sequence[M] == sequence[N]) { M--; N--; }
-
-    return N;
-
-}
-
-
 int32_t _get_ambiguous_end(
     int32_t start,
     int32_t end,
@@ -125,9 +90,15 @@ int32_t _get_ambiguous_end(
     int32_t M = start;
     int32_t N = end;
     int32_t gap = 0;
+    bool contig = true;
 
-    while (M < N && N < size && gap <= max_gap) {
-        if (sequence[M] == sequence[N]) { N++; } else { gap++; }
+    while (M < N && N < size) {
+        if (sequence[M] == sequence[N]) { 
+            if (!contig) { gap++; }
+            if (gap <= max_gap) { N++; } else { break; }
+        } else {
+            contig = false;
+        }
         M++;
     }
 
@@ -146,13 +117,8 @@ int32_t _get_ambiguous_start(
 
     int32_t M = start - 1;
     int32_t N = end - 1;
-    int32_t gap = 0;
 
-    while (M < N && M >= 0 && gap <= max_gap) {
-        if (sequence[M] == sequence[N]) { N--; } else { gap++; }
-        M--;
-    }
-
+    while (M >= 0 && sequence[M] == sequence[N]) { M--; N--; }
     return N;
 
 }
@@ -189,7 +155,7 @@ static inline dtype _total_muts(
         total += arr(ix, IX_G, IX_A);
         total += arr(ix, IX_G, IX_C);
         total += arr(ix, IX_G, IX_T);
-        // From T
+        // From T/U
         total += arr(ix, IX_T, IX_A);
         total += arr(ix, IX_T, IX_C);
         total += arr(ix, IX_T, IX_G);
@@ -249,8 +215,8 @@ static inline std::vector<dtype> _spread_weights(
 
         case Spread::Uniform: {
 
-            for (int32_t ix = start; ix < end; ix++) {
-                weights[ix - start] = mask / length;
+            for (int32_t ix = 0; ix < length; ix++) {
+                weights[ix] = mask / length;
             }
             break;
 
@@ -493,16 +459,21 @@ static inline void __ins(
     const Params& params
 ) {
 
-    // Insertions at the beginning of the sequence are ignored
+    // Skip conditions
 
-    if (rpos > reference.size() || rpos <= 0) {
+    if (
+        !params.insertions                    ||
+        op.length() > params.max_indel_length ||
+        rpos > reference.size()               ||
+        rpos <= 0
+    ) {
         qpos -= op.length();
         return;
     }
 
     qpos--;
     base_t qbase = op.last();
-    if (params.insertions && last - rpos >= params.collapse && qbase != IX_UNK) {
+    if (last - rpos >= params.collapse && qbase != IX_UNK) {
         __ins_core<dtype, mode>(arr, rpos - 1, qbase, mask[qpos], params);
         last = rpos;
     }
@@ -552,6 +523,11 @@ static inline void __del(
         ambig_end   = _get_ambiguous_end(start, end, reference, params.gap);
     }
 
+    // std::cout << HTS::str(reference, ambig_start, start) << " ";
+    // std::cout << HTS::str(reference, start, end) << " ";
+    // std::cout << HTS::str(reference, end, ambig_end);
+    // std::cout << std::endl;
+
     dtype _val = mask[qpos] || params.no_filter_deletions;
     std::vector<dtype> weights = _spread_weights<dtype, mode>(ambig_start, ambig_end, arr, _val, params.spread);
 
@@ -592,7 +568,7 @@ static inline void __count(
         );
     }
 
-    if constexpr(mode == Mode::Joint) {
+    if constexpr (mode == Mode::Joint) {
         _MAX_ = rpos;
         ARR_TMP = std::vector<dtype>(reference.size(), 0);
     }
@@ -633,11 +609,6 @@ static inline void __count(
             }
 
             case HTS::CIGAR_t::INS: {
-
-                if (op.length() > params.max_indel_length) {
-                    qpos -= op.length();
-                    break;
-                }
 
                 __ins<dtype, mode>(arr, op, rpos, qpos, last, reference, mask, params);
                 break;

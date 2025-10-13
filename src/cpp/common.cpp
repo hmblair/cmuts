@@ -994,10 +994,10 @@ static inline char _to_char(base_t base) {
 }
 
 
-std::string str(const seq_t& sequence) {
+std::string str(const seq_t& sequence, int32_t start, int32_t end) {
 
     std::string str(sequence.size(), '\0');
-    for (hts_pos_t ix = 0; ix < sequence.size(); ix++) {
+    for (hts_pos_t ix = start; ix < end; ix++) {
         str[ix] = _to_char(sequence[ix]);
     }
 
@@ -1005,6 +1005,14 @@ std::string str(const seq_t& sequence) {
 
 }
 
+
+std::string str(const seq_t& sequence) { 
+
+    auto start = static_cast<int32_t>(0);
+    auto end   = static_cast<int32_t>(sequence.size());
+    return str(sequence, start, end);
+
+}
 
 
 
@@ -1172,7 +1180,6 @@ int32_t CIGAR_op::length() const {
 
 }
 
-
 int32_t CIGAR_op::rlength() const {
 
     switch (_type) {
@@ -1291,7 +1298,7 @@ int32_t CIGAR::hamming() const {
     int32_t _hamming = 0;
     for (const auto& op : _str) {
         if (op.type() != CIGAR_t::MATCH) {
-            _hamming = op.length();
+            _hamming += op.length();
         }
     }
 
@@ -1376,6 +1383,37 @@ int32_t CIGAR::bases() const {
     }
 
     return bases;
+
+}
+
+
+CIGAR CIGAR::revcol(int32_t window) const {
+
+    CIGAR _new(_str.size());
+
+    for (auto& op : std::ranges::reverse_view(_str)) {
+
+        // The current OP is a match
+
+        if (op.type() == CIGAR_t::MATCH) {
+            _new.append(op);
+        } 
+
+        // The current OP is a mod, the previous OP was a mod
+
+        else if (!_new.empty() && _new.back().type() != CIGAR_t::MATCH) {
+            _new.back().extend(op.length());
+        } 
+
+        // The current OP is a mod, the previous op was a match
+
+        else {
+            _new.append(op);
+        }
+
+    }
+
+    return _new;
 
 }
 
@@ -1736,7 +1774,12 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
 
     _throw_if_has_duplicate_paths(filenames);
 
+    int32_t file   = 1;
+    int32_t nfiles = filenames.size();
+
     for (const auto& name : filenames) {
+
+        std::cout << "        Building index " << file << "/" << nfiles << "\n\033[A";
 
         try {
             _group.push_back(_get_file(name));
@@ -1745,6 +1788,8 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
             std::cerr << "Failed to load \"" + name + "\": " + e.what() + "\n";
             continue;
         }
+
+        file++;
 
     }
 

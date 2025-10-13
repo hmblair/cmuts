@@ -1,6 +1,9 @@
 #ifndef _CMUTS_HEADER
 #define _CMUTS_HEADER
 
+#include <random>
+#include <ranges>
+
 #include "common.hpp"
 #include "fasta.hpp"
 #include "bam.hpp"
@@ -8,7 +11,6 @@
 #include "hdf5.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
-#include <random>
 
 const int32_t N_BASES    = 4;
 const int32_t N_DELBASES = 7;
