@@ -145,6 +145,19 @@ The output HDF5 file will have the following structure:
     └── reads
 ```
 
+If you wish to overlay the reactivity profile onto a 3D structure stored in `CIF`, then you may then run
+
+```bash
+for ((IX=0; IX<${#NAMES[@]}; IX++)); do
+  NAME=${NAMES[IX]}
+  cmuts visualize \
+    --file "$PROFILES" \
+    --dataset "$NAME" \
+    --fasta "$FASTA" \
+    --cif "$CIF"
+done
+```
+
 ## With Demultiplexing
 
 ```bash
