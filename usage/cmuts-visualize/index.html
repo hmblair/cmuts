@@ -681,6 +681,57 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#command-line-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Command Line Options
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command Line Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selection Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Options
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#movies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Movies
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -762,6 +813,57 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#command-line-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Command Line Options
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command Line Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selection Options
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      Output Options
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#movies" class="md-nav__link">
+    <span class="md-ellipsis">
+      Movies
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -793,7 +895,29 @@
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--fasta<span class="w"> </span><span class="s2">"</span><span class="nv">$FASTA</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--cif<span class="w"> </span><span class="s2">"</span><span class="nv">$CIF</span><span class="s2">"</span>
 </code></pre></div>
-The FASTA file is necessary to perform alignment of the sequence which was probed against the sequence of the 3D structure, which may be different e.g. due to flanking sequences.<p></p>
+and an example can be found under <code>./examples/visualize</code>.<p></p>
+<p>The FASTA file is necessary to perform alignment of the sequence which was probed against the sequence of the 3D structure, which may be different e.g. due to flanking sequences.</p>
+<h2 id="command-line-options">Command Line Options</h2>
+<h3 id="core-options">Core Options</h3>
+<p><strong><code>--file</code></strong> : Path to the HDF5 file containing the reactivity data</p>
+<p><strong><code>--dataset</code></strong> : Reactivity dataset name in the HDF5 file</p>
+<p><strong><code>--fasta</code></strong> : Path to .fasta file of the library which was chemically probed</p>
+<p><strong><code>--cif</code></strong> : Path to the .cif structure file (.pdb also works)</p>
+<p><strong><code>--bin</code></strong> : Path to the ChimeraX executable (default: ChimeraX)</p>
+<h3 id="selection-options">Selection Options</h3>
+<p><strong><code>--index</code></strong> : Index of the sequence in the FASTA and the reactivity in the HDF5 file (default: 0)</p>
+<p><strong><code>--chain</code></strong> : Color this chain of the structure (default: ALL)</p>
+<p><strong><code>--trim-5p</code></strong> : Trim this many bases from the 5' end of the reactivity data (default: 0)</p>
+<p><strong><code>--trim-3p</code></strong> : Trim this many bases from the 3' end of the reactivity data (default: 0)</p>
+<h3 id="output-options">Output Options</h3>
+<p><strong><code>--color</code></strong> : The ChimeraX color to use for highly reactive bases (default: indianred)</p>
+<h2 id="movies">Movies</h2>
+<p>Once the structure is loaded into ChimeraX, you can record a movie of it rotating by running</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>movie record
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>turn y 0.5 720
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>movie stop
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>movie encode PATH-TO-MOVIE
+</code></pre></div>
 
 
 
