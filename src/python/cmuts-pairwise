@@ -6,7 +6,7 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
+from matplotlib.colors import SymLogNorm, LogNorm
 from cov import (
     probability,
     mutual_information,
@@ -44,7 +44,16 @@ parser.add_argument(
     help='The HDF5 file containing the input data.',
 )
 parser.add_argument(
-    '--dataset',
+    '--mod',
+    help='The name of the dataset containing the mutation counts of the modified sequences.',
+    required=True,
+)
+parser.add_argument(
+    '--nomod',
+    help='The name of the dataset containing the mutation counts of the modified sequences.',
+)
+parser.add_argument(
+    '--name',
     help='The name of the dataset containing the mutation counts of the modified sequences.',
     required=True,
 )
@@ -182,15 +191,22 @@ def _fft_denoise(signal: np.ndarray, threshold: int = 0.05) -> np.ndarray:
     return np.real(np.fft.ifft2(fft_denoised)).astype(np.float32)
 
 
-def _plot_cooccurrence(data: np.ndarray, name: str) -> np.ndarray:
+def _plot_cooccurrence(
+    mod: np.ndarray,
+    nomod: np.ndarray | None,
+    mask: np.ndarray,
+    name: str,
+) -> np.ndarray:
 
-    vals = cooccurrence(data)
+    if nomod is not None:
+        vals = cooccurrence(mod + nomod)
+    else:
+        vals = cooccurrence(mod)
 
-    min = vals.max() / 2
-    max = vals.max()
-    norm = LogNorm(vmin=min, vmax=max)
+    min = vals[mask].max() / 2
+    max = vals[mask].max()
 
-    im = plt.imshow(vals, cmap=CMAP, norm=norm)
+    im = plt.imshow(vals, cmap=CMAP, vmin=min, vmax=max)
     plt.colorbar(im, label="Co-Occurrence")
 
     plt.xlabel("Residue", fontsize=14)
@@ -202,21 +218,32 @@ def _plot_cooccurrence(data: np.ndarray, name: str) -> np.ndarray:
     return vals
 
 
-def _plot_conditional(data: np.ndarray, name: str, zero: int) -> np.ndarray:
+def _plot_conditional(
+    mod: np.ndarray,
+    nomod: np.ndarray | None,
+    mask: np.ndarray,
+    name: str,
+    low: int,
+    high: int,
+    zero: int,
+) -> np.ndarray:
 
-    vals = conditional(data)
+    vals = conditional(mod)
+    if nomod is not None:
+        vals -= conditional(nomod)
     if zero:
         vals = zero_diag(vals, zero)
 
-    low = 1E-3
-    high = vals.max() / 2
-    norm = LogNorm(vmin=low, vmax=high)
+    vlow = 1E-3
+    vhigh = vals[mask].max() / 2
+    norm = LogNorm(vmin=vlow, vmax=vhigh)
 
-    im = plt.imshow(vals, cmap=CMAP, norm=norm)
+    im = plt.imshow(vals, cmap=CMAP, norm=norm, extent=[low, high, low, high])
     cbar = plt.colorbar(im)
     cbar.set_label("Conditional", fontsize=14)
     cbar.ax.tick_params(labelsize=13)
 
+    plt.title(f"Conditional probability ({name})")
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Residue", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
@@ -226,25 +253,30 @@ def _plot_conditional(data: np.ndarray, name: str, zero: int) -> np.ndarray:
     return vals
 
 
-def _plot_correlation(data: np.ndarray, name: str, zero: int, rank: int = 0) -> np.ndarray:
+def _plot_correlation(
+    mod: np.ndarray,
+    nomod: np.ndarray | None,
+    mask: np.ndarray,
+    name: str,
+    low: int,
+    high: int,
+    zero: int,
+    rank: int = 0,
+) -> np.ndarray:
 
-    vals = correlation(data)
+    vals = correlation(mod, nomod)
+
     if zero:
         vals = zero_diag(vals, zero)
-
-    med = np.mean(vals, axis=0)
-    vals = vals - med[None, :]
-    med = np.mean(vals, axis=1)
-    vals = vals - med[:, None]
-
     if rank: 
         vals = _trim_rank(vals, rank)
 
-    low = 1E-6
-    high = vals.max() / 2
-    norm = LogNorm(vmin=low, vmax=high)
+    vlow = -vals[mask].max() / 2
+    vhigh = vals[mask].max() / 2
+    linthresh = vhigh * 1E-2
+    norm = SymLogNorm(linthresh=linthresh, vmin=vlow, vmax=vhigh)
 
-    im = plt.imshow(vals, cmap=CMAP, norm=norm)
+    im = plt.imshow(vals, cmap='PiYG', norm=norm, extent=[low, high, low, high])
     cbar = plt.colorbar(im)
     cbar.set_label("Correlation", fontsize=14)
     cbar.ax.tick_params(labelsize=13)
@@ -259,19 +291,31 @@ def _plot_correlation(data: np.ndarray, name: str, zero: int, rank: int = 0) -> 
     return vals
 
 
-def _plot_mi(data: np.ndarray, name: str, zero: int, rank: int = 0) -> np.ndarray:
+def _plot_mi(
+    mod: np.ndarray,
+    nomod: np.ndarray | None,
+    mask: np.ndarray,
+    name: str,
+    low: int,
+    high: int,
+    zero: int,
+    rank: int = 0,
+) -> np.ndarray:
 
-    vals = mutual_information(data)
+    vals = mutual_information(mod)
+    if nomod is not None:
+        vals -= mutual_information(nomod)
+
     if zero:
         vals = zero_diag(vals, zero)
     if rank: 
         vals = _trim_rank(vals, rank)
 
-    low = 1E-6
-    high = vals.max() / 2
-    norm = LogNorm(vmin=low, vmax=high)
+    vlow = 1E-6
+    vhigh = vals[mask].max() / 2
+    norm = LogNorm(vmin=vlow, vmax=vhigh)
 
-    im = plt.imshow(vals, cmap=CMAP, norm=norm)
+    im = plt.imshow(vals, cmap=CMAP, norm=norm, extent=[low, high, low, high])
     cbar = plt.colorbar(im)
     cbar.set_label("Mutual Information", fontsize=14)
     cbar.ax.tick_params(labelsize=13)
@@ -289,38 +333,53 @@ def _plot_mi(data: np.ndarray, name: str, zero: int, rank: int = 0) -> np.ndarra
 if __name__ == '__main__':
 
     args = parser.parse_args()
-    name = args.dataset.split('/')[-1]
+    name = args.name.split('/')[-1]
     print(_title(NAME, VERSION, name))
 
     _remove_if_exists(args.output, args.overwrite)
 
     with h5py.File(args.file, 'r') as f:
 
-        data = f[args.dataset]
-        if data.shape[0] > 1:
+        mod = f[args.mod]
+        if mod.shape[0] > 1:
             raise ValueError("For now, cmuts pairwise can only handle 1 datapoint at a time.")
-        data = data[0]
+        mod = mod[0]
+        
+        if args.nomod:
+            nomod = f[args.nomod]
+            nomod = nomod[0]
+        else:
+            nomod = None
 
-        low = args.trim_5p
-        high = data.shape[1] - args.trim_3p
-        data = data[low:high, low:high]
+    low = args.trim_5p
+    high = mod.shape[1] - args.trim_3p
 
-        out = {}
+    mod[:low, :] = np.nan
+    mod[high:, :] = np.nan
+    mod[:, :low] = np.nan
+    mod[:, high:] = np.nan
+    if nomod is not None:
+        nomod[:low, :] = np.nan
+        nomod[high:, :] = np.nan
+        nomod[:, :low] = np.nan
+        nomod[:, high:] = np.nan
+    mask = np.any(~np.isnan(mod), axis=(-2, -1))
 
-        os.makedirs(FIGURES, exist_ok=True)
+    out = {}
+    os.makedirs(FIGURES, exist_ok=True)
 
-        if args.cooccurrence:
-            vals = _plot_cooccurrence(data, name)
-            out[name + "/" + "cooccurrence"] = da.from_array(vals)
-        if args.conditional:
-            vals = _plot_conditional(data, name, args.zero_diag)
-            out[name + "/" + "conditional"] = da.from_array(vals)
-        if args.correlation:
-            vals = _plot_correlation(data, name, args.zero_diag, args.low_rank)
-            out[name + "/" + "correlation"] = da.from_array(vals)
-        if args.mutual_information:
-            vals = _plot_mi(data, name, args.zero_diag, args.low_rank)
-            out[name + "/" + "mi"] = da.from_array(vals)
+    if args.cooccurrence:
+        vals = _plot_cooccurrence(mod, nomod, mask, name)
+        out[name + "/" + "cooccurrence"] = da.from_array(vals)
+    if args.conditional:
+        vals = _plot_conditional(mod, nomod, mask, name, low, high, args.zero_diag)
+        out[name + "/" + "conditional"] = da.from_array(vals)
+    if args.correlation:
+        vals = _plot_correlation(mod, nomod, mask, name, low, high, args.zero_diag, args.low_rank)
+        out[name + "/" + "correlation"] = da.from_array(vals)
+    if args.mutual_information:
+        vals = _plot_mi(mod, nomod, mask, name, low, high, args.zero_diag, args.low_rank)
+        out[name + "/" + "mi"] = da.from_array(vals)
 
-        if out:
-            da.to_hdf5(args.output, out)
+    if out:
+        da.to_hdf5(args.output, out)

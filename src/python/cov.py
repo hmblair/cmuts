@@ -42,9 +42,10 @@ def probability(counts: np.ndarray) -> np.ndarray:
     )
 
 
-def conditional(counts: np.ndarray) -> np.ndarray:
+def conditional(mod: np.ndarray) -> np.ndarray:
 
-    prob = probability(counts)
+    prob = probability(mod)
+
     joint = prob[..., 1, 1]
     marginal = prob[..., 1, 1] + prob[..., 1, 0]
 
@@ -56,9 +57,9 @@ def conditional(counts: np.ndarray) -> np.ndarray:
     )
 
 
-def covariance(counts: np.ndarray) -> np.ndarray:
+def covariance(mod: np.ndarray) -> np.ndarray:
 
-    prob = probability(counts)
+    prob = probability(mod)
     prob = prob / prob.sum((-2, -1))[..., None, None]
 
     ex = (prob[..., 1, 1] + prob[..., 1, 0]).mean(1)
@@ -68,17 +69,24 @@ def covariance(counts: np.ndarray) -> np.ndarray:
     return exy - ex[None, :] * ey[:, None]
 
 
-def correlation(counts: np.ndarray) -> np.ndarray:
+def correlation(mod: np.ndarray, nomod: np.ndarray | None = None) -> np.ndarray:
 
-    cov = covariance(counts)
+    cov = covariance(mod)
     std = np.sqrt(np.diag(cov))
+
+    if nomod is not None:
+        nmcov = covariance(nomod)
+        nmstd = np.sqrt(np.diag(nmcov))
+        cov = cov - nmcov
+        std = np.sqrt(std ** 2 + nmstd ** 2)
 
     cov = cov / (std[:, None] * std[None, :])
     return np.nan_to_num(cov, 0.0)
 
 
-def mutual_information(counts: np.ndarray) -> np.ndarray:
-    prob = probability(counts)
+def mutual_information(mod: np.ndarray) -> np.ndarray:
+
+    prob = probability(mod)
 
     p_00 = prob[..., 0, 0]
     p_01 = prob[..., 0, 1]
@@ -113,5 +121,6 @@ def mutual_information(counts: np.ndarray) -> np.ndarray:
 
 def cooccurrence(counts: np.ndarray) -> np.ndarray:
 
-    prob = probability(counts)
-    return prob.sum((-2, -1))
+    values = counts.sum((-2, -1))
+    max = values[~np.isnan(values)].max()
+    return values / max
