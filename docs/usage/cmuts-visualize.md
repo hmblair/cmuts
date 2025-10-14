@@ -21,6 +21,14 @@ The FASTA file is necessary to perform alignment of the sequence which was probe
 
 ### Core Options
 
+**`--file`** : Path to the HDF5 file containing the reactivity data
+
+**`--dataset`** : Reactivity dataset name in the HDF5 file
+
+**`--fasta`** : Path to .fasta file of the library which was chemically probed
+
+**`--cif`** : Path to the .cif structure file (.pdb also works)
+
 **`--bin`** : Path to the ChimeraX executable (default: ChimeraX)
 
 ### Selection Options
