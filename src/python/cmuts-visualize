@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+
+import argparse
+import h5py
+from vis import _seq_from_fasta, _seq_from_cif, _color_structure
+
+
+parser = argparse.ArgumentParser(
+    description="Color structure by reactivity data from HDF5 file"
+)
+parser.add_argument(
+    "--file",
+    help="Path to HDF5 file",
+    required=True,
+)
+parser.add_argument(
+    "--dataset",
+    help="Dataset name in HDF5 file",
+    required=True,
+)
+parser.add_argument(
+    "--cif",
+    help="Path to .cif structure file",
+    required=True,
+)
+parser.add_argument(
+    "--fasta",
+    help="Path to .fasta file of the sequence which was chemically probed.",
+    required=True,
+)
+parser.add_argument(
+    "--bin",
+    default="ChimeraX",
+    help="Path to ChimeraX binary.",
+)
+parser.add_argument(
+    "--index",
+    type=int,
+    default=0,
+    help="Index of reactivity in the dataset.",
+)
+parser.add_argument(
+    "--chain",
+    nargs='?',
+    default=None,
+    help="Chain of the structure to color. All if none is specified.",
+)
+parser.add_argument(
+    "--color",
+    default="indianred",
+    help="The ChimeraX color to use for highly reactive bases.",
+)
+parser.add_argument(
+    "--trim-5p",
+    type=int,
+    default=0,
+    help="Trim this many bases from the 5' end of the reactivity data.",
+)
+parser.add_argument(
+    "--trim-3p",
+    type=int,
+    default=0,
+    help="Trim this many bases from the 3' end of the reactivity data.",
+)
+
+if __name__ == "__main__":
+
+    args = parser.parse_args()
+
+    with h5py.File(args.file, 'r') as f:
+        data = f[args.dataset][args.index]
+
+    if args.trim_5p:
+        data = data[args.trim_5p:]
+    if args.trim_3p:
+        data = data[:-args.trim_3p]
+
+    seq1 = _seq_from_fasta(args.fasta, args.index)
+    seq2 = _seq_from_cif(args.cif, args.chain)
+
+    _color_structure(args.bin, args.cif, data, seq1, seq2, args.chain, args.color)
