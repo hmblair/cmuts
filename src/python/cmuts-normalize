@@ -651,37 +651,60 @@ def _plot_termination(term: np.ndarray, name: str) -> None:
     plt.close()
 
 
-def _plot_examples(reactivity: np.ndarray, name: str, num: int = 250) -> None:
+def _plot_single_example(
+    reactivity: np.ndarray,
+    name: str,
+) -> None:
 
     prefix = f"{name}-" if name else ""
+    x = range(len(reactivity))
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.fill_between(x, reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
+
+    plt.xlabel("Residue", fontsize=14)
+    plt.ylabel("Reactivity", fontsize=14)
+    if name:
+        plt.title(f"Profile of {name}", fontsize=14)
+    plt.tick_params(axis='both', labelsize=13)
+
+    plt.savefig(f"{FIGURES}/{prefix}profile.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_multiple_examples(
+    reactivity: np.ndarray, 
+    name: str,
+) -> None:
+
+    prefix = f"{name}-" if name else ""
+    masked = np.ma.masked_where(np.isnan(reactivity), reactivity)
+
+    cmap = plt.cm.RdPu.copy()
+    cmap.set_bad(color='grey')
+    im = plt.imshow(masked, cmap=cmap, vmin=0, vmax=1)
+    plt.colorbar(im, label="Reactivity")
+
+    plt.xlabel("Residue", fontsize=12)
+    plt.ylabel("Sequence Index", fontsize=12)
+    if name:
+        plt.title(f"Profile heatmap of {name}", fontsize=14)
+
+    plt.savefig(f"{FIGURES}/{prefix}examples.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_examples(
+    reactivity: np.ndarray,
+    name: str,
+    num: int = 250,
+) -> None:
 
     if reactivity.shape[0] == 1:
-        reactivity = reactivity[0]
-
-        plt.grid(axis="y", alpha=0.5)
-        plt.fill_between(range(len(reactivity)), reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
-        plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
-        plt.xlabel("Residue", fontsize=14)
-        plt.ylabel("Reactivity", fontsize=14)
-        plt.title(f"Profile of {name}", fontsize=14)
-        plt.tick_params(axis='both', labelsize=13)
-        plt.savefig(f"{FIGURES}/{prefix}profile.png", dpi=300, bbox_inches="tight")
-        plt.close()
-
+        _plot_single_example(reactivity[0], name)
     else:
-        vals = reactivity[:num]
-        masked_vals = np.ma.masked_where(np.isnan(vals), vals)
-
-        cmap = plt.cm.RdPu.copy()
-        cmap.set_bad(color='grey')
-        im = plt.imshow(masked_vals, cmap=cmap, vmin=0, vmax=1)
-        plt.colorbar(im, label="Reactivity")
-
-        plt.xlabel("Residue", fontsize=12)
-        plt.ylabel("Sequence Index", fontsize=12)
-        plt.title(f"Profile heatmap of {name}", fontsize=14)
-        plt.savefig(f"{FIGURES}/{prefix}examples.png", dpi=300, bbox_inches="tight")
-        plt.close()
+        _plot_multiple_examples(reactivity[:num], name, num)
 
 
 def _plot_coverage(coverage: np.ndarray, name: str) -> None:
