@@ -192,6 +192,7 @@ int main(int argc, char** argv) {
         !opt.no_mismatch,
         !opt.no_insertion,
         !opt.no_deletion,
+        !opt.only_reverse,
         !opt.no_reverse,
         opt.subsample,
         opt.no_filter_matches,

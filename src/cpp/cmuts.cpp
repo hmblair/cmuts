@@ -665,6 +665,15 @@ static inline void __count(
 
 }
 
+static inline bool __check_sense(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+
+    return (params.forward || aln.reversed) && (params.reverse || !aln.reversed);
+
+}
+
 
 static inline bool __check_quality(
     const HTS::Alignment& aln,
@@ -673,7 +682,7 @@ static inline bool __check_quality(
 
     return (
         aln.aligned                       &&
-        (params.reverse || !aln.reversed) &&
+        __check_sense(aln, params)        &&
         aln.mapq   >= params.min_mapq     &&
         aln.length >= params.min_length   &&
         aln.length <= params.max_length

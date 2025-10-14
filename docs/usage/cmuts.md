@@ -100,6 +100,8 @@ The `--low-mem` flag instructs `cmuts core` to only store coverage and mutation 
 
 **`--no-reverse`** : Skip reverse-complemented reads
 
+**`--only-reverse`** : Only use reverse-complemented reads
+
 ### Modification Detection
 
 **`--max-indel-length`** : Maximum indel length to consider (default: 10)

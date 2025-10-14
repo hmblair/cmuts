@@ -163,6 +163,7 @@ public:
     bool mismatches;
     bool insertions;
     bool deletions;
+    bool forward;
     bool reverse;
     float subsample;
     bool no_filter_matches;

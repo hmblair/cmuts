@@ -1319,6 +1319,18 @@ int32_t CIGAR::rlength() const {
 }
 
 
+int32_t CIGAR::qlength() const {
+
+    int32_t _rlength = 0;
+    for (const auto& op : _str) {
+        _rlength += op.qlength();
+    }
+
+    return _rlength;
+
+}
+
+
 std::string CIGAR::str() const {
 
     std::string _out_str;

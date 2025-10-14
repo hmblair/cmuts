@@ -58,6 +58,7 @@ public:
     Arg<bool> no_insertion;
     Arg<bool> no_deletion;
     Arg<bool> no_reverse;
+    Arg<bool> only_reverse;
     Arg<bool> tokenize;
     Arg<float> subsample;
     Arg<bool> no_filter_matches;
@@ -167,6 +168,10 @@ const std::string NO_REVERSE_SHORT_NAME = "";
 const std::string NO_REVERSE_LONG_NAME = "--no-reverse";
 const std::string NO_REVERSE_HELP = "Ignore reverse-complemented reads.";
 
+const std::string ONLY_REVERSE_SHORT_NAME = "";
+const std::string ONLY_REVERSE_LONG_NAME = "--only-reverse";
+const std::string ONLY_REVERSE_HELP = "Use only reverse-complemented reads.";
+
 const std::string TOKENIZE_SHORT_NAME = "";
 const std::string TOKENIZE_LONG_NAME = "--tokenize";
 const std::string TOKENIZE_HELP = "Tokenize the reference sequences.";
@@ -226,6 +231,7 @@ cmutsProgram::cmutsProgram()
       no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP),
       no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
       no_reverse(_parser, NO_REVERSE_SHORT_NAME, NO_REVERSE_LONG_NAME, NO_REVERSE_HELP),
+      only_reverse(_parser, ONLY_REVERSE_SHORT_NAME, ONLY_REVERSE_LONG_NAME, ONLY_REVERSE_HELP),
       tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
       subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
       no_filter_matches(_parser, NO_FILTER_MATCHES_SHORT_NAME, NO_FILTER_MATCHES_LONG_NAME, NO_FILTER_MATCHES_HELP),

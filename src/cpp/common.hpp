@@ -520,9 +520,13 @@ public:
 
     int32_t bases() const;
 
-    // Get the length of the reference the op consumes
+    // Get the length of the reference the string consumes
 
     int32_t rlength() const;
+
+    // Get the length of the query the string consumes
+
+    int32_t qlength() const;
 
     // Add an op to the end of the CIGAR.
     // Merge it into the final op if it is of the same type.
