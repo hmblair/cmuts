@@ -53,7 +53,6 @@ cmuts align \
 cmuts core \
   -f "$FASTA" \
   -o "$COUNTS" \
-  --filter-coverage \
   --no-insertions \
   "$ALIGNMENTS"/*
 ```
@@ -193,7 +192,6 @@ cmuts align \
 cmuts core \
   -f "$FASTA" \
   -o "$COUNTS" \
-  --filter-coverage \
   --no-insertions \
   "$ALIGNMENTS"/*
 
@@ -238,17 +236,16 @@ cmuts core \
   --joint \
   -f "$FASTA" \
   -o "$COUNTS" \
-  --filter-coverage \
   --no-insertions \
   "$ALIGNMENTS"/*
 ```
 
-The third step uses `cmuts cov` to postprocess the 2D data.
+The third step uses `cmuts pairwise` to postprocess the 2D data.
 
 ```bash
 for ((IX=0; IX<${#MODS[@]}; IX++)); do
   MOD_DS="$ALIGNMENTS"/${MODS[IX]}
-  cmuts cov \
+  cmuts pairwise \
     -o "$PROFILES" \
     --dataset "$MOD_DS" \
     --mutual-information \
