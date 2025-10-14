@@ -1,0 +1,12 @@
+#!/bin/bash
+
+HDF5="profile.h5"
+DATASET="/bicine-2A3/reactivity"
+CIF="9MDS.cif"
+FASTA="ref.fasta"
+
+cmuts visualize \
+  --file "$HDF5" \
+  --dataset "$DATASET" \
+  --fasta "$FASTA" \
+  --cif "$CIF"
