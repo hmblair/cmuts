@@ -88,7 +88,7 @@ profile() {
 
     for ((i=0; i<${RUNS}; i++)); do
 
-        result=$(__time mpirun -np ${THREADS} cmuts \
+        result=$(__time mpirun -np ${THREADS} cmuts core \
             --fasta ${FASTA} \
             --output ${OUTPUT} \
             --min-mapq ${MIN_MAPQ} \
