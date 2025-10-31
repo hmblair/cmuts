@@ -1,5 +1,5 @@
-#ifndef _MAIN_HEADER
-#define _MAIN_HEADER
+#ifndef _CMUTS_MAIN_HEADER_
+#define _CMUTS_MAIN_HEADER_
 
 #include "fasta.hpp"
 #include "common.hpp"
@@ -54,6 +54,7 @@ public:
     Arg<int> max_length;
     Arg<int> quality_window;
     Arg<int> collapse;
+    Arg<int> max_hamming;
     Arg<bool> no_mismatch;
     Arg<bool> no_insertion;
     Arg<bool> no_deletion;
@@ -152,6 +153,11 @@ const std::string COLLAPSE_LONG_NAME = "--collapse";
 const int COLLAPSE_DEFAULT = 2;
 const std::string COLLAPSE_HELP = "Collapse modifications within this distance of each other in a given read.";
 
+const std::string MAX_HAMMING_SHORT_NAME = "";
+const std::string MAX_HAMMING_LONG_NAME = "--max-hamming";
+const int MAX_HAMMING_DEFAULT = 1L << 10;
+const std::string MAX_HAMMING_HELP = "The maximum number of mismatches, insertions, and deletions in a processed read.";
+
 const std::string NO_MISMATCH_SHORT_NAME = "";
 const std::string NO_MISMATCH_LONG_NAME = "--no-mismatches";
 const std::string NO_MISMATCH_HELP = "Do not count mismatches as modifications.";
@@ -227,6 +233,7 @@ cmutsProgram::cmutsProgram()
       max_length(_parser, MAX_LENGTH_SHORT_NAME, MAX_LENGTH_LONG_NAME, MAX_LENGTH_HELP, MAX_LENGTH_DEFAULT),
       quality_window(_parser, QUALITY_WINDOW_SHORT_NAME, QUALITY_WINDOW_LONG_NAME, QUALITY_WINDOW_HELP, QUALITY_WINDOW_DEFAULT),
       collapse(_parser, COLLAPSE_SHORT_NAME, COLLAPSE_LONG_NAME, COLLAPSE_HELP, COLLAPSE_DEFAULT),
+      max_hamming(_parser, MAX_HAMMING_SHORT_NAME, MAX_HAMMING_LONG_NAME, MAX_HAMMING_HELP, MAX_HAMMING_DEFAULT),
       no_mismatch(_parser, NO_MISMATCH_SHORT_NAME, NO_MISMATCH_LONG_NAME, NO_MISMATCH_HELP),
       no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP),
       no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),

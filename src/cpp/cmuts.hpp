@@ -160,6 +160,7 @@ public:
     int32_t max_indel_length;
     int32_t quality_window;
     int32_t collapse;
+    int32_t max_hamming;
     bool mismatches;
     bool insertions;
     bool deletions;

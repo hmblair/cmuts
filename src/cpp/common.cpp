@@ -1196,6 +1196,7 @@ int32_t CIGAR_op::rlength() const {
         case CIGAR_t::HARD:
         case CIGAR_t::PAD:
         case CIGAR_t::BACK:
+        case CIGAR_t::TERM:
         case CIGAR_t::UNKNOWN: {
             return 0;
         }
@@ -1221,6 +1222,7 @@ int32_t CIGAR_op::qlength() const {
         case CIGAR_t::HARD:
         case CIGAR_t::PAD:
         case CIGAR_t::BACK:
+        case CIGAR_t::TERM:
         case CIGAR_t::UNKNOWN: {
             return 0;
         }
@@ -1297,7 +1299,11 @@ int32_t CIGAR::hamming() const {
 
     int32_t _hamming = 0;
     for (const auto& op : _str) {
-        if (op.type() != CIGAR_t::MATCH) {
+        if (
+            op.type() == CIGAR_t::INS ||
+            op.type() == CIGAR_t::DEL ||
+            op.type() == CIGAR_t::MISMATCH
+        ) {
             _hamming += op.length();
         }
     }
@@ -1952,6 +1958,10 @@ std::ostream& operator<<(std::ostream& os, CIGAR_t cigar) {
         }
         case CIGAR_t::BACK:     {
             os << "BACK";
+            break;
+        }
+        case CIGAR_t::TERM:     {
+            os << "TERM";
             break;
         }
     }

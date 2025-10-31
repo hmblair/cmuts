@@ -189,6 +189,7 @@ int main(int argc, char** argv) {
         opt.max_indel_length,
         opt .quality_window,
         opt.collapse,
+        opt.max_hamming,
         !opt.no_mismatch,
         !opt.no_insertion,
         !opt.no_deletion,

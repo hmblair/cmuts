@@ -170,7 +170,7 @@ static inline dtype _total_muts(
         return ARR_TMP[ix];
     }
 
-    throw std::runtime_error("Invalid mode for _total_muts.");
+    __throw_and_log(_LOG_FILE, "Invalid mode for _total_muts.");
 
 }
 
@@ -370,13 +370,12 @@ template <typename dtype, Mode mode>
 static inline void __term_core(
     view_t<dtype, _ndims(mode)> arr,
     int32_t rpos,
-    base_t rbase,
-    dtype mask
+    base_t rbase
 ) {
 
-    // Record the original base and position
+    // Record the location and base of termination
     if constexpr (mode == Mode::Normal) {
-        arr(rpos, rbase, IX_TERM) += mask;
+        arr(rpos, rbase, IX_TERM) += 1;
     }
 
     // Store the modification in the temp dim and invoke the joint counter
@@ -562,7 +561,8 @@ static inline void __count(
     int32_t qpos = aln.length;
 
     if (rpos > reference.size()) {
-        throw std::out_of_range(
+        __throw_and_log(
+            _LOG_FILE,
             "Reference position " + std::to_string(rpos) + 
             " exceeds reference sequence length " + std::to_string(reference.size())
         );
@@ -617,7 +617,7 @@ static inline void __count(
 
             case HTS::CIGAR_t::TERM: {
 
-                __term_core<dtype, mode>(arr, rpos, reference[rpos], mask[qpos]);
+                __term_core<dtype, mode>(arr, rpos, reference[rpos]);
                 break;
 
             }
@@ -651,7 +651,7 @@ static inline void __count(
 
             case HTS::CIGAR_t::UNKNOWN: {
 
-                throw std::runtime_error("Unknown CIGAR operation encountered at reference position " + std::to_string(rpos) + ".");
+                __throw_and_log(_LOG_FILE, "Unknown CIGAR operation encountered at reference position " + std::to_string(rpos) + ".");
 
             }
 
@@ -661,7 +661,7 @@ static inline void __count(
 
     // Count termination events
 
-    __term_core<dtype, mode>(arr, rpos, reference[rpos], mask[qpos]);
+    __term_core<dtype, mode>(arr, rpos, reference[rpos]);
 
 }
 
@@ -685,7 +685,8 @@ static inline bool __check_quality(
         __check_sense(aln, params)        &&
         aln.mapq   >= params.min_mapq     &&
         aln.length >= params.min_length   &&
-        aln.length <= params.max_length
+        aln.length <= params.max_length   &&
+        aln.cigar.hamming() <= params.max_hamming
     );
 
 }
@@ -901,7 +902,7 @@ template class TemplatedMain<float, Mode::Joint>;
 Mode mode(bool lowmem, bool joint) {
 
     if (lowmem && joint) {
-        throw std::runtime_error("--low-mem and --joint are mutully exclusive.");
+        __throw_and_log(_LOG_FILE, "--low-mem and --joint are mutully exclusive.");
     }
 
     if (lowmem) { return Mode::LowMem; }
@@ -913,7 +914,7 @@ Mode mode(bool lowmem, bool joint) {
 Spread spread(bool uniform, bool none) {
 
     if (uniform && none) {
-        throw std::runtime_error("--uniform-spread and --no-spread are mutually exclusive.");
+        __throw_and_log(_LOG_FILE, "--uniform-spread and --no-spread are mutually exclusive.");
     }
 
     if (uniform) { return Spread::Uniform; }
@@ -960,7 +961,7 @@ std::unique_ptr<Main> _get_main(
 
         case Mode::Tokenize: {
 
-            throw std::runtime_error("Mode::Tokenize is not a valid input to _get_main.");
+            __throw_and_log(_LOG_FILE, "Mode::Tokenize is not a valid input to _get_main.");
 
         }
 
