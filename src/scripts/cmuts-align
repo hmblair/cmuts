@@ -4,8 +4,10 @@ set -eou pipefail
 LOG="cmuts-align.log"
 
 handler() {
+  if [ $? -ne 130 ]; then
     echo "Error occurred on line $1. Script exited early." >> "$LOG"
     echo "Error occurred on line $1. Script exited early. See $LOG for details." >&2
+  fi
 }
 
 trap 'handler $LINENO' ERR
@@ -227,14 +229,18 @@ for IX in "${!FILES[@]}"; do
 
   FILE="${FILES[IX]}"
   NAME=$(basename "$FILE")
-  BASENAME="${NAME%.fastq*}"
+  BASENAME="${NAME%%.*}"
 
   if [[ ${#PAIRS[@]} -gt 0 ]]; then
     PAIR="${PAIRS[IX]}"
     FARGS=("-1" "$FILE" "-2" "$PAIR")
   else
     PAIR=""
-    FARGS=("-U" "$FILE")
+    if [[ "$FILE" == *.bam ]]; then
+        FARGS=("-b" "$FILE")
+    else
+        FARGS=("-U" "$FILE")
+    fi
   fi
 
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
@@ -249,7 +255,7 @@ for IX in "${!FILES[@]}"; do
     --threads "$THREADS" \
     -x "$INDEX" \
     --dpad 30 \
-    --maxins=800 \
+    --maxins=1024 \
     --ignore-quals \
     "$LOCAL" \
     --mp 3,1 \
