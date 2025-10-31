@@ -19,6 +19,15 @@ bool _exists(const std::string& filename) {
 }
 
 
+void _delete(const std::string& filename) {
+
+    (void)std::filesystem::remove(filename);
+    if (_exists(filename)) {
+        __throw_and_log(_LOG_FILE, "The file \"" + filename + "\" could not be deleted.");
+    }
+
+}
+
 
 void _throw_if_exists(const std::string& filename) {
 

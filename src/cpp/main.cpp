@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     try {
 
         if (mpi.root()) {
-            _fasta.emplace(opt.fasta);
+            _fasta.emplace(opt.fasta, opt.rebuild);
         }
         mpi.barrier();
         if (!mpi.root()) {

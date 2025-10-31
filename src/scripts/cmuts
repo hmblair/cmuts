@@ -19,7 +19,29 @@ case "$1" in
     cmuts-align "${@:2}"
     ;;
   core)
-    cmuts-core "${@:2}"
+    threads=""
+    new_args=()
+    skip_next=false
+    for arg in "${@:2}"; do
+      if [ "$skip_next" = true ]; then
+        threads="$arg"
+        skip_next=false
+      elif [ "$arg" = "--threads" ]; then
+        skip_next=true
+      else
+        new_args+=("$arg")
+      fi
+    done
+    # Run with mpirun if threads specified, otherwise run normally
+    if [ -n "$threads" ]; then
+      if ! cmuts core --version 2>/dev/null | grep -q "MPI"; then
+        echo "cmuts not built with MPI, --threads cannot be used"
+        exit 1
+      fi
+      mpirun -np "$threads" cmuts-core "${new_args[@]}"
+    else
+      cmuts-core "${@:2}"
+    fi
     ;;
   normalize)
     cmuts-normalize "${@:2}"

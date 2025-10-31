@@ -130,6 +130,7 @@ const std::array<uint8_t, BYTE + 1> BIT_MASK = _bit_mask();
 
 
 bool _exists(const std::string& filename);
+void _delete(const std::string& filename);
 void _throw_if_exists(const std::string& filename);
 void _throw_if_not_exists(const std::string& filename);
 void _safe_move(const std::string& src, const std::string& dst);
