@@ -27,6 +27,7 @@ class NormMethod(Enum):
     UBR = 1
     OUTLIER = 2
 
+
 # ANSI escape codes (for printing)
 
 BOLD = '\033[1m'

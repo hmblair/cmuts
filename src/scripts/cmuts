@@ -35,10 +35,15 @@ case "$1" in
     # Run with mpirun if threads specified, otherwise run normally
     if [ -n "$threads" ]; then
       if ! cmuts core --version 2>/dev/null | grep -q "MPI"; then
-        echo "cmuts not built with MPI, --threads cannot be used"
-        exit 1
+        if [[ $threads == 1 ]]; then
+          cmuts-core "${new_args[@]}"
+        else
+          echo "cmuts not built with MPI, --threads > 1 cannot be used"
+          exit 1
+        fi
+      else
+        mpirun -np "$threads" cmuts-core "${new_args[@]}"
       fi
-      mpirun -np "$threads" cmuts-core "${new_args[@]}"
     else
       cmuts-core "${@:2}"
     fi
