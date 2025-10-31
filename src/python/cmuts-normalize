@@ -73,6 +73,10 @@ parser.add_argument(
     help='The names of the datasets containing the mutation counts of the non-modified sequences.',
 )
 parser.add_argument(
+    '--fasta',
+    help='Get sequence lengths from this file.',
+)
+parser.add_argument(
     '--group',
     help='The group in the output file to place the reads and reactivities.',
     default="",
@@ -145,9 +149,14 @@ parser.add_argument(
 
 
 def _title(program: str, version: str, name: str) -> str:
-    return f"""        {program} version {version}
-      ───────────────────────────────────
-        {BOLD}Statistics for {name}:{RESET}"""
+    if name:
+        return f"""        {program} version {version}
+          ───────────────────────────────────
+         {BOLD}Statistics for {name}:{RESET}"""
+    else:
+        return f"""        {program} version {version}
+          ───────────────────────────────────
+         {BOLD}Statistics:{RESET}"""
 
 
 def _remove_if_exists(
@@ -228,6 +237,10 @@ def _print_stats(
 
     tr = np.sum(reads.combined)
 
+    # High-read sequences
+
+    ix = np.argmax(reads.combined)
+
     # Mean reads
 
     mr = np.mean(reads.combined)
@@ -295,6 +308,7 @@ def _print_stats(
     print(f"         References:              {nseqs:,}")
     print(f"         Reference length:        {seqlen:,}")
     print(f"         Total reads:             {int(tr):,}")
+    print(f"         Highest-read:            {int(ix):,}")
     print(f"         {BOLD}Treated (MOD):{RESET}")
     print(f"          Mean reads:             {mr_mod:.2f}")
     print(f"          Median reads:           {int(medr_mod):,}")
@@ -337,6 +351,7 @@ def _process_single(
     min: int = 10,
     use_dels: bool = True,
     use_ins: bool = True,
+    lengths: np.ndarray | None = None,
 ) -> tuple[np.ndarray | None, ...]:
 
     if not groups:
@@ -375,6 +390,8 @@ def _process_single(
 
     mask = (coverage > min)
     mask[:, ~roi] = False
+    if lengths is not None:
+        mask &= (np.arange(arr.shape[1]) < lengths[:, None])
 
     # Compute termination events
 
@@ -418,6 +435,7 @@ def _process(
     nomod_groups: list[str],
     roi: slice,
     min: int = 10,
+    lengths: np.ndarray | None = None,
     use_dels: bool = True,
     use_ins: bool = True,
 ) -> tuple[ReacData, ...]:
@@ -430,7 +448,7 @@ def _process(
         mod_heatmap,
         mod_mc,
         mod_term,
-    ) = _process_single(file, mod_groups, roi, min, use_dels, use_ins)
+    ) = _process_single(file, mod_groups, roi, min, use_dels, use_ins, lengths)
 
     (
         nomod_reactivity,
@@ -440,7 +458,7 @@ def _process(
         nomod_heatmap,
         nomod_mc,
         nomod_term
-    ) = _process_single(file, nomod_groups, roi, min, use_dels, use_ins)
+    ) = _process_single(file, nomod_groups, roi, min, use_dels, use_ins, lengths)
 
     # Reactivity
 
@@ -632,6 +650,28 @@ def _plot_read_hist(reads: np.ndarray, name: str) -> None:
     plt.close()
 
 
+def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100) -> None:
+
+    prefix = f"{name}-" if name else ""
+    n = reads.shape[0] // block
+    reads = reads[:n * block]
+    reads = reads.reshape(n, block).mean(1)
+
+    with np.errstate(divide='ignore'):
+        lr = np.where(reads == 0, -1, np.log10(reads))
+
+    plt.grid(axis="y", alpha=0.5)
+    plt.fill_between(range(len(lr)), lr, alpha=0.5, color=plt.cm.RdPu(0.3))
+    plt.plot(lr, color=plt.cm.RdPu(0.8), linewidth=1)
+
+    plt.title(f"Cumulative reads for {name}", fontsize=15)
+    plt.xlabel("Sequence index", fontsize=12)
+    plt.ylabel("Read Depth", fontsize=12)
+
+    plt.savefig(f"{FIGURES}/{prefix}cumulative-reads.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
 def _plot_termination(term: np.ndarray, name: str) -> None:
 
     prefix = f"{name}-" if name else ""
@@ -646,7 +686,10 @@ def _plot_termination(term: np.ndarray, name: str) -> None:
     plt.ylabel("Termination density", fontsize=14)
     plt.ylim(0, 1)
     plt.tick_params(axis='both', labelsize=13)
-    plt.title(f"Termination by position for {name}", fontsize=14)
+    if name:
+        plt.title(f"Termination by position for {name}", fontsize=14)
+    else:
+        plt.title("Termination by position", fontsize=14)
     plt.savefig(f"{FIGURES}/{prefix}termination.png", dpi=300, bbox_inches="tight")
     plt.close()
 
@@ -661,7 +704,8 @@ def _plot_single_example(
 
     plt.grid(axis="y", alpha=0.5)
     plt.fill_between(x, reactivity, alpha=0.5, color=plt.cm.RdPu(0.3))
-    plt.plot(reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
+    plt.plot(x, reactivity, color=plt.cm.RdPu(0.8), linewidth=1)
+    plt.xlim(0, reactivity.shape[0])
 
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Reactivity", fontsize=14)
@@ -697,6 +741,7 @@ def _plot_multiple_examples(
 
 def _plot_examples(
     reactivity: np.ndarray,
+    reads: np.ndarray,
     name: str,
     num: int = 250,
 ) -> None:
@@ -704,7 +749,9 @@ def _plot_examples(
     if reactivity.shape[0] == 1:
         _plot_single_example(reactivity[0], name)
     else:
-        _plot_multiple_examples(reactivity[:num], name, num)
+        _plot_multiple_examples(reactivity[:num], name)
+        ix = reads.argmax()
+        _plot_single_example(reactivity[ix], f"sequence-{ix.item()}")
 
 
 def _plot_coverage(coverage: np.ndarray, name: str) -> None:
@@ -716,10 +763,34 @@ def _plot_coverage(coverage: np.ndarray, name: str) -> None:
     plt.xlabel("Residue", fontsize=14)
     plt.ylabel("Fraction of reads", fontsize=14)
     plt.ylim(0, 1)
-    plt.title(f"Coverage by position for {name}", fontsize=14)
+    if name:
+        plt.title(f"Coverage by position for {name}", fontsize=14)
+    else:
+        plt.title("Coverage by position", fontsize=14)
     plt.tick_params(axis='both', labelsize=13)
     plt.savefig(f"{FIGURES}/{prefix}coverage.png", dpi=300, bbox_inches="tight")
     plt.close()
+
+
+def _lengths_from_fasta(file: str) -> np.ndarray:
+
+    lengths = []
+    length = 0
+    start = True
+
+    with open(file, 'r') as f:
+        for line in f:
+            if line.startswith('>'):
+                if start:
+                    start = False
+                    continue
+                lengths.append(length)
+                length = 0
+            else:
+                length += len(line.strip())
+
+    lengths.append(length)
+    return np.array(lengths)
 
 
 if __name__ == '__main__':
@@ -734,6 +805,11 @@ if __name__ == '__main__':
     if not args.nomod:
         args.nomod = None
 
+    if args.fasta is not None:
+        lengths = _lengths_from_fasta(args.fasta)
+    else:
+        lengths = None
+
     with h5py.File(args.file, 'r') as f:
 
         n = f[args.mod[0]].shape[1]
@@ -746,7 +822,7 @@ if __name__ == '__main__':
         ROI[BLANK_OUT3:] = False
 
         reactivity, reads, err, mask, heatmap, mc, term = _process(
-            f, args.mod, args.nomod, ROI, args.blank_cutoff,
+            f, args.mod, args.nomod, ROI, args.blank_cutoff, lengths
         )
 
         # Normalize the reactivity and its error
@@ -821,7 +897,8 @@ if __name__ == '__main__':
 
         _plot_heatmap(heatmap.combined, args.group)
         _plot_read_hist(reads.combined, args.group)
-        _plot_examples(reactivity.combined, args.group)
+        _plot_cumulative_reads(reads.combined, args.group)
+        _plot_examples(reactivity.combined, reads.combined, args.group)
         _plot_termination(term.combined, args.group)
         _plot_coverage(mc.combined, args.group)
 

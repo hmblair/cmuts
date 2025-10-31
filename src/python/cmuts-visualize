@@ -2,7 +2,23 @@
 
 import argparse
 import h5py
-from vis import _seq_from_fasta, _seq_from_cif, _color_structure
+from cmuts import visualize
+
+
+def _seq_from_fasta(file: str, n: int = 0) -> str:
+
+    seq = ""
+    count = 0
+
+    with open(file, 'r') as f:
+        for line in f:
+            if line.startswith(">"):
+                count += 1
+                continue
+            if count == n + 1:
+                seq += line.strip()
+
+    return seq.upper().replace("U", "T")
 
 
 parser = argparse.ArgumentParser(
@@ -75,7 +91,5 @@ if __name__ == "__main__":
     if args.trim_3p:
         data = data[:-args.trim_3p]
 
-    seq1 = _seq_from_fasta(args.fasta, args.index)
-    seq2 = _seq_from_cif(args.cif, args.chain)
-
-    _color_structure(args.bin, args.cif, data, seq1, seq2, args.chain, args.color)
+    seq = _seq_from_fasta(args.fasta, args.index)
+    visualize(data, seq, args.cif, args.color, args.chain, args.bin)
