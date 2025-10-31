@@ -9,6 +9,7 @@ share/
 *.cmix
 *.binary
 *.log
+*.egg-info
 onp/
 figures/
 !/docs/figures
