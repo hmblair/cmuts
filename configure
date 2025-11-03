@@ -83,3 +83,9 @@ echo $VERSION > ${BIN_DIR}/VERSION
 echo
 echo " -- cmuts built successfully --"
 echo
+
+pip3 install .
+
+echo
+echo " -- cmuts installed successfully --"
+echo
