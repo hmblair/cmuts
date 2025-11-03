@@ -5,12 +5,17 @@ VERSION="1.1.0"
 set -eo pipefail
 
 DEBUG=0
+CLEAN=0
 MPI_BUILD=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --debug)
       DEBUG=1
+      shift
+      ;;
+    --clean)
+      CLEAN=1
       shift
       ;;
     --mpi)
@@ -50,6 +55,7 @@ fi
 # Clean and create build directory
 
 rm -rf ${BIN_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${BUILD_DIR}
 mkdir -p ${BUILD_DIR} ${BIN_DIR}
 
 pushd ${BUILD_DIR} > /dev/null
