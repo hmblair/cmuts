@@ -166,10 +166,8 @@ int main(int argc, char** argv) {
 
     // Get the desired operation modes
 
-    cmuts::Mode mode;
     cmuts::Spread spread;
     try {
-        mode   = cmuts::mode(opt.lowmem, opt.joint);
         spread = cmuts::spread(opt.uniform_spread, opt.no_spread);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
@@ -179,30 +177,38 @@ int main(int argc, char** argv) {
 
     // Initialise the parameters for the main counting function
 
-    cmuts::Params params = {
-        mode,
-        spread,
-        opt.min_mapq,
-        opt.min_quality,
-        opt.min_length,
-        opt.max_length,
-        opt.max_indel_length,
-        opt .quality_window,
-        opt.collapse,
-        opt.max_hamming,
-        !opt.no_mismatch,
-        !opt.no_insertion,
-        !opt.no_deletion,
-        !opt.only_reverse,
-        !opt.no_reverse,
-        opt.subsample,
-        opt.no_filter_matches,
-        opt.no_filter_insertions,
-        opt.no_filter_deletions,
-        !opt.disable_ambiguous,
-        opt.deletion_gap,
-        opt.print_every
-    };
+    cmuts::Params params;
+    try {
+        params = {
+            opt.joint,
+            spread,
+            opt.min_mapq,
+            opt.min_quality,
+            opt.min_length,
+            opt.max_length,
+            opt.max_indel_length,
+            opt .quality_window,
+            opt.collapse,
+            opt.max_hamming,
+            !opt.no_mismatch,
+            !opt.no_insertion,
+            !opt.no_deletion,
+            !opt.only_reverse,
+            !opt.no_reverse,
+            opt.subsample,
+            opt.no_filter_matches,
+            opt.no_filter_insertions,
+            opt.no_filter_deletions,
+            cmuts::_ignore_str_to_bool(opt.ignore_bases),
+            !opt.disable_ambiguous,
+            opt.deletion_gap,
+            opt.print_every
+        };
+    } catch (const std::exception& e) {
+        mpi.err() << "Error: " << e.what() << "\n";
+        __cleanup(mpi, opt);
+        return EXIT_FAILURE;
+    }
 
     // Initialise the stats tracker, and print the header
 
@@ -220,15 +226,13 @@ int main(int argc, char** argv) {
 
     for (auto& input : files) {
 
-        std::unique_ptr<cmuts::Main> main;
         std::string name = _path(input->name());;
 
         try {
             stats.file();
-            main = cmuts::_get_main(*input, fasta, hdf5, mpi, params, stats, name);
-            main->run();
-            processed++;
+            cmuts::run<float>(*input, fasta, hdf5, mpi, params, stats, name);
             stats.body();
+            processed++;
         } catch (const std::exception& e) {
             mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
             continue;

@@ -293,8 +293,16 @@ static inline CIGAR _get_cigar_core(
     MD_tag md_tag(md_tag_str);
 
     // Reserve the minimum amount of space required
-    auto size = static_cast<int32_t>(hts_cigar.size());
+
+    auto size = static_cast<int32_t>(hts_cigar.size() + 1);
     CIGAR cigar(size);
+
+    // Add the termination event first
+
+    CIGAR_op term(CIGAR_t::TERM);
+    cigar.append(term);
+
+    // Read the remaining operations from the HTS CIGAR string
 
     for (const auto& hts_op : hts_cigar) {
 

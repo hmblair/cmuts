@@ -45,8 +45,7 @@ namespace options {
     inline const TypedOptionConfig<int> PRINT_EVERY{"", "--print-every", "Update the progress indicators each time this many reads is processed.", 1000};
 
     // Mode options
-    inline const OptionConfig JOINT{"", "--joint", "Compute the joint distribution of mutations."};
-    inline const OptionConfig LOW_MEM{"", "--low-mem", "Compute modification locations and coverage only (i.e. no modification types)."};
+    inline const OptionConfig JOINT{"", "--pairwise", "Compute pairwise modification counts."};
     inline const OptionConfig TOKENIZE{"", "--tokenize", "Tokenize the reference sequences."};
 
     // Mutation type filters
@@ -68,6 +67,9 @@ namespace options {
     inline const OptionConfig NO_FILTER_MATCHES{"", "--no-match-filter", "Do not filter matches based on their PHRED base score."};
     inline const OptionConfig NO_FILTER_INSERTIONS{"", "--no-insertion-filter", "Do not filter insertions based on their PHRED base score."};
     inline const OptionConfig NO_FILTER_DELETIONS{"", "--no-deletion-filter", "Do not filter deletions based on their PHRED base score."};
+
+    // Base filtering
+    inline const TypedOptionConfig<std::string> IGNORE_BASES{"", "--ignore-bases", "Do not count mismatches or deletions occuring at these bases. Pass as a single string", ""};
 
 }
 

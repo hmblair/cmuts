@@ -58,7 +58,6 @@ public:
     
     // Modes
     Arg<bool> joint;
-    Arg<bool> lowmem;
     Arg<bool> tokenize;
     
     // Mutation type filters
@@ -80,6 +79,9 @@ public:
     Arg<bool> no_filter_matches;
     Arg<bool> no_filter_insertions;
     Arg<bool> no_filter_deletions;
+
+    // Base filtering
+    Arg<std::string> ignore_bases;
 
     cmutsProgram();
 };
@@ -104,7 +106,6 @@ cmutsProgram::cmutsProgram()
       collapse(_parser, cmuts::options::COLLAPSE.short_name, cmuts::options::COLLAPSE.long_name, cmuts::options::COLLAPSE.help, cmuts::options::COLLAPSE.default_value),
       print_every(_parser, cmuts::options::PRINT_EVERY.short_name, cmuts::options::PRINT_EVERY.long_name, cmuts::options::PRINT_EVERY.help, cmuts::options::PRINT_EVERY.default_value),
       joint(_parser, cmuts::options::JOINT.short_name, cmuts::options::JOINT.long_name, cmuts::options::JOINT.help),
-      lowmem(_parser, cmuts::options::LOW_MEM.short_name, cmuts::options::LOW_MEM.long_name, cmuts::options::LOW_MEM.help),
       tokenize(_parser, cmuts::options::TOKENIZE.short_name, cmuts::options::TOKENIZE.long_name, cmuts::options::TOKENIZE.help),
       no_mismatch(_parser, cmuts::options::NO_MISMATCH.short_name, cmuts::options::NO_MISMATCH.long_name, cmuts::options::NO_MISMATCH.help),
       no_insertion(_parser, cmuts::options::NO_INSERTION.short_name, cmuts::options::NO_INSERTION.long_name, cmuts::options::NO_INSERTION.help),
@@ -117,7 +118,8 @@ cmutsProgram::cmutsProgram()
       disable_ambiguous(_parser, cmuts::options::DISABLE_AMBIGUOUS.short_name, cmuts::options::DISABLE_AMBIGUOUS.long_name, cmuts::options::DISABLE_AMBIGUOUS.help),
       no_filter_matches(_parser, cmuts::options::NO_FILTER_MATCHES.short_name, cmuts::options::NO_FILTER_MATCHES.long_name, cmuts::options::NO_FILTER_MATCHES.help),
       no_filter_insertions(_parser, cmuts::options::NO_FILTER_INSERTIONS.short_name, cmuts::options::NO_FILTER_INSERTIONS.long_name, cmuts::options::NO_FILTER_INSERTIONS.help),
-      no_filter_deletions(_parser, cmuts::options::NO_FILTER_DELETIONS.short_name, cmuts::options::NO_FILTER_DELETIONS.long_name, cmuts::options::NO_FILTER_DELETIONS.help)
+      no_filter_deletions(_parser, cmuts::options::NO_FILTER_DELETIONS.short_name, cmuts::options::NO_FILTER_DELETIONS.long_name, cmuts::options::NO_FILTER_DELETIONS.help),
+      ignore_bases(_parser, cmuts::options::IGNORE_BASES.short_name, cmuts::options::IGNORE_BASES.long_name, cmuts::options::IGNORE_BASES.help, cmuts::options::IGNORE_BASES.default_value)
 {}
 
 #endif
