@@ -8,6 +8,7 @@ Installing and running the `cmuts` pipeline requires the following packages:
  - `autoconf`
  - `samtools` and `htslib`
  - `hdf5`
+ - `omp`
 
 The MPI build also requires
 
@@ -24,10 +25,6 @@ The following should install all (save for `python` and its packages) on a perso
     brew install hdf5
     # For MPI builds only:
     brew install openmpi hdf5-mpi
-    ```
-
-=== "Linux"
-    ```bash
     ```
 
 !!! tip "Verify Dependencies"

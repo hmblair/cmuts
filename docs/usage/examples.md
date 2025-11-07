@@ -223,7 +223,7 @@ FASTQ="$PARENT/fastq"
 FASTA="$PARENT/ref.fasta"
 ```
 
-The first two steps are the same, save for the `--joint` flag passed to `cmuts core`.
+The first two steps are the same, save for the `--pairwise` flag passed to `cmuts core`.
 
 ```bash
 cmuts align \
@@ -233,22 +233,22 @@ cmuts align \
   "$FASTQ"/*.fastq*
 
 cmuts core \
-  --joint \
+  --pairwise \
   -f "$FASTA" \
   -o "$COUNTS" \
   --no-insertions \
   "$ALIGNMENTS"/*
 ```
 
-The third step uses `cmuts pairwise` to postprocess the 2D data.
+The third step uses `cmuts normalize` to postprocess the 2D data.
 
 ```bash
 for ((IX=0; IX<${#MODS[@]}; IX++)); do
   MOD_DS="$ALIGNMENTS"/${MODS[IX]}
-  cmuts pairwise \
+  cmuts normalize \
     -o "$PROFILES" \
-    --dataset "$MOD_DS" \
-    --mutual-information \
+    --mod "$MOD_DS" \
+    --clip-low \
     "$COUNTS"
 done
 ```
