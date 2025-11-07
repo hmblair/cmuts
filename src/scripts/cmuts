@@ -3,7 +3,7 @@
 set -eou pipefail
 
 print-usage() {
-  echo "Usage: $(basename $0) [--log LOGFILE] {align|core|normalize|pairwise|visualize|test}"
+  echo "Usage: $(basename $0) [--log LOGFILE] {align|core|normalize|visualize|test}"
 }
 
 # Parse --log argument
@@ -72,9 +72,6 @@ case "${args[0]:-}" in
     ;;
   normalize)
     cmuts-normalize "${args[@]:1}"
-    ;;
-  pairwise)
-    cmuts-pairwise "${args[@]:1}"
     ;;
   visualize)
     cmuts-visualize "${args[@]:1}"
