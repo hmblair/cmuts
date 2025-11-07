@@ -271,7 +271,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../usage/pipeline/" class="md-tabs__link">
+        <a href="../../usage/cmuts/" class="md-tabs__link">
           
   
   
@@ -493,9 +493,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-build-cmuts" class="md-nav__link">
+  <a href="#2-build-and-install-cmuts" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Build cmuts
+      2. Build and Install cmuts
     </span>
   </a>
   
@@ -615,12 +615,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../../usage/pipeline/" class="md-nav__link">
+      <a href="../../usage/cmuts/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    The Pipeline
+    cmuts
     
   </span>
   
@@ -661,7 +661,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../usage/cmuts/" class="md-nav__link">
+      <a href="../../usage/cmuts-core/" class="md-nav__link">
         
   
   
@@ -797,9 +797,9 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#2-build-cmuts" class="md-nav__link">
+  <a href="#2-build-and-install-cmuts" class="md-nav__link">
     <span class="md-ellipsis">
-      2. Build cmuts
+      2. Build and Install cmuts
     </span>
   </a>
   
@@ -855,8 +855,12 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>--recurse-submodules<span class="w"> </span>https://github.com/hmblair/cmuts
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>cmuts
 </code></pre></div>
-<h3 id="2-build-cmuts">2. Build <code>cmuts</code></h3>
+<h3 id="2-build-and-install-cmuts">2. Build and Install <code>cmuts</code></h3>
 <p>The configuration script contains all required setup and build steps.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This will also install the <code>cmuts</code> wheel via <code>pip</code>, so if needed enter your environment of choice first.</p>
+</div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./configure
 </code></pre></div>
 <p>If building the multithreaded version, pass the <code>--mpi</code> flag to the script.</p>
@@ -867,7 +871,7 @@
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>Building with <code>--mpi</code> or <code>--debug</code> after an existing build has already been performed will require deleting the <code>build</code> directory first.</p>
+<p>Building with <code>--mpi</code> or <code>--debug</code> after an existing build has already been performed will require deleting the <code>build</code> directory first. This can equivalently be done by passing the <code>--clean</code> flag to the script.</p>
 </div>
 <h3 id="3-modify-path">3. Modify PATH</h3>
 <p>Afterwards, add the <code>cmuts</code> binary directory to your PATH:</p>
@@ -893,8 +897,7 @@
 <p>To update to a newer version, from within the <code>cmuts</code> directory, run</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>master
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--recursive
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>rm<span class="w"> </span>-rf<span class="w"> </span>build
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>./configure<span class="w"> </span><span class="c1"># OR ./configure --mpi</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./configure<span class="w"> </span>--clean<span class="w"> </span><span class="c1"># OR ./configure --clean --mpi</span>
 </code></pre></div>
 
 

@@ -10,10 +10,10 @@
         <link rel="canonical" href="https://hmblair.github.io/cmuts/usage/cmuts/">
       
       
-        <link rel="prev" href="../cmuts-align/">
+        <link rel="prev" href="../../installation/org-notes/">
       
       
-        <link rel="next" href="../cmuts-normalize/">
+        <link rel="next" href="../cmuts-align/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -21,7 +21,7 @@
     
     
       
-        <title>cmuts core - cmuts Documentation</title>
+        <title>cmuts - cmuts Documentation</title>
       
     
     
@@ -82,11 +82,6 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
-        
-        <a href="#purpose" class="md-skip">
-          Skip to content
-        </a>
-      
     </div>
     <div data-md-component="announce">
       
@@ -117,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              cmuts core
+              cmuts
             
           </span>
         </div>
@@ -271,7 +266,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../pipeline/" class="md-tabs__link">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -523,20 +518,28 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../pipeline/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
   <span class="md-ellipsis">
-    The Pipeline
+    cmuts
     
   </span>
   
 
       </a>
+      
     </li>
   
 
@@ -569,30 +572,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    cmuts core
-    
-  </span>
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../cmuts-core/" class="md-nav__link">
         
   
   
@@ -603,162 +586,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#purpose" class="md-nav__link">
-    <span class="md-ellipsis">
-      Purpose
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Usage
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pairwise-modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Pairwise Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#low-mem" class="md-nav__link">
-    <span class="md-ellipsis">
-      Low-Mem
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#command-line-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Command Line Options
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Command Line Options">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#core-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Core Options
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#output-control" class="md-nav__link">
-    <span class="md-ellipsis">
-      Output Control
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#analysis-modes" class="md-nav__link">
-    <span class="md-ellipsis">
-      Analysis Modes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quality-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      Quality Filtering
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Detection
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deletion-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deletion Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling-and-coverage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Sampling and Coverage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      Performance
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -858,152 +685,6 @@
   
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#purpose" class="md-nav__link">
-    <span class="md-ellipsis">
-      Purpose
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#usage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Usage
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pairwise-modification-counting" class="md-nav__link">
-    <span class="md-ellipsis">
-      Pairwise Modification Counting
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#low-mem" class="md-nav__link">
-    <span class="md-ellipsis">
-      Low-Mem
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#command-line-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Command Line Options
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Command Line Options">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#core-options" class="md-nav__link">
-    <span class="md-ellipsis">
-      Core Options
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#output-control" class="md-nav__link">
-    <span class="md-ellipsis">
-      Output Control
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#analysis-modes" class="md-nav__link">
-    <span class="md-ellipsis">
-      Analysis Modes
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#quality-filtering" class="md-nav__link">
-    <span class="md-ellipsis">
-      Quality Filtering
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#modification-detection" class="md-nav__link">
-    <span class="md-ellipsis">
-      Modification Detection
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#deletion-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      Deletion Handling
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sampling-and-coverage" class="md-nav__link">
-    <span class="md-ellipsis">
-      Sampling and Coverage
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#performance" class="md-nav__link">
-    <span class="md-ellipsis">
-      Performance
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1021,92 +702,23 @@
   
 
 
-  <h1>cmuts core</h1>
+  <h1>cmuts</h1>
 
-<h2 id="purpose">Purpose</h2>
-<p><code>cmuts core</code> performs the main job of the <code>cmuts</code> pipeline, which is determining the location and type of mutations, insertions, and deletions in a collection of aligned reads.</p>
-<h2 id="usage">Usage</h2>
-<p>All modes of <code>cmuts core</code> require two inputs to run:</p>
+<p>The functionality of <code>cmuts</code> is distributed among several subprograms. All accept the <code>--log</code> argument to redirect their outputs to a log file.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cmuts<span class="w"> </span><span class="o">[</span>--log<span class="w"> </span>LOGFILE<span class="o">]</span><span class="w"> </span><span class="o">{</span>align<span class="p">|</span>core<span class="p">|</span>normalize<span class="p">|</span>visualize<span class="p">|</span>test<span class="o">}</span>
+</code></pre></div>
+<p>The main <code>cmuts</code> pipeline comprises the three subprograms</p>
 <ol>
-<li><strong>Reference sequences</strong>, stored in a FASTA file,</li>
-<li><strong>Aligned reads</strong>, stored in one or more SAM/BAM/CRAM files</li>
+<li><a href="/cmuts/usage/cmuts-align"><code>cmuts align</code></a>,</li>
+<li><a href="/cmuts/usage/cmuts-core"><code>cmuts core</code></a>, and</li>
+<li><a href="/cmuts/usage/cmuts-normalize"><code>cmuts normalize</code></a>.</li>
 </ol>
-<p>The basic syntax is
-</p><div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">$OUTPUT</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>-f<span class="w"> </span><span class="nv">$FASTA</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nv">$FILES</span>
-</code></pre></div><p></p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>The alignments must be sorted before passing to <code>cmuts</code>. If you are generating them via <code>cmuts align</code>, then they will automatically be sorted for you.</p>
+<p>Some sequencing vendors (e.g. Ultima) will provide pre-aligned BAM/CRAM files. In such a case, simply ignore the <code>cmuts align</code> step.</p>
 </div>
-<h3 id="modification-counting">Modification Counting</h3>
-<p>Most uses of <code>cmuts core</code> (without any of the flags specified later) will output an HDF5 file with a dataset of shape <span class="arithmatex">\(n \times l \times 4 \times 7\)</span>. The former two dimensions specify the reference sequence and residue respectively, and the latter two specify the type of modification seen in accordance with the following array:</p>
-<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../figures/heatmap.png" data-desc-position="bottom"><img alt="cmuts core heatmap" src="../../figures/heatmap.png"></a></p>
-<p>The diagonal corresponds to matches, whereas the off-diagonal corresponds to mismatches. The final three columns correspond to deletions, insertions, and termination events respectively.</p>
-<p>The name of the dataset corresponds to the name of the input file. For example, the command</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cmuts<span class="w"> </span>core<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">$OUTPUT</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>-f<span class="w"> </span><span class="nv">$FASTA</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>IN1.bam<span class="w"> </span>SUBDIR/IN2.bam
-</code></pre></div>
-<p>will create an HDF5 file <code>$OUTPUT</code> with the structure</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── IN1
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>└── SUBDIR
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    └── IN2
-</code></pre></div>
-<p>and both <code>IN1</code> and <code>IN2</code> are datasets as described above. </p>
-<h3 id="pairwise-modification-counting">Pairwise Modification Counting</h3>
-<p>The <code>--joint</code> flag instructs <code>cmuts core</code> to count <em>pairs</em> of mutations. The output is again an HDF5 file, with a dataset of shape <span class="arithmatex">\(n \times l \times l \times 2 \times 2\)</span>. The first dimension specifies the reference sequence, the next two specifies each pair of bases in that sequence, and the final two specify the four entries of the joint Bernoulli distribution:</p>
-<div class="arithmatex">\[
-\begin{pmatrix}
-p_{00} &amp; p_{01} \\ p_{10} &amp; p_{11}
-\end{pmatrix}
-\]</div>
-<h3 id="low-mem">Low-Mem</h3>
-<p>The <code>--low-mem</code> flag instructs <code>cmuts core</code> to only store coverage and mutation counts, not mutation types. Correspondingly, the output dataset has shape <span class="arithmatex">\(n \times l \times 2\)</span>, with the final dimension specifying coverage and mutation counts respectively.</p>
-<h2 id="command-line-options">Command Line Options</h2>
-<h3 id="core-options">Core Options</h3>
-<p><strong><code>-o, --output</code></strong> : Output HDF5 filename (required)</p>
-<p><strong><code>-f, --fasta</code></strong> : Reference FASTA file (required)</p>
-<p><strong><code>-t, --threads</code></strong> : The number of MPI processes to use (if built with MPI, default: 1)</p>
-<h3 id="output-control">Output Control</h3>
-<p><strong><code>--overwrite</code></strong> : Overwrite existing HDF5 file</p>
-<p><strong><code>--compression</code></strong> : HDF5 compression level (0-9, default: 3)</p>
-<h3 id="analysis-modes">Analysis Modes</h3>
-<p><strong><code>--tokenize</code></strong> : Tokenize reference sequences and store in <code>sequence</code> dataset</p>
-<p><strong><code>--joint</code></strong> : Compute joint distribution of mutations over all position pairs</p>
-<p><strong><code>--low-mem</code></strong> : Record only modification locations and coverage (not type), reducing memory usage by 2x+</p>
-<h3 id="quality-filtering">Quality Filtering</h3>
-<p><strong><code>--min-mapq</code></strong> : Mapping quality threshold (default: 10)</p>
-<p><strong><code>--min-phred</code></strong> : PHRED score threshold (default: 10)</p>
-<p><strong><code>--quality-window</code></strong> : Quality check window size around each base (default: 2)</p>
-<p><strong><code>--min-length</code></strong> : Minimum alignment length (default: 2)</p>
-<p><strong><code>--max-length</code></strong> : Maximum alignment length (default: 1,024)</p>
-<p><strong><code>--no-reverse</code></strong> : Skip reverse-complemented reads</p>
-<p><strong><code>--only-reverse</code></strong> : Only use reverse-complemented reads</p>
-<h3 id="modification-detection">Modification Detection</h3>
-<p><strong><code>--max-indel-length</code></strong> : Maximum indel length to consider (default: 10)</p>
-<p><strong><code>--collapse</code></strong> : Collapse modifications within this distance in a read (default: 2)</p>
-<p><strong><code>--no-mismatches</code></strong> : Exclude mismatches from modification counts</p>
-<p><strong><code>--no-insertions</code></strong> : Exclude insertions from modification counts</p>
-<p><strong><code>--no-deletions</code></strong> : Exclude deletions from modification counts</p>
-<h3 id="deletion-handling">Deletion Handling</h3>
-<p><strong><code>--deletion-gap</code></strong> : The number of gaps to allow when detecting ambiguous deletions (default: 0)</p>
-<p><strong><code>--uniform-spread</code></strong> : Uniformly spread ambiguous deletions</p>
-<p><strong><code>--no-spread</code></strong> : Do not spread ambiguous deletions</p>
-<p><strong><code>--disable-ambiguous</code></strong> : Use alignment-provided deletions only</p>
-<p><strong><code>--contiguous-ambiguous</code></strong> : Allow only contiguous regions as ambiguous deletions</p>
-<h3 id="sampling-and-coverage">Sampling and Coverage</h3>
-<p><strong><code>--subsample</code></strong> : Random read acceptance probability (default: 1.0)</p>
-<p><strong><code>--no-match-filter</code></strong> : Do not filter matches based on their PHRED base score (as in <code>rf-count</code>)</p>
-<p><strong><code>--no-insertion-filter</code></strong> : Do not filter insertions based on their PHRED base score (as in <code>rf-count</code>)</p>
-<p><strong><code>--no-deletion-filter</code></strong> : Do not filter deletions based on their PHRED base score (as in <code>rf-count</code>)</p>
-<h3 id="performance">Performance</h3>
-<p><strong><code>--chunk-size</code></strong> : Internal buffer size per thread in references (default: 128)</p>
-<p><strong><code>--print-every</code></strong> : Progress update frequency in reads processed (default: 1,000)</p>
+<p>See <a href="/cmuts/usage/examples">Examples</a> for detailed usage instructures.</p>
+<p><a href="/cmuts/usage/cmuts-visualize"><code>cmuts visualize</code></a> may be used for overlaying generated reactivities on tertiary structures.</p>
 
 
 

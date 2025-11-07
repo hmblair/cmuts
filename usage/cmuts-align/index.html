@@ -10,10 +10,10 @@
         <link rel="canonical" href="https://hmblair.github.io/cmuts/usage/cmuts-align/">
       
       
-        <link rel="prev" href="../pipeline/">
+        <link rel="prev" href="../cmuts/">
       
       
-        <link rel="next" href="../cmuts/">
+        <link rel="next" href="../cmuts-core/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -271,7 +271,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../pipeline/" class="md-tabs__link">
+        <a href="../cmuts/" class="md-tabs__link">
           
   
   
@@ -526,12 +526,12 @@
   
   
     <li class="md-nav__item">
-      <a href="../pipeline/" class="md-nav__link">
+      <a href="../cmuts/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
-    The Pipeline
+    cmuts
     
   </span>
   
@@ -649,6 +649,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#other-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other Arguments
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -670,7 +679,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../cmuts/" class="md-nav__link">
+      <a href="../cmuts-core/" class="md-nav__link">
         
   
   
@@ -841,6 +850,15 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#other-arguments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Other Arguments
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -868,7 +886,7 @@
   <h1>cmuts align</h1>
 
 <h2 id="purpose">Purpose</h2>
-<p><code>cmuts align</code> is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ files against a reference FASTA file, and sorting of the resulting SAM files. This is required if running <code>cmuts</code> directly from raw sequencing data.</p>
+<p><code>cmuts align</code> is a simple wrapper script for performing trimming, demultiplexing, and alignment of one or more FASTQ/BAM files against a reference FASTA file, and sorting of the resulting SAM files. This is required if running <code>cmuts</code> directly from raw sequencing data.</p>
 <h2 id="usage">Usage</h2>
 <h3 id="alignment">Alignment</h3>
 <p>By defaut, <code>cmuts align</code> will perform alignment only, which also includes building the <code>bowtie2</code> index files and sorting the output SAM files. The syntax is</p>
@@ -922,6 +940,9 @@
 <p class="admonition-title">Warning</p>
 <p>If at least one of <code>--trim-5</code> and <code>--trim-3</code> are passed with <code>--barcodes</code> specified, the trimming will occur first.</p>
 </div>
+<h3 id="other-arguments">Other Arguments</h3>
+<p><strong><code>--overwrite</code></strong> : Overwrite the output directories, including any temporary directories used for demultiplexing and trimming.</p>
+<p><strong><code>--log</code></strong> : Specify the log file to use. Default: <code>cmuts-align.log</code></p>
 
 
 
