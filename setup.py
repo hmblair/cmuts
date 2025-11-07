@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 DIR = Path(__file__).parent
 NAME = DIR.name
-VERSION = (DIR / "bin" / "VERSION").read_text().strip()
+VERSION = (DIR / "VERSION").read_text().strip()
 AUTHOR = "Hamish M. Blair"
 EMAIL = "hmblair@stanford.edu"
 URL = "https://github.com/hmblair/cmuts"
