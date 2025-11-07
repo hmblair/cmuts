@@ -12,6 +12,7 @@
 #include <unordered_set>
 #include <span>
 #include <filesystem>
+#include <functional>
 #include <algorithm>
 #include <ranges>
 
@@ -130,6 +131,7 @@ const std::array<uint8_t, BYTE + 1> BIT_MASK = _bit_mask();
 
 
 bool _exists(const std::string& filename);
+void _delete(const std::string& filename);
 void _throw_if_exists(const std::string& filename);
 void _throw_if_not_exists(const std::string& filename);
 void _safe_move(const std::string& src, const std::string& dst);
@@ -363,6 +365,7 @@ namespace HTS {
 
 void _disable_logging();
 base_t _from_char(char base);
+base_t _from_str(const std::string& base);
 std::string str(const seq_t& sequence, int32_t start, int32_t end);
 std::string str(const seq_t& sequence);
 
@@ -578,6 +581,18 @@ public:
 
 
 
+template <typename dtype>
+class BaseMask {
+public:
+
+    std::vector<dtype> mask;
+    int32_t good = 0;
+
+    BaseMask(int32_t length);
+
+};
+
+
 class PHRED {
 private:
 
@@ -593,7 +608,7 @@ public:
     bool check(int32_t ix, qual_t min, int32_t window) const;
 
     template <typename dtype>
-    std::vector<dtype> mask(qual_t min, int32_t window) const;
+    BaseMask<dtype> mask(qual_t min, int32_t window) const;
 
 };
 

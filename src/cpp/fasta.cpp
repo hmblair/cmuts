@@ -398,11 +398,12 @@ static inline std::string _cmfa_extension(const std::string& filename) {
 }
 
 
-BinaryFASTA::BinaryFASTA(const std::string& fasta)
+BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
     : _fasta_name(fasta), _name(_cmfa_extension(fasta)) {
 
     _throw_if_not_exists(_fasta_name);
 
+    if (rebuild) { _delete(_name); }
     if (!_exists(_name)) {
         _fasta_to_binary(_fasta_name, _name);
         __log(_LOG_FILE, "Successfully created " + _name + ".");

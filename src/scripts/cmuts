@@ -1,10 +1,32 @@
 #!/bin/bash
 
+set -eou pipefail
+
 print-usage() {
-  echo "Usage: $(basename $0) {align|core|normalize|pairwise|visualize|test}"
+  echo "Usage: $(basename $0) [--log LOGFILE] {align|core|normalize|visualize|test}"
 }
 
-case "$1" in
+# Parse --log argument
+LOG=""
+args=()
+skip_next=false
+
+for arg in "$@"; do
+  if [ "$skip_next" = true ]; then
+    LOG="$arg"
+    skip_next=false
+  elif [ "$arg" = "--log" ]; then
+    skip_next=true
+  else
+    args+=("$arg")
+  fi
+done
+
+if [ -n "$LOG" ]; then
+  exec >> "$LOG" 2>&1
+fi
+
+case "${args[0]:-}" in
   -h|--help)
     print-usage
     exit 0
@@ -16,22 +38,46 @@ case "$1" in
     exit 0
     ;;
   align)
-    cmuts-align "${@:2}"
+    cmuts-align "${args[@]:1}"
     ;;
   core)
-    cmuts-core "${@:2}"
+    threads=""
+    new_args=()
+    skip_next=false
+    for arg in "${args[@]:1}"; do
+      if [ "$skip_next" = true ]; then
+        threads="$arg"
+        skip_next=false
+      elif [ "$arg" = "--threads" ]; then
+        skip_next=true
+      else
+        new_args+=("$arg")
+      fi
+    done
+    # Run with mpirun if threads specified, otherwise run normally
+    if [ -n "$threads" ]; then
+      if ! cmuts core --version 2>/dev/null | grep -q "MPI"; then
+        if [[ $threads == 1 ]]; then
+          cmuts-core "${new_args[@]}"
+        else
+          echo "cmuts not built with MPI, --threads > 1 cannot be used"
+          exit 1
+        fi
+      else
+        mpirun -np "$threads" cmuts-core "${new_args[@]}"
+      fi
+    else
+      cmuts-core "${args[@]:1}"
+    fi
     ;;
   normalize)
-    cmuts-normalize "${@:2}"
-    ;;
-  pairwise)
-    cmuts-pairwise "${@:2}"
+    cmuts-normalize "${args[@]:1}"
     ;;
   visualize)
-    cmuts-visualize "${@:2}"
+    cmuts-visualize "${args[@]:1}"
     ;;
   test)
-    cmuts-test "${@:2}"
+    cmuts-test "${args[@]:1}"
     ;;
   *)
     print-usage

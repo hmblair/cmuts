@@ -10,9 +10,12 @@ cd cmuts
 ```
 
 
-### 2. Build `cmuts`
+### 2. Build and Install `cmuts`
 
 The configuration script contains all required setup and build steps.
+
+!!! warning
+    This will also install the `cmuts` wheel via `pip`, so if needed enter your environment of choice first.
 
 ```
 ./configure
@@ -31,7 +34,7 @@ A debug build, which reduces optimization and enables various sanitizers, is als
 ```
 
 !!! warning
-    Building with `--mpi` or `--debug` after an existing build has already been performed will require deleting the `build` directory first.
+    Building with `--mpi` or `--debug` after an existing build has already been performed will require deleting the `build` directory first. This can equivalently be done by passing the `--clean` flag to the script.
 
 ### 3. Modify PATH
 
@@ -61,6 +64,5 @@ To update to a newer version, from within the `cmuts` directory, run
 ```bash
 git pull origin master
 git submodule update --recursive
-rm -rf build
-./configure # OR ./configure --mpi
+./configure --clean # OR ./configure --clean --mpi
 ```

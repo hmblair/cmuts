@@ -1,5 +1,4 @@
 #include "utils.hpp"
-#include <stdexcept>
 
 static inline void __log_trace(std::ofstream& file) {
 
@@ -241,8 +240,10 @@ Arg<T>::Arg (
     const std::string& short_name,
     const std::string& long_name,
     const std::string& help,
-    T default_value
+    T default_value,
+    const std::string& group
 ) : _parser(parser), _name(long_name) {
+    if (!group.empty()) { parser.add_group(group); }
     _add_arg<T>(parser, short_name, long_name, help, default_value);
 }
 

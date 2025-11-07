@@ -43,7 +43,11 @@ else
     THREADS_MAX=1
 fi
 
-THREADS=$(generate_random_number $THREADS_MIN $THREADS_MAX)
+if cmuts core --version 2>/dev/null | grep -q "MPI"; then
+  THREADS=$(generate_random_number $THREADS_MIN $THREADS_MAX)
+else
+  THREADS=1
+fi
 CHUNKSIZE=$(generate_random_number 1 256)
 LENGTH=$(generate_random_number 2 250)
 QUERIES=$(generate_random_number 1 1024)
@@ -94,14 +98,6 @@ if [[ $USE_RF -eq 1 ]]; then
     NO_MISMATCHES_STR="FALSE"
     NO_INSERTIONS="--no-insertions"
     NO_INSERTIONS_STR="TRUE"
-fi
-
-VERSION=$(cmuts core --version)
-if [[ "$VERSION" == *"MPI"* ]]; then
-    __cmuts="mpirun -np ${THREADS} cmuts core"
-else
-    __cmuts="cmuts core"
-    THREADS=1
 fi
 
 FASTA="seq.fasta"
@@ -166,7 +162,8 @@ else
     samtools sort -@${THREADS} -o ${FILE} ${BAM_TMP} > /dev/null 2>&1
 fi
 
-$__cmuts \
+cmuts core\
+    --threads ${THREADS} \
     --fasta ${FASTA} \
     --output ${CMUTS_H5} \
     --min-mapq ${MIN_MAPQ} \

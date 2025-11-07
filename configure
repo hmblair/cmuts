@@ -1,16 +1,22 @@
 #!/bin/bash
 
-VERSION="1.1.0"
+VFILE="VERSION"
+VERSION=$(cat "$VFILE")
 
 set -eo pipefail
 
 DEBUG=0
+CLEAN=0
 MPI_BUILD=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --debug)
       DEBUG=1
+      shift
+      ;;
+    --clean)
+      CLEAN=1
       shift
       ;;
     --mpi)
@@ -34,6 +40,13 @@ CODECS_DIR=${SCRIPT_DIR}/htscodecs
 BUILD_DIR=${SCRIPT_DIR}/build
 BIN_DIR=${SCRIPT_DIR}/bin
 
+# Clean and create build directory
+
+rm -rf ${BIN_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${BUILD_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${CODECS_DIR}/build
+mkdir -p ${BUILD_DIR} ${BIN_DIR}
+
 # Build htscodecs if not already
 
 if [[ ! -d ${CODECS_DIR}/build ]]; then
@@ -46,11 +59,6 @@ if [[ ! -d ${CODECS_DIR}/build ]]; then
   make install
   popd > /dev/null
 fi
-
-# Clean and create build directory
-
-rm -rf ${BIN_DIR}
-mkdir -p ${BUILD_DIR} ${BIN_DIR}
 
 pushd ${BUILD_DIR} > /dev/null
 
@@ -78,8 +86,12 @@ for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
   fi
 done
 
-echo $VERSION > ${BIN_DIR}/VERSION
-
 echo
 echo " -- cmuts built successfully --"
+echo
+
+pip3 install .
+
+echo
+echo " -- cmuts installed successfully --"
 echo

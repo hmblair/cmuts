@@ -6,22 +6,6 @@ from Bio import Align, PDB
 FIGURES = "figures"
 
 
-def _seq_from_fasta(file: str, n: int = 0) -> str:
-
-    seq = ""
-    count = 0
-
-    with open(file, 'r') as f:
-        for line in f:
-            if line.startswith(">"):
-                count += 1
-                continue
-            if count == n + 1:
-                seq += line.strip()
-
-    return seq.upper().replace("U", "T")
-
-
 def _seq_from_cif(filename: str, chain_id: str | None = None) -> str:
 
     if chain_id is None:
@@ -71,6 +55,7 @@ def _seq_from_cif(filename: str, chain_id: str | None = None) -> str:
                 return sequence.replace('U', 'T')
 
         print(f"Chain {chain_id} not found in structure")
+        print(f"The valid chains are {[chain.id for chain in model]}")
         return ""
 
     except Exception as e:
@@ -92,13 +77,14 @@ def _seq_align(seq1: str, seq2: str) -> tuple[str, str]:
     return best_alignment[0], best_alignment[1]
 
 
-def _data_aln(data: np.ndarray, aln1: str, aln2: str):
+def _data_aln(data: np.ndarray, aln1: str, aln2: str) -> np.ndarray:
     """
     Map data values to align with seq2, using zeros for gaps.
     """
 
-    if data.shape[0] != len([c for c in aln1 if c != '-']):
-        raise ValueError("Data length must match number of non-gap characters in aln1")
+    chars = len([c for c in aln1 if c != '-'])
+    if data.shape[0] != chars:
+        raise ValueError(f"Data length ({data.shape[0]}) must match number of non-gap characters in aln1 ({chars})")
 
     mapped_data = []
     data_idx = 0
@@ -147,11 +133,11 @@ def _plot_single_profile(
 def _to_defattr(
     values: np.ndarray,
     out: str,
-    start_resnum: int = 1,
+    start: int = 1,
     attr_name: str = "value",
     pad5: int = 0,
     pad3: int = 0,
-    chain: str | None = None
+    chain: str | None = None,
 ):
     """
     Convert numpy array to ChimeraX defattr format.
@@ -165,25 +151,70 @@ def _to_defattr(
         f.write("recipient: residues\n\n")
 
         for i, value in enumerate(values):
-            resnum = start_resnum + i
+            resnum = start + i
             if chain is not None:
                 f.write(f"\t/{chain}:{resnum}\t{value}\n")
             else:
                 f.write(f"\t:{resnum}\t{value}\n")
 
 
-def _color_by_defattr(bin: str, cif: str, defattr: str, color: str) -> None:
+def _to_defattr_atom(
+    values: np.ndarray,
+    out: str,
+    atoms: list[str],
+    sizes: np.ndarray,
+    start: int = 1,
+    attr_name: str = "value",
+    pad5: int = 0,
+    pad3: int = 0,
+    chain: str | None = None,
+):
+    """
+    Convert a numpy array to ChimeraX defattr format, with one value per atom.
+    """
+
+    values = np.concatenate([np.zeros(pad5), values, np.zeros(pad3)])
+    if len(atoms) != values.shape[0]:
+        raise ValueError(
+            "The number of atoms must match the number of reactivity values."
+        )
+    if len(atoms) != sizes.sum():
+        raise ValueError(
+            "The number of atoms must match the sum of all residue sizes."
+        )
+
+    ix = 0
+    with open(out, 'w') as f:
+
+        f.write(f"attribute: {attr_name}\n")
+        f.write("recipient: atoms\n\n")
+
+        for jx in range(sizes.shape[0]):
+            for _ in range(sizes[jx]):
+                resnum = start + jx
+                value = values[ix]
+                atom = atoms[ix].replace('p', '\'')
+                if chain is not None:
+                    f.write(f"\t/{chain}:{resnum}@{atom}\t{value}\n")
+                else:
+                    f.write(f"\t:{resnum}@{atom}\t{value}\n")
+                ix += 1
+
+
+def _color_by_defattr(bin: str, cif: str, defattr: str, color: str, max: float = 1) -> None:
     """
     Color a .cif file with the given .defattr file.
     """
 
     chmx_cmd = (
         f"open {cif}; " +
+        "close #1.2-999; " +
+        "hide pseudobonds; "
         "color grey; " +
         "graphics quality 5; " +
         "renumber start 1 relative false; " +
         f"open {defattr}; " +
-        f"color byattribute value palette white:{color} range 0,1; " +
+        f"color byattribute value palette white:{color} range 0,{max}; " +
         "hide cartoons; " +
         "nucleotides atoms; " +
         "style sphere; " +
@@ -208,19 +239,56 @@ def _color_by_reactivity(
 
     defattr = ".cmuts-visualize.defattr"
     _to_defattr(reactivity, defattr, chain=chain)
-    _color_by_defattr(bin, cif, defattr, color)
+    _color_by_defattr(bin, cif, defattr, color, reactivity.max())
 
 
-def _color_structure(
+def _color_atoms_by_value(
     bin: str,
     cif: str,
     reactivity: np.ndarray,
-    seq1: str,
-    seq2: str,
+    atoms: list[str],
+    sizes: np.ndarray,
     chain: str | None,
     color: str,
 ) -> None:
+    """
+    Color a .cif file with the given reactivity.
+    """
 
-    aln1, aln2 = _seq_align(seq1, seq2)
+    defattr = ".cmuts-visualize.defattr"
+    _to_defattr_atom(reactivity, defattr, atoms, sizes, chain=chain)
+    _color_by_defattr(bin, cif, defattr, color)
+
+
+def visualize(
+    reactivity: np.ndarray,
+    seq: str,
+    cif: str,
+    color: str = "indianred",
+    chain: str | None = None,
+    bin: str = "ChimeraX",
+) -> None:
+
+    cif_seq = _seq_from_cif(cif, chain)
+    aln1, aln2 = _seq_align(seq, cif_seq)
     aln_data = _data_aln(reactivity, aln1, aln2)
+    aln_data = np.nan_to_num(aln_data, 0.0)
     _color_by_reactivity(bin, cif, aln_data, chain, color)
+
+
+def visualize_atom(
+    reactivity: np.ndarray,
+    atoms: list[str],
+    sizes: np.ndarray,
+    seq: str,
+    cif: str,
+    color: str = "indianred",
+    chain: str | None = None,
+    bin: str = "ChimeraX",
+) -> None:
+
+    cif_seq = _seq_from_cif(cif)
+    aln1, aln2 = _seq_align(seq, cif_seq)
+    sizes = _data_aln(sizes, aln1, aln2)
+
+    _color_atoms_by_value(bin, cif, reactivity, atoms, sizes, chain, color)

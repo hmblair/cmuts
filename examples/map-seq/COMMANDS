@@ -1,6 +1,6 @@
 #!/bin/bash
 
-./cleanup
+rm -rf *.log *.cmfa outputs
 
 mkdir outputs
 cd outputs
@@ -26,7 +26,6 @@ cmuts align \
 cmuts core \
   -f "$FASTA" \
   -o "$COUNTS" \
-  --filter-coverage \
   --no-insertions \
   "$ALIGNMENTS"/*
 
@@ -38,6 +37,7 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
     -o "$PROFILES" \
     --mod "$MOD_DS" \
     --nomod "$NOMOD_DS" \
+    --fasta "$FASTA" \
     --group "$NAME" \
     "$COUNTS"
 done

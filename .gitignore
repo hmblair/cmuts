@@ -7,8 +7,9 @@ share/
 *.bai
 *.crai
 *.cmix
-*.binary
+*.cmfa
 *.log
+*.egg-info
 onp/
 figures/
 !/docs/figures

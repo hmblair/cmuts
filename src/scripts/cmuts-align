@@ -1,14 +1,6 @@
 #!/bin/bash
 
 set -eou pipefail
-LOG="cmuts-align.log"
-
-handler() {
-    echo "Error occurred on line $1. Script exited early." >> "$LOG"
-    echo "Error occurred on line $1. Script exited early. See $LOG for details." >&2
-}
-
-trap 'handler $LINENO' ERR
 
 FASTA=""
 OUTPUT=""
@@ -17,11 +9,20 @@ BARCODES=""
 TRIM5=""
 TRIM3=""
 LOCAL=""
+OVERWRITE=false
 FILES=()
 PAIRS=()
 
 print-usage() {
-  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [--barcodes BARCODES] [--trim-5 5' ADAPTER] [--trim-3 3' ADAPTER] [--local] [FILES ...] [--pairs PAIRS ...]"
+  echo "Usage: cmuts align --fasta FASTA --output OUTPUT [FILES ...]
+Optional arguments:
+    --overwrite
+    --barcodes BARCODES
+    --trim-5 5' ADAPTER
+    --trim-3 3' ADAPTER
+    --local
+    --log
+    --pairs PAIRS ..."
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -41,6 +42,9 @@ while [[ "$#" -gt 0 ]]; do
     --output)
       shift
       OUTPUT="$1"
+      ;;
+    --overwrite)
+      OVERWRITE=true
       ;;
     --threads)
       shift
@@ -80,6 +84,14 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+handler() {
+  if [ $? -ne 130 ]; then
+    echo "Error occurred on line $1. cmuts align exited early." >&2
+  fi
+}
+
+trap 'handler $LINENO' ERR
+
 if [[ -z "$FASTA" || -z "$OUTPUT" || "${#FILES[@]}" -eq 0 ]]; then
   print-usage
   exit 1
@@ -90,12 +102,14 @@ if [[ ${#PAIRS[@]} -gt 0 && ${#FILES[@]} -ne ${#PAIRS[@]} ]]; then
   exit 1
 fi
 
-echo " -- $("$0" --version) ($(date '+%d-%m-%Y %H:%M:%S')) -- " >> "$LOG"
-echo >> "$LOG"
+echo " -- $("$0" --version) ($(date '+%d-%m-%Y %H:%M:%S')) -- "
+echo
 
 IXDIR="index"
 TMPDIR=".tmp"
 mkdir -p "$TMPDIR" "$OUTPUT"
+
+[[ "$OVERWRITE" == "true" ]] && rm -rf "$OUTPUT"
 
 # Convert to DNA before processing
 
@@ -106,6 +120,7 @@ FASTA="$TEMP_FASTA"
 # Trim if a sequence is provided
 
 TRDIR="trimmed"
+[[ "$OVERWRITE" == "true" ]] && rm -rf "$TRDIR"
 
 if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 
@@ -116,9 +131,9 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
     NAME=$(basename "$FILE")
     BASENAME="${NAME%.fastq*}"
 
-    echo >> "$LOG"
-    echo " -- Trimming $FILE --" >> "$LOG"
-    echo >> "$LOG"
+    echo
+    echo " -- Trimming $FILE --"
+    echo
 
     FARGS=()
     if [[ ! -z "$TRIM5"  ]]; then
@@ -133,7 +148,7 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
       --cores "$THREADS" \
       -o "$TRDIR/$NAME" \
       "${FARGS[@]}" \
-      "$FILE" >> "$LOG" 2>&1
+      "$FILE"
 
   done
 
@@ -144,6 +159,7 @@ fi
 # Demultiplex if a barcode file is provided
 
 DMDIR="dmux"
+[[ "$OVERWRITE" == "true" ]] && rm -rf "$DMDIR"
 
 if [[ ! -z "$BARCODES" ]]; then
 
@@ -154,9 +170,9 @@ if [[ ! -z "$BARCODES" ]]; then
       FILE="${FILES[IX]}"
       PAIR="${PAIRS[IX]}"
 
-      echo >> "$LOG"
-      echo " -- Demultiplexing $FILE and $PAIR --" >> "$LOG"
-      echo >> "$LOG"
+      echo
+      echo " -- Demultiplexing $FILE and $PAIR --"
+      echo
 
       ultraplex \
         -i "$FILE" \
@@ -164,7 +180,7 @@ if [[ ! -z "$BARCODES" ]]; then
         -b "$BARCODES" \
         -d "$DMDIR" \
         --dont_build_reference \
-        --ignore_no_match >> "$LOG" 2>&1
+        --ignore_no_match
 
     done
 
@@ -172,16 +188,16 @@ if [[ ! -z "$BARCODES" ]]; then
 
     for FILE in "${FILES[@]}"; do
 
-      echo >> "$LOG"
-      echo " -- Demultiplexing $FILE --" >> "$LOG"
-      echo >> "$LOG"
+      echo
+      echo " -- Demultiplexing $FILE --"
+      echo
 
       ultraplex \
         -i "$FILE" \
         -b "$BARCODES" \
         -d "$DMDIR" \
         --dont_build_reference \
-        --ignore_no_match >> "$LOG" 2>&1
+        --ignore_no_match
 
     done
 
@@ -208,15 +224,15 @@ fi
 
 INDEX="$IXDIR/index"
 if [[ ! -e "$IXDIR" ]]; then
-  echo >> "$LOG"
-  echo " -- Building bowtie2 index --" >> "$LOG"
-  echo >> "$LOG"
+  echo
+  echo " -- Building bowtie2 index --"
+  echo
   mkdir index
   bowtie2-build \
     --quiet \
     --threads "$THREADS" \
     "$FASTA" \
-    "$INDEX" >> "$LOG" 2>&1
+    "$INDEX"
 fi
 
 # Align all files
@@ -227,34 +243,38 @@ for IX in "${!FILES[@]}"; do
 
   FILE="${FILES[IX]}"
   NAME=$(basename "$FILE")
-  BASENAME="${NAME%.fastq*}"
+  BASENAME="${NAME%%.*}"
 
   if [[ ${#PAIRS[@]} -gt 0 ]]; then
     PAIR="${PAIRS[IX]}"
     FARGS=("-1" "$FILE" "-2" "$PAIR")
   else
     PAIR=""
-    FARGS=("-U" "$FILE")
+    if [[ "$FILE" == *.bam ]]; then
+        FARGS=("-b" "$FILE")
+    else
+        FARGS=("-U" "$FILE")
+    fi
   fi
 
   TMP="${TMPDIR}/${BASENAME}_UNSORTED.sam"
   FINAL="${OUTPUT}/${BASENAME}.bam"
 
-  echo >> "$LOG"
-  echo " -- Aligning $NAME --" >> "$LOG"
-  echo >> "$LOG"
+  echo
+  echo " -- Aligning $NAME --"
+  echo
 
   bowtie2 \
     "${FARGS[@]}" \
     --threads "$THREADS" \
     -x "$INDEX" \
     --dpad 30 \
-    --maxins=800 \
+    --maxins=1024 \
     --ignore-quals \
     "$LOCAL" \
     --mp 3,1 \
     --rdg 5,1 \
-    --rfg 5,1 2>> "$LOG" | \
+    --rfg 5,1 | \
   awk 'BEGIN{FS=OFS="\t"} {
     if($0 ~ /^@/) print $0
     else {
@@ -263,15 +283,15 @@ for IX in "${!FILES[@]}"; do
     }
   }' > "$TMP"
 
-  echo >> "$LOG"
-  echo " -- Sorting $TMP --" >> "$LOG"
-  echo >> "$LOG"
+  echo
+  echo " -- Sorting $TMP --"
+  echo
 
-  samtools sort --threads "$THREADS" -o "$FINAL" "$TMP" >> $LOG 2>&1
+  samtools sort --threads "$THREADS" -o "$FINAL" "$TMP"
 
-  echo >> "$LOG"
-  echo " -- Sorted reads written to $FINAL --" >> "$LOG"
-  echo >> "$LOG"
+  echo
+  echo " -- Sorted reads written to $FINAL --"
+  echo
 
 done
 

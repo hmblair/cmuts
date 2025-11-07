@@ -34,9 +34,9 @@ nav:
     - Installation: installation/installation.md
     - Organization-Specific Notes: installation/org-notes.md
   - Usage:
-    - The Pipeline: usage/pipeline.md
+    - cmuts: usage/cmuts.md
     - cmuts align: usage/cmuts-align.md
-    - cmuts core: usage/cmuts.md
+    - cmuts core: usage/cmuts-core.md
     - cmuts normalize: usage/cmuts-normalize.md
     - cmuts visualize: usage/cmuts-visualize.md
     - Examples: usage/examples.md

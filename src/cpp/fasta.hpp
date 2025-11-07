@@ -88,7 +88,7 @@ private:
 
 public:
 
-    explicit BinaryFASTA(const std::string& fasta);
+    explicit BinaryFASTA(const std::string& fasta, bool rebuild = false);
     BinaryFASTA(BinaryFASTA&& other) noexcept;
     BinaryFASTA& operator=(BinaryFASTA&& other) noexcept;
     BinaryFASTA(const BinaryFASTA&) = delete;

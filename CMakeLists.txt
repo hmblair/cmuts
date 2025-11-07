@@ -1,14 +1,21 @@
 cmake_minimum_required(VERSION 3.29)
 cmake_policy(SET CMP0074 NEW)
 
-project(cmuts LANGUAGES C CXX)
-set(CORE "cmuts-core")
-set(TESTS "cmuts-generate-tests")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_INSTALL_MESSAGE LAZY)
+
+if(EXISTS "/opt/homebrew/opt/llvm")
+    set(LLVM_ROOT "/opt/homebrew/opt/llvm")
+    link_directories("${LLVM_ROOT}/lib/c++")
+endif()
+
+project(cmuts LANGUAGES C CXX)
+set(CORE "cmuts-core")
+set(TESTS "cmuts-generate-tests")
 
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
@@ -33,6 +40,7 @@ endif()
 find_package(HDF5 REQUIRED)
 find_package(ZLIB REQUIRED)
 pkg_check_modules(HTSLIB REQUIRED htslib)
+find_package(OpenMP REQUIRED)
 
 include(FetchContent)
 function(FetchContent_MakeAvailable_If_Not_Already_Present name)
@@ -98,6 +106,7 @@ target_link_libraries(libcmuts PRIVATE
     argparse
     xtensor
     htscodecs
+    OpenMP::OpenMP_CXX
 )
 
 target_compile_definitions(libcmuts PRIVATE VERSION="${VERSION}")
@@ -111,9 +120,10 @@ endif()
 if (DEFINED DEBUG AND DEBUG)
     target_compile_options(libcmuts PRIVATE ${SANITIZER_COMPILE_FLAGS})
     target_link_options(libcmuts PRIVATE ${SANITIZER_LINK_FLAGS})
+    target_link_options(libcmuts PRIVATE "-Wl,-v")
     target_compile_options(libcmuts PRIVATE "-DDEBUG")
 else()
-    target_compile_options(libcmuts PRIVATE -O3 -fno-math-errno)
+    target_compile_options(libcmuts PRIVATE "-O3" "-fno-math-errno" "-ffast-math")
 endif()
 
 
@@ -144,6 +154,7 @@ function(setup_target _target)
         xtensor
         htscodecs
         libcmuts
+        OpenMP::OpenMP_CXX
     )
 
     set_target_properties(${_target} PROPERTIES
@@ -162,6 +173,7 @@ function(setup_target _target)
     if (DEFINED DEBUG AND DEBUG)
         target_compile_options(${_target} PRIVATE ${SANITIZER_COMPILE_FLAGS})
         target_link_options(${_target} PRIVATE ${SANITIZER_LINK_FLAGS})
+        target_link_options(${_target} PRIVATE "-Wl,-v")
         target_compile_options(${_target} PRIVATE "-DDEBUG")
     else()
         target_compile_options(${_target} PRIVATE -O3 -fno-math-errno)

@@ -1,5 +1,5 @@
-#ifndef _MAIN_HEADER
-#define _MAIN_HEADER
+#ifndef _CMUTS_MAIN_HEADER_
+#define _CMUTS_MAIN_HEADER_
 
 #include "fasta.hpp"
 #include "common.hpp"
@@ -7,6 +7,7 @@
 #include "hdf5.hpp"
 #include "mpi.hpp"
 #include "utils.hpp"
+#include "options.hpp"
 
 #ifdef MPI_BUILD
 #ifdef DEBUG
@@ -23,224 +24,100 @@ const std::string PROGRAM = "cmuts core";
 #endif
 
 static inline bool __mpi_build() {
-
     #ifdef MPI_BUILD
     return true;
     #else
     return false;
     #endif
-
 }
 
 class cmutsProgram : public Program {
 public:
-
+    // Input/Output
     Arg<std::vector<std::string>> files;
     Arg<std::string> output;
     Arg<std::string> fasta;
-
-    Arg<bool> joint;
-    Arg<bool> lowmem;
-    Arg<bool> uniform_spread;
-    Arg<bool> no_spread;
-
     Arg<bool> overwrite;
-    Arg<int> compression;
+    Arg<bool> rebuild;
+    
+    // Quality and filtering
     Arg<int> min_mapq;
     Arg<int> min_quality;
-    Arg<int> max_indel_length;
-    Arg<int> chunk_size;
     Arg<int> min_length;
     Arg<int> max_length;
+    Arg<int> max_hamming;
+    Arg<float> subsample;
+    
+    // Processing
+    Arg<int> compression;
+    Arg<int> max_indel_length;
+    Arg<int> chunk_size;
     Arg<int> quality_window;
     Arg<int> collapse;
+    
+    // Modes
+    Arg<bool> joint;
+    Arg<bool> tokenize;
+    
+    // Mutation type filters
     Arg<bool> no_mismatch;
     Arg<bool> no_insertion;
     Arg<bool> no_deletion;
+    
+    // Strand options
     Arg<bool> no_reverse;
     Arg<bool> only_reverse;
-    Arg<bool> tokenize;
-    Arg<float> subsample;
+    
+    // Deletion handling
+    Arg<bool> uniform_spread;
+    Arg<bool> no_spread;
+    Arg<int> deletion_gap;
+    Arg<bool> disable_ambiguous;
+    
+    // Quality filtering
     Arg<bool> no_filter_matches;
     Arg<bool> no_filter_insertions;
     Arg<bool> no_filter_deletions;
 
-    Arg<int> deletion_gap;
-    Arg<bool> disable_ambiguous;
-
-    Arg<int> print_every;
+    // Base filtering
+    Arg<std::string> ignore_bases;
 
     cmutsProgram();
-
 };
-
-const std::string FILES_SHORT_NAME = "";
-const std::string FILES_LONG_NAME = "files";
-const std::string FILES_HELP = "The input SAM/BAM/CRAM files.";
-const std::vector<std::string> FILES_DEFAULT;
-
-const std::string OUTPUT_SHORT_NAME = "-o";
-const std::string OUTPUT_LONG_NAME = "--output";
-const std::string OUTPUT_HELP = "The output HDF5 file.";
-
-const std::string FASTA_SHORT_NAME = "-f";
-const std::string FASTA_LONG_NAME = "--fasta";
-const std::string FASTA_HELP = "The reference FASTA file.";
-
-const std::string OVERWRITE_SHORT_NAME = "";
-const std::string OVERWRITE_LONG_NAME = "--overwrite";
-const std::string OVERWRITE_HELP = "Overwrite an existing HDF5 file.";
-
-const std::string COMPRESSION_SHORT_NAME = "-c";
-const std::string COMPRESSION_LONG_NAME = "--compression";
-const int COMPRESSION_DEFAULT = 3;
-const std::string COMPRESSION_HELP = "Compression level of the HDF5 output (0-9).";
-
-const std::string MIN_PHRED_SHORT_NAME = "";
-const std::string MIN_PHRED_LONG_NAME = "--min-phred";
-const int MIN_PHRED_DEFAULT = 10;
-const std::string MIN_PHRED_HELP = "PHRED score threshold for base processing.";
-
-const std::string MIN_MAPQ_SHORT_NAME = "";
-const std::string MIN_MAPQ_LONG_NAME = "--min-mapq";
-const int MIN_MAPQ_DEFAULT = 10;
-const std::string MIN_MAPQ_HELP = "Mapping quality threshold for alignment processing.";
-
-const std::string MAX_INDEL_LENGTH_SHORT_NAME = "";
-const std::string MAX_INDEL_LENGTH_LONG_NAME = "--max-indel-length";
-const int MAX_INDEL_LENGTH_DEFAULT = 10;
-const std::string MAX_INDEL_LENGTH_HELP = "The longest indels to consider.";
-
-const std::string CHUNK_SIZE_SHORT_NAME = "";
-const std::string CHUNK_SIZE_LONG_NAME = "--chunk-size";
-const int CHUNK_SIZE_DEFAULT = 128;
-const std::string CHUNK_SIZE_HELP = "The number of references to process at a time per thread.";
-
-const std::string MIN_LENGTH_SHORT_NAME = "";
-const std::string MIN_LENGTH_LONG_NAME = "--min-length";
-const int MIN_LENGTH_DEFAULT = 2;
-const std::string MIN_LENGTH_HELP = "Skip reads shorter than this length.";
-
-const std::string MAX_LENGTH_SHORT_NAME = "";
-const std::string MAX_LENGTH_LONG_NAME = "--max-length";
-const int MAX_LENGTH_DEFAULT = 1L << 10;
-const std::string MAX_LENGTH_HELP = "Skip reads longer than this length.";
-
-const std::string JOINT_SHORT_NAME = "";
-const std::string JOINT_LONG_NAME = "--joint";
-const std::string JOINT_HELP = "Compute the joint distribution of mutations.";
-
-const std::string LOW_MEM_SHORT_NAME = "";
-const std::string LOW_MEM_LONG_NAME = "--low-mem";
-const std::string LOW_MEM_HELP = "Compute modification locations and coverage only (i.e. no modification types).";
-
-const std::string UNIFORM_SPREAD_SHORT_NAME = "";
-const std::string UNIFORM_SPREAD_LONG_NAME = "--uniform-spread";
-const std::string UNIFORM_SPREAD_HELP = "Uniformly spread out ambiguous deletions.";
-
-const std::string NO_SPREAD_SHORT_NAME = "";
-const std::string NO_SPREAD_LONG_NAME = "--no-spread";
-const std::string NO_SPREAD_HELP = "Do not spread ambiguous deletions.";
-
-const std::string QUALITY_WINDOW_SHORT_NAME = "";
-const std::string QUALITY_WINDOW_LONG_NAME = "--quality-window";
-const int QUALITY_WINDOW_DEFAULT = 2;
-const std::string QUALITY_WINDOW_HELP = "Check the quality of each base in a window of this size around each base.";
-
-const std::string COLLAPSE_SHORT_NAME = "";
-const std::string COLLAPSE_LONG_NAME = "--collapse";
-const int COLLAPSE_DEFAULT = 2;
-const std::string COLLAPSE_HELP = "Collapse modifications within this distance of each other in a given read.";
-
-const std::string NO_MISMATCH_SHORT_NAME = "";
-const std::string NO_MISMATCH_LONG_NAME = "--no-mismatches";
-const std::string NO_MISMATCH_HELP = "Do not count mismatches as modifications.";
-
-const std::string NO_INSERTION_SHORT_NAME = "";
-const std::string NO_INSERTION_LONG_NAME = "--no-insertions";
-const std::string NO_INSERTION_HELP = "Do not count insertions as modifications.";
-
-const std::string NO_DELETION_SHORT_NAME = "";
-const std::string NO_DELETION_LONG_NAME = "--no-deletions";
-const std::string NO_DELETION_HELP = "Do not count deletions as modifications.";
-
-const std::string NO_REVERSE_SHORT_NAME = "";
-const std::string NO_REVERSE_LONG_NAME = "--no-reverse";
-const std::string NO_REVERSE_HELP = "Ignore reverse-complemented reads.";
-
-const std::string ONLY_REVERSE_SHORT_NAME = "";
-const std::string ONLY_REVERSE_LONG_NAME = "--only-reverse";
-const std::string ONLY_REVERSE_HELP = "Use only reverse-complemented reads.";
-
-const std::string TOKENIZE_SHORT_NAME = "";
-const std::string TOKENIZE_LONG_NAME = "--tokenize";
-const std::string TOKENIZE_HELP = "Tokenize the reference sequences.";
-
-const std::string SUBSAMPLE_SHORT_NAME = "";
-const std::string SUBSAMPLE_LONG_NAME = "--subsample";
-const float SUBSAMPLE_DEFAULT = 1.0;
-const std::string SUBSAMPLE_HELP = "Randomly choose to use a read with this probability.";
-
-const std::string NO_FILTER_MATCHES_SHORT_NAME = "";
-const std::string NO_FILTER_MATCHES_LONG_NAME = "--no-match-filter";
-const std::string NO_FILTER_MATCHES_HELP = "Do not filter matches based on their PHRED base score.";
-
-const std::string NO_FILTER_INSERTIONS_SHORT_NAME = "";
-const std::string NO_FILTER_INSERTIONS_LONG_NAME = "--no-insertion-filter";
-const std::string NO_FILTER_INSERTIONS_HELP = "Do not filter insertions based on their PHRED base score.";
-
-const std::string NO_FILTER_DELETIONS_SHORT_NAME = "";
-const std::string NO_FILTER_DELETIONS_LONG_NAME = "--no-deletion-filter";
-const std::string NO_FILTER_DELETIONS_HELP = "Do not filter deletions based on their PHRED base score.";
-
-const std::string DELETION_GAP_SHORT_NAME = "";
-const std::string DELETION_GAP_LONG_NAME = "--deletion-gap";
-const int DELETION_GAP_DEFAULT = 0;
-const std::string DELETION_GAP_HELP = "The number of gaps to allow when detecting ambiguous deletions.";
-
-const std::string DISABLE_AMBIGUOUS_SHORT_NAME = "";
-const std::string DISABLE_AMBIGUOUS_LONG_NAME = "--disable-ambiguous";
-const std::string DISABLE_AMBIGUOUS_HELP = "Disable the ambiguous delection detection algorithm, relying on the deletion provided by the alignment.";
-
-const std::string PRINT_EVERY_SHORT_NAME = "";
-const std::string PRINT_EVERY_LONG_NAME = "--print-every";
-const int PRINT_EVERY_DEFAULT = 1000;
-const std::string PRINT_EVERY_HELP = "Update the progress indicators each time this many reads is processed.";
-
 
 cmutsProgram::cmutsProgram()
     : Program(PROGRAM, PROGRAM + " " + VERSION),
-      files(_parser, FILES_SHORT_NAME, FILES_LONG_NAME, FILES_HELP, FILES_DEFAULT),
-      output(_parser, OUTPUT_SHORT_NAME, OUTPUT_LONG_NAME, OUTPUT_HELP),
-      fasta(_parser, FASTA_SHORT_NAME, FASTA_LONG_NAME, FASTA_HELP),
-      joint(_parser, JOINT_SHORT_NAME, JOINT_LONG_NAME, JOINT_HELP),
-      lowmem(_parser, LOW_MEM_SHORT_NAME, LOW_MEM_LONG_NAME, LOW_MEM_HELP),
-      uniform_spread(_parser, UNIFORM_SPREAD_SHORT_NAME, UNIFORM_SPREAD_LONG_NAME, UNIFORM_SPREAD_HELP),
-      no_spread(_parser, NO_SPREAD_SHORT_NAME, NO_SPREAD_LONG_NAME, NO_SPREAD_HELP),
-      overwrite(_parser, OVERWRITE_SHORT_NAME, OVERWRITE_LONG_NAME, OVERWRITE_HELP),
-      compression(_parser, COMPRESSION_SHORT_NAME, COMPRESSION_LONG_NAME, COMPRESSION_HELP, COMPRESSION_DEFAULT),
-      min_mapq(_parser, MIN_MAPQ_SHORT_NAME, MIN_MAPQ_LONG_NAME, MIN_MAPQ_HELP, MIN_MAPQ_DEFAULT),
-      min_quality(_parser, MIN_PHRED_SHORT_NAME, MIN_PHRED_LONG_NAME, MIN_PHRED_HELP, MIN_PHRED_DEFAULT),
-      max_indel_length(_parser, MAX_INDEL_LENGTH_SHORT_NAME, MAX_INDEL_LENGTH_LONG_NAME, MAX_INDEL_LENGTH_HELP, MAX_INDEL_LENGTH_DEFAULT),
-      chunk_size(_parser, CHUNK_SIZE_SHORT_NAME, CHUNK_SIZE_LONG_NAME, CHUNK_SIZE_HELP, CHUNK_SIZE_DEFAULT),
-      min_length(_parser, MIN_LENGTH_SHORT_NAME, MIN_LENGTH_LONG_NAME, MIN_LENGTH_HELP, MIN_LENGTH_DEFAULT),
-      max_length(_parser, MAX_LENGTH_SHORT_NAME, MAX_LENGTH_LONG_NAME, MAX_LENGTH_HELP, MAX_LENGTH_DEFAULT),
-      quality_window(_parser, QUALITY_WINDOW_SHORT_NAME, QUALITY_WINDOW_LONG_NAME, QUALITY_WINDOW_HELP, QUALITY_WINDOW_DEFAULT),
-      collapse(_parser, COLLAPSE_SHORT_NAME, COLLAPSE_LONG_NAME, COLLAPSE_HELP, COLLAPSE_DEFAULT),
-      no_mismatch(_parser, NO_MISMATCH_SHORT_NAME, NO_MISMATCH_LONG_NAME, NO_MISMATCH_HELP),
-      no_insertion(_parser, NO_INSERTION_SHORT_NAME, NO_INSERTION_LONG_NAME, NO_INSERTION_HELP),
-      no_deletion(_parser, NO_DELETION_SHORT_NAME, NO_DELETION_LONG_NAME, NO_DELETION_HELP),
-      no_reverse(_parser, NO_REVERSE_SHORT_NAME, NO_REVERSE_LONG_NAME, NO_REVERSE_HELP),
-      only_reverse(_parser, ONLY_REVERSE_SHORT_NAME, ONLY_REVERSE_LONG_NAME, ONLY_REVERSE_HELP),
-      tokenize(_parser, TOKENIZE_SHORT_NAME, TOKENIZE_LONG_NAME, TOKENIZE_HELP),
-      subsample(_parser, SUBSAMPLE_SHORT_NAME, SUBSAMPLE_LONG_NAME, SUBSAMPLE_HELP, SUBSAMPLE_DEFAULT),
-      no_filter_matches(_parser, NO_FILTER_MATCHES_SHORT_NAME, NO_FILTER_MATCHES_LONG_NAME, NO_FILTER_MATCHES_HELP),
-      no_filter_insertions(_parser, NO_FILTER_INSERTIONS_SHORT_NAME, NO_FILTER_INSERTIONS_LONG_NAME, NO_FILTER_INSERTIONS_HELP),
-      no_filter_deletions(_parser, NO_FILTER_DELETIONS_SHORT_NAME, NO_FILTER_DELETIONS_LONG_NAME, NO_FILTER_DELETIONS_HELP),
-      deletion_gap(_parser, DELETION_GAP_SHORT_NAME, DELETION_GAP_LONG_NAME, DELETION_GAP_HELP, DELETION_GAP_DEFAULT),
-      disable_ambiguous(_parser, DISABLE_AMBIGUOUS_SHORT_NAME, DISABLE_AMBIGUOUS_LONG_NAME, DISABLE_AMBIGUOUS_HELP),
-      print_every(_parser, PRINT_EVERY_SHORT_NAME, PRINT_EVERY_LONG_NAME, PRINT_EVERY_HELP, PRINT_EVERY_DEFAULT)
+      files(_parser, cmuts::options::FILES.short_name, cmuts::options::FILES.long_name, cmuts::options::FILES.help, std::vector<std::string>{}),
+      output(_parser, cmuts::options::OUTPUT.short_name, cmuts::options::OUTPUT.long_name, cmuts::options::OUTPUT.help),
+      fasta(_parser, cmuts::options::FASTA.short_name, cmuts::options::FASTA.long_name, cmuts::options::FASTA.help),
+      overwrite(_parser, cmuts::options::OVERWRITE.short_name, cmuts::options::OVERWRITE.long_name, cmuts::options::OVERWRITE.help),
+      rebuild(_parser, cmuts::options::REBUILD.short_name, cmuts::options::REBUILD.long_name, cmuts::options::REBUILD.help),
+      min_mapq(_parser, cmuts::options::MIN_MAPQ.short_name, cmuts::options::MIN_MAPQ.long_name, cmuts::options::MIN_MAPQ.help, cmuts::options::MIN_MAPQ.default_value, "Filtering arguments"),
+      min_quality(_parser, cmuts::options::MIN_PHRED.short_name, cmuts::options::MIN_PHRED.long_name, cmuts::options::MIN_PHRED.help, cmuts::options::MIN_PHRED.default_value),
+      min_length(_parser, cmuts::options::MIN_LENGTH.short_name, cmuts::options::MIN_LENGTH.long_name, cmuts::options::MIN_LENGTH.help, cmuts::options::MIN_LENGTH.default_value),
+      max_length(_parser, cmuts::options::MAX_LENGTH.short_name, cmuts::options::MAX_LENGTH.long_name, cmuts::options::MAX_LENGTH.help, cmuts::options::MAX_LENGTH.default_value),
+      max_hamming(_parser, cmuts::options::MAX_HAMMING.short_name, cmuts::options::MAX_HAMMING.long_name, cmuts::options::MAX_HAMMING.help, cmuts::options::MAX_HAMMING.default_value),
+      subsample(_parser, cmuts::options::SUBSAMPLE.short_name, cmuts::options::SUBSAMPLE.long_name, cmuts::options::SUBSAMPLE.help, cmuts::options::SUBSAMPLE.default_value),
+      compression(_parser, cmuts::options::COMPRESSION.short_name, cmuts::options::COMPRESSION.long_name, cmuts::options::COMPRESSION.help, cmuts::options::COMPRESSION.default_value),
+      max_indel_length(_parser, cmuts::options::MAX_INDEL_LENGTH.short_name, cmuts::options::MAX_INDEL_LENGTH.long_name, cmuts::options::MAX_INDEL_LENGTH.help, cmuts::options::MAX_INDEL_LENGTH.default_value),
+      chunk_size(_parser, cmuts::options::CHUNK_SIZE.short_name, cmuts::options::CHUNK_SIZE.long_name, cmuts::options::CHUNK_SIZE.help, cmuts::options::CHUNK_SIZE.default_value),
+      quality_window(_parser, cmuts::options::QUALITY_WINDOW.short_name, cmuts::options::QUALITY_WINDOW.long_name, cmuts::options::QUALITY_WINDOW.help, cmuts::options::QUALITY_WINDOW.default_value),
+      collapse(_parser, cmuts::options::COLLAPSE.short_name, cmuts::options::COLLAPSE.long_name, cmuts::options::COLLAPSE.help, cmuts::options::COLLAPSE.default_value),
+      joint(_parser, cmuts::options::JOINT.short_name, cmuts::options::JOINT.long_name, cmuts::options::JOINT.help),
+      tokenize(_parser, cmuts::options::TOKENIZE.short_name, cmuts::options::TOKENIZE.long_name, cmuts::options::TOKENIZE.help),
+      no_mismatch(_parser, cmuts::options::NO_MISMATCH.short_name, cmuts::options::NO_MISMATCH.long_name, cmuts::options::NO_MISMATCH.help),
+      no_insertion(_parser, cmuts::options::NO_INSERTION.short_name, cmuts::options::NO_INSERTION.long_name, cmuts::options::NO_INSERTION.help),
+      no_deletion(_parser, cmuts::options::NO_DELETION.short_name, cmuts::options::NO_DELETION.long_name, cmuts::options::NO_DELETION.help),
+      no_reverse(_parser, cmuts::options::NO_REVERSE.short_name, cmuts::options::NO_REVERSE.long_name, cmuts::options::NO_REVERSE.help),
+      only_reverse(_parser, cmuts::options::ONLY_REVERSE.short_name, cmuts::options::ONLY_REVERSE.long_name, cmuts::options::ONLY_REVERSE.help),
+      uniform_spread(_parser, cmuts::options::UNIFORM_SPREAD.short_name, cmuts::options::UNIFORM_SPREAD.long_name, cmuts::options::UNIFORM_SPREAD.help),
+      no_spread(_parser, cmuts::options::NO_SPREAD.short_name, cmuts::options::NO_SPREAD.long_name, cmuts::options::NO_SPREAD.help),
+      deletion_gap(_parser, cmuts::options::DELETION_GAP.short_name, cmuts::options::DELETION_GAP.long_name, cmuts::options::DELETION_GAP.help, cmuts::options::DELETION_GAP.default_value),
+      disable_ambiguous(_parser, cmuts::options::DISABLE_AMBIGUOUS.short_name, cmuts::options::DISABLE_AMBIGUOUS.long_name, cmuts::options::DISABLE_AMBIGUOUS.help),
+      no_filter_matches(_parser, cmuts::options::NO_FILTER_MATCHES.short_name, cmuts::options::NO_FILTER_MATCHES.long_name, cmuts::options::NO_FILTER_MATCHES.help),
+      no_filter_insertions(_parser, cmuts::options::NO_FILTER_INSERTIONS.short_name, cmuts::options::NO_FILTER_INSERTIONS.long_name, cmuts::options::NO_FILTER_INSERTIONS.help),
+      no_filter_deletions(_parser, cmuts::options::NO_FILTER_DELETIONS.short_name, cmuts::options::NO_FILTER_DELETIONS.long_name, cmuts::options::NO_FILTER_DELETIONS.help),
+      ignore_bases(_parser, cmuts::options::IGNORE_BASES.short_name, cmuts::options::IGNORE_BASES.long_name, cmuts::options::IGNORE_BASES.help, cmuts::options::IGNORE_BASES.default_value)
 {}
-
 
 #endif

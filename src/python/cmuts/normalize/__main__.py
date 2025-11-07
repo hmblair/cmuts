@@ -142,39 +142,33 @@ def _remove_if_exists(
             os.remove(path)
 
 
-def _opts_from_args(args: argparse.Namespace) -> cmuts.Opts:
-
-    clip = (args.clip_low, args.clip_high)
-    blank = (args.blank_5p, args.blank_3p)
-
-    return cmuts.Opts(
-        cmuts.DataGroups(args.mod),
-        cmuts.DataGroups(args.nomod),
-        args.blank_cutoff,
-        ~args.no_insertions,
-        ~args.no_deletions,
-        args.raw,
-        args.norm_outlier,
-        blank,
-        clip,
-        args.sig,
-    )
-
-
 if __name__ == '__main__':
 
     args = parser.parse_args()
 
     print()
-    print(cmuts.title(NAME, cmuts.__version__))
+    print(cmuts.title(NAME, cmuts.version))
     print(_subtitle(args.group))
 
     _remove_if_exists(args.out, args.overwrite)
 
-    # Normalize
+    clip = (args.clip_low, args.clip_high)
+    blank = (args.blank_5p, args.blank_3p)
 
-    opts = _opts_from_args(args)
+    opts = cmuts.Opts(
+        cmuts.DataGroups(args.mod),
+        cmuts.DataGroups(args.nomod),
+        args.blank_cutoff,
+        ~args.no_insertions,
+        ~args.no_deletions,
+        cmuts.NormScheme.UBR,
+        blank,
+        clip,
+        args.sig,
+    )
+
     with h5py.File(args.file, 'r') as f:
+
         mod, nomod, combined = cmuts.normalize(f, args.fasta, opts)
 
     # Save to file

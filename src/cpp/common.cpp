@@ -19,6 +19,15 @@ bool _exists(const std::string& filename) {
 }
 
 
+void _delete(const std::string& filename) {
+
+    (void)std::filesystem::remove(filename);
+    if (_exists(filename)) {
+        __throw_and_log(_LOG_FILE, "The file \"" + filename + "\" could not be deleted.");
+    }
+
+}
+
 
 void _throw_if_exists(const std::string& filename) {
 
@@ -979,6 +988,23 @@ base_t _from_char(char base) {
 }
 
 
+static inline char _str_to_char(const std::string& str) {
+
+    if (str.length() != 1) {
+        throw std::invalid_argument("_str_to_char requires exactly 1 character.");
+    }
+    return str[0];
+
+}
+
+
+base_t _from_str(const std::string& base) {
+
+    return _from_char(_str_to_char(base));
+
+}
+
+
 static inline char _to_char(base_t base) {
 
     switch (base) {
@@ -1196,6 +1222,7 @@ int32_t CIGAR_op::rlength() const {
         case CIGAR_t::HARD:
         case CIGAR_t::PAD:
         case CIGAR_t::BACK:
+        case CIGAR_t::TERM:
         case CIGAR_t::UNKNOWN: {
             return 0;
         }
@@ -1221,6 +1248,7 @@ int32_t CIGAR_op::qlength() const {
         case CIGAR_t::HARD:
         case CIGAR_t::PAD:
         case CIGAR_t::BACK:
+        case CIGAR_t::TERM:
         case CIGAR_t::UNKNOWN: {
             return 0;
         }
@@ -1297,7 +1325,11 @@ int32_t CIGAR::hamming() const {
 
     int32_t _hamming = 0;
     for (const auto& op : _str) {
-        if (op.type() != CIGAR_t::MATCH) {
+        if (
+            op.type() == CIGAR_t::INS ||
+            op.type() == CIGAR_t::DEL ||
+            op.type() == CIGAR_t::MISMATCH
+        ) {
             _hamming += op.length();
         }
     }
@@ -1456,7 +1488,11 @@ auto CIGAR::end() const -> decltype(_str.end()) { return _str.end(); }
 
 
 template <typename dtype>
-static inline std::vector<dtype> _get_mask(
+BaseMask<dtype>::BaseMask(int32_t length) : mask(length + 1, 0) {}
+
+
+template <typename dtype>
+static inline BaseMask<dtype> _get_mask(
     std::span<const qual_t> quality,
     qual_t min,
     int32_t window
@@ -1477,7 +1513,7 @@ static inline std::vector<dtype> _get_mask(
         stop  = length - window;
     }
 
-    std::vector<dtype> mask(length + 1, 0);
+    BaseMask<dtype> bm(length);
 
     // 1. Count the bad bases in the starting window region
     for (int32_t ix = 0; ix < window; ix++) {
@@ -1487,29 +1523,37 @@ static inline std::vector<dtype> _get_mask(
     // 2. Increment bad bases at the 3' end as the window region grows
     for (int32_t ix = 0; ix < start; ix++) {
         bad += (quality[ix + window] < min);
-        mask[ix] = (bad == 0);
+        dtype skip = static_cast<dtype>(bad == 0);
+        bm.mask[ix] = skip;
+        bm.good += skip;
     }
 
     // 3. Increment and decrement bad bases as the window region shifts
     if (length < 2 * window + 1) {
         for (int32_t ix = start; ix < stop; ix++) {
-            mask[ix] = (bad == 0);
+            dtype skip = static_cast<dtype>(bad == 0);
+            bm.mask[ix] = skip;
+            bm.good += skip;
         }
     } else {
         for (int32_t ix = start; ix < stop; ix++) {
             bad -= (quality[ix - window - 1] < min);
             bad += (quality[ix + window] < min);
-            mask[ix] = (bad == 0);
+            dtype skip = static_cast<dtype>(bad == 0);
+            bm.mask[ix] = skip;
+            bm.good += skip;
         }
     }
 
     // 4. Decrement bad bases at the 5' end as the window region shrinks
     for (int32_t ix = stop; ix < length + 1; ix++) {
         bad -= (quality[ix - window - 1] < min);
-        mask[ix] = (bad == 0);
+        dtype skip = static_cast<dtype>(bad == 0);
+        bm.mask[ix] = skip;
+        bm.good += skip;
     }
 
-    return mask;
+    return bm;
 
 }
 
@@ -1564,7 +1608,7 @@ bool PHRED::check(int32_t ix, qual_t min, int32_t window) const {
 
 
 template <typename dtype>
-std::vector<dtype> PHRED::mask(qual_t min, int32_t window) const {
+BaseMask<dtype> PHRED::mask(qual_t min, int32_t window) const {
 
     return _get_mask<dtype>(_qualities, min, window);
 
@@ -1954,6 +1998,10 @@ std::ostream& operator<<(std::ostream& os, CIGAR_t cigar) {
             os << "BACK";
             break;
         }
+        case CIGAR_t::TERM:     {
+            os << "TERM";
+            break;
+        }
     }
 
     return os;
@@ -1992,7 +2040,7 @@ std::ostream& operator<<(std::ostream& os, const CIGAR& cigar) {
 
 
 
-template std::vector<float> PHRED::mask(qual_t min, int32_t window) const;
+template BaseMask<float> PHRED::mask(qual_t min, int32_t window) const;
 
 
 
