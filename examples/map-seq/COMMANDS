@@ -1,0 +1,45 @@
+#!/bin/bash
+
+rm -rf *.log *.cmfa outputs
+
+mkdir outputs
+cd outputs
+
+THREADS=8
+ALIGNMENTS="alignments"
+COUNTS="counts.h5"
+PROFILES="profiles.h5"
+
+FASTQ="../fastq"
+FASTA="../ref.fasta"
+
+MODS=("bicine-2A3" "bicine-DMS")
+NOMODS=("bicine-DMSO" "bicine-ETH")
+NAMES=("2A3" "DMS")
+
+cmuts align \
+  --fasta "$FASTA" \
+  --threads "$THREADS" \
+  --output "$ALIGNMENTS" \
+  "$FASTQ"/*.fastq*
+
+cmuts core \
+  -f "$FASTA" \
+  -o "$COUNTS" \
+  --no-insertions \
+  "$ALIGNMENTS"/*
+
+for ((IX=0; IX<${#MODS[@]}; IX++)); do
+  MOD_DS="$ALIGNMENTS"/${MODS[IX]}
+  NOMOD_DS="$ALIGNMENTS"/${NOMODS[IX]}
+  NAME=${NAMES[IX]}
+  cmuts normalize \
+    -o "$PROFILES" \
+    --mod "$MOD_DS" \
+    --nomod "$NOMOD_DS" \
+    --fasta "$FASTA" \
+    --group "$NAME" \
+    "$COUNTS"
+done
+
+cd ..
