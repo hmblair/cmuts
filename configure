@@ -40,6 +40,13 @@ CODECS_DIR=${SCRIPT_DIR}/htscodecs
 BUILD_DIR=${SCRIPT_DIR}/build
 BIN_DIR=${SCRIPT_DIR}/bin
 
+# Clean and create build directory
+
+rm -rf ${BIN_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${BUILD_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${CODECS_DIR}/build
+mkdir -p ${BUILD_DIR} ${BIN_DIR}
+
 # Build htscodecs if not already
 
 if [[ ! -d ${CODECS_DIR}/build ]]; then
@@ -52,12 +59,6 @@ if [[ ! -d ${CODECS_DIR}/build ]]; then
   make install
   popd > /dev/null
 fi
-
-# Clean and create build directory
-
-rm -rf ${BIN_DIR}
-[[ "${CLEAN:-}" == "1" ]] && rm -rf ${BUILD_DIR}
-mkdir -p ${BUILD_DIR} ${BIN_DIR}
 
 pushd ${BUILD_DIR} > /dev/null
 
