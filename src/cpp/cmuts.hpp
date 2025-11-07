@@ -168,6 +168,9 @@ private:
     int64_t _files      = 0;
     int64_t _curr_file  = 0;
 
+    double _last_print  = 0;
+    double _print_every = 0.01;
+
     const MPI::Manager& _mpi;
 
     Utils::Line _print_files     = Utils::Line("File");
@@ -197,8 +200,10 @@ public:
     void file();
     void aggregate();
     void header() const;
-    void body() const;
-    bool mod(int64_t n) const;
+    double elapsed() const;
+
+    void body();
+    void print();
 
 };
 
@@ -239,8 +244,6 @@ public:
     std::vector<bool> bases;
     bool ambiguous;
     int32_t gap;
-    // std::vector<std::vector<bool>> valid;
-    int64_t print_every;
 
 };
 

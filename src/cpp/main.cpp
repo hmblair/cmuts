@@ -118,18 +118,12 @@ int main(int argc, char** argv) {
     std::optional<HDF5::File> _hdf5;
     try {
         _hdf5.emplace(opt.output, HDF5::RWC, mpi, _chunksize, opt.compression);
+        HDF5::_throw_if_object_exists(_hdf5.value(), opt.files);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
     HDF5::File hdf5 = std::move(_hdf5.value());
-
-    try {
-        HDF5::_throw_if_object_exists(hdf5, opt.files);
-    } catch (const std::exception& e) {
-        mpi.err() << "Error: " << e.what() << "\n";
-        return EXIT_FAILURE;
-    }
 
     size_t total = opt.files.value().size();
     if (total == 0) {
@@ -201,8 +195,7 @@ int main(int argc, char** argv) {
             opt.no_filter_deletions,
             cmuts::_ignore_str_to_bool(opt.ignore_bases),
             !opt.disable_ambiguous,
-            opt.deletion_gap,
-            opt.print_every
+            opt.deletion_gap
         };
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";

@@ -754,11 +754,7 @@ static inline void __count_reference(
         );
 
         if (params.pairwise) { __joint<dtype>(data); }
-
-        if (stats.mod(params.print_every)) {
-            stats.aggregate();
-            stats.body();
-        }
+        stats.print();
 
     }
 
@@ -1010,7 +1006,7 @@ void Stats::header() const {
 }
 
 
-void Stats::body() const {
+void Stats::body() {
 
     int fields = 5;
     _mpi.up(fields);
@@ -1030,11 +1026,22 @@ void Stats::body() const {
     _mpi.divide();
     _mpi.up();
 
+    _last_print = _mpi.time();
+
 }
 
-bool Stats::mod(int64_t n) const {
+double Stats::elapsed() const {
 
-    return (_processed % n) == 0;
+    return _mpi.time() - _last_print;
+
+}
+
+void Stats::print() {
+
+    if (elapsed() > _print_every) {
+        aggregate();
+        body();
+    }
 
 }
 

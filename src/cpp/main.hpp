@@ -54,7 +54,6 @@ public:
     Arg<int> chunk_size;
     Arg<int> quality_window;
     Arg<int> collapse;
-    Arg<int> print_every;
     
     // Modes
     Arg<bool> joint;
@@ -93,7 +92,7 @@ cmutsProgram::cmutsProgram()
       fasta(_parser, cmuts::options::FASTA.short_name, cmuts::options::FASTA.long_name, cmuts::options::FASTA.help),
       overwrite(_parser, cmuts::options::OVERWRITE.short_name, cmuts::options::OVERWRITE.long_name, cmuts::options::OVERWRITE.help),
       rebuild(_parser, cmuts::options::REBUILD.short_name, cmuts::options::REBUILD.long_name, cmuts::options::REBUILD.help),
-      min_mapq(_parser, cmuts::options::MIN_MAPQ.short_name, cmuts::options::MIN_MAPQ.long_name, cmuts::options::MIN_MAPQ.help, cmuts::options::MIN_MAPQ.default_value),
+      min_mapq(_parser, cmuts::options::MIN_MAPQ.short_name, cmuts::options::MIN_MAPQ.long_name, cmuts::options::MIN_MAPQ.help, cmuts::options::MIN_MAPQ.default_value, "Filtering arguments"),
       min_quality(_parser, cmuts::options::MIN_PHRED.short_name, cmuts::options::MIN_PHRED.long_name, cmuts::options::MIN_PHRED.help, cmuts::options::MIN_PHRED.default_value),
       min_length(_parser, cmuts::options::MIN_LENGTH.short_name, cmuts::options::MIN_LENGTH.long_name, cmuts::options::MIN_LENGTH.help, cmuts::options::MIN_LENGTH.default_value),
       max_length(_parser, cmuts::options::MAX_LENGTH.short_name, cmuts::options::MAX_LENGTH.long_name, cmuts::options::MAX_LENGTH.help, cmuts::options::MAX_LENGTH.default_value),
@@ -104,7 +103,6 @@ cmutsProgram::cmutsProgram()
       chunk_size(_parser, cmuts::options::CHUNK_SIZE.short_name, cmuts::options::CHUNK_SIZE.long_name, cmuts::options::CHUNK_SIZE.help, cmuts::options::CHUNK_SIZE.default_value),
       quality_window(_parser, cmuts::options::QUALITY_WINDOW.short_name, cmuts::options::QUALITY_WINDOW.long_name, cmuts::options::QUALITY_WINDOW.help, cmuts::options::QUALITY_WINDOW.default_value),
       collapse(_parser, cmuts::options::COLLAPSE.short_name, cmuts::options::COLLAPSE.long_name, cmuts::options::COLLAPSE.help, cmuts::options::COLLAPSE.default_value),
-      print_every(_parser, cmuts::options::PRINT_EVERY.short_name, cmuts::options::PRINT_EVERY.long_name, cmuts::options::PRINT_EVERY.help, cmuts::options::PRINT_EVERY.default_value),
       joint(_parser, cmuts::options::JOINT.short_name, cmuts::options::JOINT.long_name, cmuts::options::JOINT.help),
       tokenize(_parser, cmuts::options::TOKENIZE.short_name, cmuts::options::TOKENIZE.long_name, cmuts::options::TOKENIZE.help),
       no_mismatch(_parser, cmuts::options::NO_MISMATCH.short_name, cmuts::options::NO_MISMATCH.long_name, cmuts::options::NO_MISMATCH.help),

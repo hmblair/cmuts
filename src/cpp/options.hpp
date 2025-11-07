@@ -42,7 +42,6 @@ namespace options {
     inline const TypedOptionConfig<int> CHUNK_SIZE{"", "--chunk-size", "The number of references to process at a time per thread.", 128};
     inline const TypedOptionConfig<int> QUALITY_WINDOW{"", "--quality-window", "Check the quality of each base in a window of this size around each base.", 2};
     inline const TypedOptionConfig<int> COLLAPSE{"", "--collapse", "Collapse modifications within this distance of each other in a given read.", 2};
-    inline const TypedOptionConfig<int> PRINT_EVERY{"", "--print-every", "Update the progress indicators each time this many reads is processed.", 1000};
 
     // Mode options
     inline const OptionConfig JOINT{"", "--pairwise", "Compute pairwise modification counts."};

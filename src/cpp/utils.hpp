@@ -1,6 +1,7 @@
 #ifndef CMUTS_UTIL_HEADER
 #define CMUTS_UTIL_HEADER
 
+#include <stdexcept>
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -10,7 +11,7 @@
 
 #include "mpi.hpp"
 
-const std::string _LOG_FILE = "cmuts.log";
+const std::string _LOG_FILE = ".cmuts.log";
 constexpr int32_t MAX_TRACE = 256;
 
 typedef argparse::ArgumentParser Parser;
@@ -39,7 +40,8 @@ public:
         const std::string& short_name,
         const std::string& long_name,
         const std::string& help,
-        T default_value
+        T default_value,
+        const std::string& group = ""
     );
     T value() const;
     operator T() const;
