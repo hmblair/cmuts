@@ -1,6 +1,7 @@
 #!/bin/bash
 
-VERSION="1.1.0"
+VFILE="VERSION"
+VERSION=$(cat "$VFILE")
 
 set -eo pipefail
 
@@ -83,8 +84,6 @@ for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
     ln -s "$script" "${BIN_DIR}/$name"
   fi
 done
-
-echo $VERSION > ${BIN_DIR}/VERSION
 
 echo
 echo " -- cmuts built successfully --"
