@@ -37,7 +37,7 @@ TOLERANCE = 1E-4
 
 with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp_f:
 
-    cmuts = cmuts_f['aln'][..., :-1]
+    cmuts = cmuts_f['aln/counts-1d'][..., :-1]
     exp = exp_f['aln'][:]
     diff_with_exp = (cmuts - exp)
 
@@ -99,9 +99,12 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
             print("   STATUS: PASSED")
     else:
         print("   STATUS: FAILED")
-        print("   MUTATION HEATMAP:")
-        print(np.abs(cmuts - exp).sum((0, 1)))
-        breakpoint()
+        print("   CMUTS HEATMAP:")
+        print(cmuts.sum((0, 1)))
+        print(cmuts.sum((1, 2, 3)))
+        print("   EXPECTED HEATMAP:")
+        print(exp.sum((0, 1)))
+        print(exp.sum((1, 2, 3)))
 
     print(f"   MAE: {exp_mae:.4f}")
 

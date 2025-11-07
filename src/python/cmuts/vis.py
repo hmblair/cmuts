@@ -77,7 +77,7 @@ def _seq_align(seq1: str, seq2: str) -> tuple[str, str]:
     return best_alignment[0], best_alignment[1]
 
 
-def _data_aln(data: np.ndarray, aln1: str, aln2: str):
+def _data_aln(data: np.ndarray, aln1: str, aln2: str) -> np.ndarray:
     """
     Map data values to align with seq2, using zeros for gaps.
     """
@@ -269,7 +269,6 @@ def visualize(
     bin: str = "ChimeraX",
 ) -> None:
 
-    print(chain)
     cif_seq = _seq_from_cif(cif, chain)
     aln1, aln2 = _seq_align(seq, cif_seq)
     aln_data = _data_aln(reactivity, aln1, aln2)
