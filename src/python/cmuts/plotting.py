@@ -119,7 +119,7 @@ def _plot_read_hist(reads: np.ndarray, name: str) -> None:
     _xlabel("log10 Read Depth")
     _ylabel("Count")
 
-    figtype = "reads-hist.png"
+    figtype = "reads-hist"
     _save_and_close(name, figtype)
 
 
@@ -138,7 +138,7 @@ def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100) -> No
     _xlabel("Sequence index")
     _ylabel("Read Depth")
 
-    figtype = "cumulative-reads.png"
+    figtype = "cumulative-reads"
     _save_and_close(name, figtype)
 
 
@@ -160,7 +160,7 @@ def _plot_termination(term: np.ndarray, name: str) -> None:
     _xlabel("Residue")
     _ylabel("Termination density")
 
-    figtype = "termination.png"
+    figtype = "termination"
     _save_and_close(name, figtype)
 
 
@@ -177,7 +177,7 @@ def _plot_profile(
     _xlabel("Residue")
     _ylabel("Reactivity")
 
-    figtype = "profile.png"
+    figtype = "profile"
     _save_and_close(name, figtype)
 
 
@@ -192,7 +192,7 @@ def _plot_error(
     _xlabel("Residue")
     _ylabel("Error")
 
-    figtype = "error.png"
+    figtype = "error"
     _save_and_close(name, figtype)
 
 
@@ -212,7 +212,7 @@ def _plot_multiple_examples(
     _xlabel("Residue")
     _ylabel("Sequence Index")
 
-    figtype = "examples.png"
+    figtype = "examples"
     _save_and_close(name, figtype)
 
 
@@ -239,7 +239,7 @@ def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str) -> None:
     _xlabel("Residue")
     _ylabel("Fraction of reads")
 
-    figtype = "coverage.png"
+    figtype = "coverage"
     _save_and_close(name, figtype)
 
 
@@ -251,7 +251,7 @@ def _plot_variance(values: np.ndarray,  name: str) -> None:
     _xlabel("Residue")
     _ylabel("Variance")
 
-    figtype = "variance.png"
+    figtype = "variance"
     _save_and_close(name, figtype)
 
 
@@ -267,7 +267,7 @@ def _plot_pairwise_coverage(values: np.ndarray,  name: str) -> None:
     _xlabel("Residue")
     _ylabel("Residue")
 
-    figtype = "pairwise-coverage.png"
+    figtype = "pairwise-coverage"
     _save_and_close(name, figtype)
 
 
@@ -282,7 +282,7 @@ def _plot_correlation(values: np.ndarray,  name: str) -> None:
     _xlabel("Residue")
     _ylabel("Residue")
 
-    figtype = "correlation.png"
+    figtype = "correlation"
     _save_and_close(name, figtype)
 
 
@@ -303,7 +303,7 @@ def _plot_mi(
     _xlabel("Residue")
     _ylabel("Residue")
 
-    figtype = "mutual-information.png"
+    figtype = "mutual-information"
     _save_and_close(name, figtype)
 
 
