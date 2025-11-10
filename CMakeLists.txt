@@ -83,6 +83,7 @@ add_library(libcmuts STATIC
     src/cpp/mpi.cpp
     src/cpp/hdf5.cpp
     src/cpp/utils.cpp
+    src/cpp/mutex.cpp
 )
 
 set_target_properties(libcmuts PROPERTIES PREFIX "")

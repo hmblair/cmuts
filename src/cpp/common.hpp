@@ -27,6 +27,7 @@ extern "C" {
 }
 
 #include "utils.hpp"
+#include "mutex.hpp"
 
 // Canonical bases
 
