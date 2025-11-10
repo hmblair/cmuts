@@ -1691,7 +1691,13 @@ void IndexBlock::write_reads(std::ofstream& file) {
 
 
 Index::Index(const std::string& filename, int32_t references)
-    : _name(filename), _file(filename), _references(references) {}
+    : _name(filename), _file(filename), _references(references) {
+
+    // Don't fail reads quietly
+
+    _file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+}
 
 
 IndexBlock Index::read(int32_t ix) {
