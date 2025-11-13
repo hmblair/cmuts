@@ -37,7 +37,7 @@ def _line_plot(data: np.ndarray, cmap = plt.cm.RdPu, label: str = "") -> None:
     n = data.shape[0]
     x = np.arange(n)
 
-    # plt.fill_between(x, data, alpha=0.5, color=fill)
+    plt.fill_between(x, data, alpha=0.5, color=fill)
     if label:
         plt.plot(data, color=draw, linewidth=1, label=label)
     else:
