@@ -2,11 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import subprocess
 from Bio import Align, PDB
+from typing import Union
 
 FIGURES = "figures"
 
 
-def _seq_from_cif(filename: str, chain_id: str | None = None) -> str:
+def _seq_from_cif(filename: str, chain_id: Union[str, None] = None) -> str:
 
     if chain_id is None:
         chain_id = 'A'
@@ -137,7 +138,7 @@ def _to_defattr(
     attr_name: str = "value",
     pad5: int = 0,
     pad3: int = 0,
-    chain: str | None = None,
+    chain: Union[str, None] = None,
 ):
     """
     Convert numpy array to ChimeraX defattr format.
@@ -167,7 +168,7 @@ def _to_defattr_atom(
     attr_name: str = "value",
     pad5: int = 0,
     pad3: int = 0,
-    chain: str | None = None,
+    chain: Union[str, None] = None,
 ):
     """
     Convert a numpy array to ChimeraX defattr format, with one value per atom.
@@ -201,7 +202,14 @@ def _to_defattr_atom(
                 ix += 1
 
 
-def _color_by_defattr(bin: str, cif: str, defattr: str, color: str, max: float = 1) -> None:
+def _color_by_defattr(
+    bin: str,
+    cif: str,
+    defattr: str,
+    color: str,
+    max: float = 1,
+    chain: Union[str, None] = None,
+) -> None:
     """
     Color a .cif file with the given .defattr file.
     """
@@ -209,6 +217,7 @@ def _color_by_defattr(bin: str, cif: str, defattr: str, color: str, max: float =
     chmx_cmd = (
         f"open {cif}; " +
         "close #1.2-999; " +
+         ("" if chain is None else f"del ~/{chain}; ") +
         "hide pseudobonds; "
         "color grey; " +
         "graphics quality 5; " +
@@ -230,7 +239,7 @@ def _color_by_reactivity(
     bin: str,
     cif: str,
     reactivity: np.ndarray,
-    chain: str | None,
+    chain: Union[str, None],
     color: str,
 ) -> None:
     """
@@ -239,7 +248,7 @@ def _color_by_reactivity(
 
     defattr = ".cmuts-visualize.defattr"
     _to_defattr(reactivity, defattr, chain=chain)
-    _color_by_defattr(bin, cif, defattr, color, reactivity.max())
+    _color_by_defattr(bin, cif, defattr, color, reactivity.max(), chain)
 
 
 def _color_atoms_by_value(
@@ -248,7 +257,7 @@ def _color_atoms_by_value(
     reactivity: np.ndarray,
     atoms: list[str],
     sizes: np.ndarray,
-    chain: str | None,
+    chain: Union[str, None],
     color: str,
 ) -> None:
     """
@@ -265,7 +274,7 @@ def visualize(
     seq: str,
     cif: str,
     color: str = "indianred",
-    chain: str | None = None,
+    chain: Union[str, None] = None,
     bin: str = "ChimeraX",
 ) -> None:
 
@@ -283,7 +292,7 @@ def visualize_atom(
     seq: str,
     cif: str,
     color: str = "indianred",
-    chain: str | None = None,
+    chain: Union[str, None] = None,
     bin: str = "ChimeraX",
 ) -> None:
 

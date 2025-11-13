@@ -5,6 +5,7 @@ import h5py
 from dataclasses import dataclass
 from enum import Enum
 from scipy.stats import t as student
+from typing import Union
 
 
 # ANSI escape codes (for printing)
@@ -17,7 +18,7 @@ RESET = '\033[0m'
 # Core datatypes and dataclasses
 
 
-ProbingDatum = np.ndarray | da.Array
+ProbingDatum = Union[np.ndarray, da.Array]
 
 class NormScheme(Enum):
     RAW = 0
@@ -28,7 +29,7 @@ class DataGroups:
 
     def __init__(
         self: DataGroups,
-        groups: list[str] | None,
+        groups: Union[list[str], None],
     ) -> None:
 
         if groups is None:
@@ -309,7 +310,7 @@ def _sig_test(
 def _correlation(
     prob: da.Array,
     reads: da.Array,
-    p: float | None,
+    p: Union[float, None],
 ) -> da.Array:
 
     cov = _covariance(prob)
@@ -389,10 +390,10 @@ def _pairwise_mask(mask: da.Array) -> da.Array:
 
 def _data_from_counts(
     counts: da.Array,
-    pairs: da.Array | None,
+    pairs: Union[da.Array, None],
     opts: Opts,
     lengths: da.Array
-) -> tuple[da.Array | None, ...]:
+) -> tuple[Union[da.Array, None], ...]:
 
     seqs = int(counts.shape[0])
     seqlen = int(counts.shape[1])
@@ -542,7 +543,7 @@ class ProbingData:
 
     def __init__(
         self: ProbingData,
-        sequences: da.Array | None,
+        sequences: Union[da.Array, None],
         reactivity: ProbingDatum,
         reads: ProbingDatum,
         error: ProbingDatum,
@@ -551,10 +552,10 @@ class ProbingData:
         heatmap: ProbingDatum,
         coverage: ProbingDatum,
         terminations: ProbingDatum,
-        pairs: ProbingDatum | None,
-        probability: ProbingDatum | None,
-        covariance: ProbingDatum | None,
-        mi: ProbingDatum | None,
+        pairs: Union[ProbingDatum, None],
+        probability: Union[ProbingDatum, None],
+        covariance: Union[ProbingDatum, None],
+        mi: Union[ProbingDatum, None],
     ) -> None:
 
         self.sequences = sequences
@@ -637,8 +638,11 @@ class ProbingData:
     ) -> None:
 
         norm = da.nan_to_num(norm, 1)
+
         if norm.ndim > 0:
-            norm[norm == 0] = 1
+            norm[norm <= 0] = 1
+        elif norm.item() <= 0:
+            norm = 1
 
         self.reactivity /= norm
         self.error /= norm
@@ -674,7 +678,7 @@ class ProbingData:
 def _sequences_from_counts(
     file: h5py.File,
     dataset: str = "sequences",
-) -> da.Array | None:
+) -> Union[da.Array, None]:
 
     # Get the tokenized sequences if they exist
 
@@ -689,7 +693,7 @@ def _probing_data_from_counts(
     groups: DataGroups,
     opts: Opts,
     lengths: da.Array
-    ) -> ProbingData | None:
+    ) -> Union[ProbingData, None]:
 
         if not groups.oneD:
             return None
@@ -708,7 +712,7 @@ def _probing_data_from_counts(
 
 def _merge_conditions(
     mod: ProbingData,
-    nomod: ProbingData | None,
+    nomod: Union[ProbingData, None],
 ) -> ProbingData:
 
     if nomod is None:
@@ -787,7 +791,7 @@ def _get_norm_percentile(
     high_reactivity = data.reactivity[_good_pos]
 
     if not high_reactivity.size:
-        return _get_norm_raw(data.reactivity, opts)
+        return _get_norm_raw(data, opts)
 
     return np.percentile(high_reactivity.flatten(), PERCENTILE)
 
@@ -867,7 +871,7 @@ def normalize(
     file: h5py.File,
     fasta: str,
     opts: Opts,
-) -> tuple[ProbingData, ProbingData | None, ProbingData]:
+) -> tuple[ProbingData, Union[ProbingData, None], ProbingData]:
 
     # Get reactivity and associated values
 
@@ -906,7 +910,7 @@ def normalize(
 
 def stats(
     mod: ProbingData,
-    nomod: ProbingData | None,
+    nomod: Union[ProbingData, None],
     combined: ProbingData,
 ) -> None:
 

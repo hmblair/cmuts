@@ -2,7 +2,9 @@
 
 import argparse
 import h5py
-from cmuts import visualize
+import numpy as np
+import cmuts
+from typing import Union
 
 
 def _seq_from_fasta(file: str, n: int = 0) -> str:
@@ -37,7 +39,6 @@ parser.add_argument(
 parser.add_argument(
     "--cif",
     help="Path to .cif structure file",
-    required=True,
 )
 parser.add_argument(
     "--fasta",
@@ -79,17 +80,59 @@ parser.add_argument(
     help="Trim this many bases from the 3' end of the reactivity data.",
 )
 
+
+def _load_reactivity(
+    file: str,
+    dataset: str,
+    index: int,
+    trim5: int = 0,
+    trim3: int = 0,
+) -> np.ndarray:
+
+    with h5py.File(file, 'r') as f:
+        data = f[dataset]
+        if data.ndim == 2:
+            data = data[index]
+        else:
+            data = data[:]
+
+    if trim5:
+        data = data[trim5:]
+    if trim3:
+        data = data[:-trim3]
+
+    return data
+
+
+def _overlay_on_cif(
+    file: str,
+    dataset: str,
+    index: int,
+    fasta: str,
+    cif: str,
+    trim5: int,
+    trim3: int,
+    color: str,
+    chain: str,
+    bin: str,
+) -> None:
+
+    reactivity = _load_reactivity(file, dataset, index, trim5, trim3)
+    seq = _seq_from_fasta(fasta, index)
+    cmuts.visualize.cif(reactivity, seq, cif, color, chain, bin)
+
 if __name__ == "__main__":
 
     args = parser.parse_args()
-
-    with h5py.File(args.file, 'r') as f:
-        data = f[args.dataset][args.index]
-
-    if args.trim_5p:
-        data = data[args.trim_5p:]
-    if args.trim_3p:
-        data = data[:-args.trim_3p]
-
-    seq = _seq_from_fasta(args.fasta, args.index)
-    visualize(data, seq, args.cif, args.color, args.chain, args.bin)
+    _overlay_on_cif(
+        args.file,
+        args.dataset,
+        args.index,
+        args.fasta,
+        args.cif,
+        args.trim_5p,
+        args.trim_3p,
+        args.color,
+        args.chain,
+        args.bin,
+    )

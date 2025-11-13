@@ -1,6 +1,4 @@
 from importlib.metadata import version
-from .vis import visualize, visualize_atom
-from .plotting import generate
 from .internal import (
     title,
     DataGroups,
@@ -10,6 +8,7 @@ from .internal import (
     normalize,
     stats,
 )
+from . import visualize
 
 __version__ = version("cmuts")
 
