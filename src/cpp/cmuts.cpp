@@ -1,6 +1,113 @@
 #include "cmuts.hpp"
 
 
+template <typename dtype>
+class Stack {
+private:
+
+    std::vector<dtype> _data;
+    int32_t _ix = -1;
+
+public:
+
+    Stack(int32_t max);
+    void push(dtype value);
+    dtype pop();
+
+    size_t size() const;
+    dtype top() const;
+    std::vector<dtype> data() const;
+    bool empty() const;
+
+};
+
+template <typename dtype>
+Stack<dtype>::Stack(int32_t max)
+    : _data(max) {}
+
+template <typename dtype>
+void Stack<dtype>::push(dtype value) {
+    _ix++;
+    if (_ix >= _data.size()) {
+        _data.resize(2 * _data.size());
+    }
+    _data[_ix] = value;
+}
+
+template <typename dtype>
+dtype Stack<dtype>::pop() {
+    if (empty()) {
+        throw std::runtime_error("Cannot pop from empty stack.");
+    }
+    _ix--;
+    return _data[_ix + 1];
+}
+
+template <typename dtype>
+size_t Stack<dtype>::size() const {
+    return _ix + 1;
+}
+
+template <typename dtype>
+std::vector<dtype> Stack<dtype>::data() const {
+    return {_data.begin(), _data.begin() + size()};
+}
+
+template <typename dtype>
+dtype Stack<dtype>::top() const {
+    return _data[_ix];
+}
+
+template <typename dtype>
+bool Stack<dtype>::empty() const {
+    return size() == 0;
+}
+
+
+
+
+
+template <typename dtype>
+static inline dtype _pow(dtype base, int32_t n) {
+
+    dtype tmp = 1;
+    for (int32_t ix = 0; ix < n; ix++) { tmp *= base; }
+    return tmp;
+
+}
+
+
+template <typename dtype>
+static inline void _fill_at_indices(
+    std::vector<dtype>& vec,
+    const std::vector<int32_t>& indices,
+    dtype value
+) {
+
+    for (const auto& ix: indices) { vec[ix] += value; }
+
+}
+
+#include <iomanip>
+template <typename dtype>
+void _print_vector(const std::vector<dtype>& vec, int precision = 4) {
+
+    size_t size = vec.size();
+    if (size == 0) { return; }
+
+    std::cout << std::fixed << std::setprecision(precision);
+    std::cout << "{";
+    for (size_t ix = 0; ix < size - 1; ix++) {
+        std::cout << vec[ix] << ",";
+    }
+    std::cout << vec[size - 1] << "}" << std::endl;
+
+}
+
+
+
+
+
 namespace cmuts {
 
 
@@ -181,11 +288,34 @@ static inline void __joint(Data<dtype>& data) {
 
 
 
+template <typename dtype>
+dtype _deletion_prob(
+    const std::vector<dtype>& mutations,
+    const std::vector<int32_t>& indices,
+    dtype penalty
+) {
+
+    auto n = static_cast<int32_t>(indices.size() - 1);
+    dtype tmp = _pow(penalty, n);
+
+    for (const auto& ix: indices) { tmp *= mutations[ix]; }
+    return tmp;
+
+}
+
+
+struct DeletionData {
+
+    int32_t M = 0;
+    std::vector<int32_t> ix;
+
+};
+
+
 int32_t _get_ambiguous_end(
     int32_t start,
     int32_t end,
-    const seq_t& sequence,
-    int32_t max_gap
+    const seq_t& sequence
 ) {
 
     auto size = static_cast<int32_t>(sequence.size());
@@ -193,16 +323,9 @@ int32_t _get_ambiguous_end(
 
     int32_t M = start;
     int32_t N = end;
-    int32_t gap = 0;
-    bool contig = true;
 
     while (M < N && N < size) {
-        if (sequence[M] == sequence[N]) { 
-            if (!contig) { gap++; }
-            if (gap <= max_gap) { N++; } else { break; }
-        } else {
-            contig = false;
-        }
+        if (sequence[M] == sequence[N]) { N++; }
         M++;
     }
 
@@ -212,33 +335,6 @@ int32_t _get_ambiguous_end(
 }
 
 
-int32_t _get_ambiguous_start(
-    int32_t start,
-    int32_t end,
-    const seq_t& sequence,
-    int32_t max_gap
-) {
-
-    int32_t M = start - 1;
-    int32_t N = end - 1;
-
-    while (M >= 0 && sequence[M] == sequence[N]) { M--; N--; }
-    return N;
-
-}
-
-
-
-
-
-//
-// Helpers for spreading deletions
-//
-
-
-
-
-
 template <typename dtype>
 static inline dtype _total_muts(
     Data<dtype>& data,
@@ -246,45 +342,57 @@ static inline dtype _total_muts(
 ) {
 
     dtype total = 0;
+    dtype diag  = 0;
+
     auto _view = data.mods.view();
 
     // From A
+    diag  += _view(ix, IX_A, IX_A);
     total += _view(ix, IX_A, IX_C);
     total += _view(ix, IX_A, IX_G);
     total += _view(ix, IX_A, IX_T);
     // From C
     total += _view(ix, IX_C, IX_A);
+    diag  += _view(ix, IX_C, IX_C);
     total += _view(ix, IX_C, IX_G);
     total += _view(ix, IX_C, IX_T);
     // From G
     total += _view(ix, IX_G, IX_A);
     total += _view(ix, IX_G, IX_C);
+    diag  += _view(ix, IX_G, IX_G);
     total += _view(ix, IX_G, IX_T);
     // From T/U
     total += _view(ix, IX_T, IX_A);
     total += _view(ix, IX_T, IX_C);
     total += _view(ix, IX_T, IX_G);
+    diag  += _view(ix, IX_T, IX_T);
 
-    return total;
+    dtype coverage = total + diag;
+
+    if (coverage > 0) {
+        return total / coverage;
+    } else {
+        return total;
+    }
 
 }
 
+
 template <typename dtype>
-static inline void _normalize(std::vector<dtype>& arr, dtype mask) {
+static inline void _normalize(std::vector<dtype>& arr, dtype sum = 1) {
 
     dtype total = 0;
     for (const dtype& val : arr) { total += val; }
 
     if (total == 0) {
-        for (dtype& val : arr) { val = mask / arr.size(); }
-
+        for (dtype& val : arr) { val = sum / arr.size(); }
     } else {
-
+        total /= sum;
         for (dtype& val : arr) { val /= total; }
-
     }
 
 }
+
 
 template <typename dtype>
 static inline std::vector<dtype> _spread_weights(
@@ -323,7 +431,6 @@ static inline std::vector<dtype> _spread_weights(
                 weights[ix - start] = _total_muts<dtype>(data, ix) * mask;
             }
 
-            _normalize<dtype>(weights, mask);
             break;
 
         }
@@ -335,10 +442,139 @@ static inline std::vector<dtype> _spread_weights(
 }
 
 
+template <typename dtype>
+std::vector<dtype> _enumerate_deletions(
+    const seq_t& reference,
+    const std::vector<dtype>& mutations,
+    dtype penalty,
+    dtype mask,
+    int32_t start,
+    int32_t end
+) {
+
+    // Start of the search region
+
+    int32_t M = start;
+
+    // End of the search region (and the current deletion)
+
+    int32_t N = end;
+
+    // Core stack
+
+    int32_t max = 32;
+    Stack<DeletionData> stack(max);
+
+    DeletionData init;
+    init.M = M;
+    init.ix = {N - 1 - start};
+    stack.push(init);
+
+    // Final deletion profile
+
+    std::vector<dtype> out(mutations.size(), 0);
+
+    // Is the current value of M on the boundary of the current deletion
+
+    bool contig = true;
+
+    // Did we push to the stack this loop
+
+    bool pushed = false;
+
+    // Keep track of the average number of mutations
+    // for normalization purposes
+
+    dtype total = 0;
+    dtype nmuts = 0;
+
+    while (!stack.empty()) {
+
+        pushed = false;
+
+        while (M < N && N < reference.size()) {
+
+            if (reference[M] == reference[N]) {
+
+                M++;
+                N++;
+
+                DeletionData data;
+                data.M = M;
+                data.ix = stack.top().ix;
+
+                // The top of the index stack gets replaced
+
+                if (contig) {
+
+                    data.ix.back() = N - 1 - start;
+
+                }
+
+                // The top of the index stack gets split in two
+
+                else {
+
+                    data.ix.back() = stack.top().M - start;
+                    data.ix.push_back(N - 1 - start);
+
+                }
+
+                stack.push(data);
+                pushed = true;
+                contig = true;
+
+                break;
+
+            }
+
+            // Advance M
+
+            M++;
+            contig = false;
+
+        }
+
+        if (!pushed) {
+
+            // Pop and accumulate
+
+            auto data = stack.pop();
+            M = data.M - 1;
+            N--;
+
+            float prob = _deletion_prob<dtype>(mutations, data.ix, penalty);
+            _fill_at_indices<dtype>(out, data.ix, prob);
+
+            nmuts += data.ix.size() * prob;
+            total += prob;
+
+            // Advance M
+
+            M++;
+            contig = false;
+
+        }
+
+    }
+
+    if (total > 0) { nmuts /= total; }
+    else { nmuts = 1; }
+
+    _normalize<dtype>(out, mask * nmuts);
+    return out;
+
+}
+
+
+
+
 
 //
 // Mutation counting
 //
+
+
 
 
 
@@ -351,7 +587,6 @@ static inline void __match_core(
     const Params& params
 ) {
 
-    mask = mask || params.no_filter_matches;
     data.mods.view()(rpos, rbase, rbase) += mask;
 
 };
@@ -367,9 +602,10 @@ static inline void __mismatch_core(
     const Params& params
 ) {
 
-    mask = (mask && params.bases[rbase]);
+    if (!params.bases[rbase]) { mask = 0; }
+
     data.mods.view()(rpos, rbase, qbase) += mask;
-    if (params.pairwise) { data.tmp[rpos] = mask; }
+    if (params.pairwise) { data.tmp[rpos] += mask; }
 
 };
 
@@ -382,9 +618,8 @@ static inline void __ins_core(
     const Params& params
 ) {
 
-    mask = mask || params.no_filter_insertions;
     data.mods.view()(rpos, qbase, IX_INS) += mask;
-    if (params.pairwise) { data.tmp[rpos] = mask; }
+    if (params.pairwise) { data.tmp[rpos] += mask; }
 
 };
 
@@ -397,10 +632,10 @@ static inline void __del_core(
     const Params& params
 ) {
 
-    mask = (mask && params.bases[rbase]);
-    mask = mask || params.no_filter_deletions;
+    if (!params.bases[rbase]) { mask = 0; }
+
     data.mods.view()(rpos, rbase, IX_DEL) += mask;
-    if (params.pairwise) { data.tmp[rpos] = mask; }
+    if (params.pairwise) { data.tmp[rpos] += mask; }
 
 };
 
@@ -438,7 +673,10 @@ static inline void __match(
         if constexpr (CONSUMES_QPOS) { qpos--; }
         base_t rbase = reference[rpos];
 
-        __match_core<dtype>(data, rpos, rbase, mask[qpos], params);
+        dtype value = mask[qpos];
+        if (params.no_filter_matches) { value = 1; }
+
+        __match_core<dtype>(data, rpos, rbase, value, params);
 
     }
 
@@ -460,14 +698,17 @@ static inline void __mismatch(
     rpos--;
     qpos--;
     op.advance();
+
     base_t rbase = reference[rpos];
     base_t qbase = op.last(rbase);
+    dtype value  = mask[qpos];
 
     if (params.mismatches && last - rpos >= params.collapse && qbase != IX_UNK) {
-        __mismatch_core<dtype>(data, rpos, qbase, rbase, mask[qpos], params);
+        __mismatch_core<dtype>(data, rpos, qbase, rbase, value, params);
         last = rpos;
     } else {
-        __match_core<dtype>(data, rpos, rbase, mask[qpos], params);
+        if (params.no_filter_matches) { value = 1; }
+        __match_core<dtype>(data, rpos, rbase, value, params);
     }
 
     __match<dtype, true, true>(data, op, rpos, qpos, reference, mask, params);
@@ -501,12 +742,89 @@ static inline void __ins(
 
     qpos--;
     base_t qbase = op.last();
+
+    dtype value = mask[qpos];
+    if (params.no_filter_insertions) { value = 1; }
+
     if (last - rpos >= params.collapse && qbase != IX_UNK) {
-        __ins_core<dtype>(data, rpos - 1, qbase, mask[qpos], params);
+        __ins_core<dtype>(data, rpos - 1, qbase, value, params);
         last = rpos;
     }
 
     qpos -= (op.length() - 1);
+
+}
+
+template <typename dtype>
+static inline void __del_no_ambig(
+    Data<dtype>& data,
+    HTS::CIGAR_op& op,
+    int32_t& rpos,
+    int32_t& qpos,
+    int32_t& last,
+    const seq_t& reference,
+    const std::vector<dtype>& mask,
+    const Params& params
+) {
+
+    op.advance();
+    rpos--;
+    last = rpos;
+
+    base_t rbase = reference[rpos];
+
+    dtype value = mask[qpos];
+    if (params.no_filter_deletions) { value = 1; }
+
+    __del_core<dtype>(data, rpos, rbase, value, params);
+
+    __match<dtype, true, false>(data, op, rpos, qpos, reference, mask, params);
+
+}
+
+
+template <typename dtype>
+static inline void __del_w_ambig(
+    Data<dtype>& data,
+    HTS::CIGAR_op& op,
+    int32_t& rpos,
+    int32_t& qpos,
+    int32_t& last,
+    const seq_t& reference,
+    const std::vector<dtype>& mask,
+    const Params& params
+) {
+
+    // Start and end indices of the deletion
+
+    int32_t start = rpos - op.length();
+    int32_t end   = _get_ambiguous_end(start, rpos, reference);
+
+    // RT repeat probability
+
+    dtype penalty = 1 / 0.5;
+
+    dtype value = mask[qpos];
+    if (params.no_filter_deletions) { value = 1; }
+
+    std::vector<dtype> mutations = _spread_weights(
+        start, end, data, value, params.spread
+    );
+
+    std::vector<dtype> deletions = _enumerate_deletions<dtype>(
+        reference, mutations, penalty, value, start, rpos
+    );
+
+    for (int32_t ix = end - 1; ix >= start; ix--) {
+        base_t rbase = reference[ix];
+        __del_core<dtype>(data, ix, rbase, deletions[ix - start], params);
+    }
+
+    op.advance();
+    rpos--;
+    last = rpos;
+
+    __match<dtype, true, false>(data, op, rpos, qpos, reference, mask, params);
 
 }
 
@@ -534,36 +852,11 @@ static inline void __del(
         return;
     }
 
-    // Start and end indices of the deletion
-
-    int32_t start = rpos - op.length();
-    int32_t end   = rpos;
-
-    // Start and end indices of the ambiguous region
-    // Defaults to simply the 3' base, but may change if ambiguous detection
-    // is not disabled
-
-    int32_t ambig_start = end - 1;
-    int32_t ambig_end   = end;
-
     if (params.ambiguous) {
-        ambig_start = _get_ambiguous_start(start, end, reference, params.gap);
-        ambig_end   = _get_ambiguous_end(start, end, reference, params.gap);
+        __del_w_ambig<dtype>(data, op, rpos, qpos, last, reference, mask, params); 
+    } else {
+        __del_no_ambig<dtype>(data, op, rpos, qpos, last, reference, mask, params);
     }
-
-    dtype _val = mask[qpos] || params.no_filter_deletions;
-    std::vector<dtype> weights = _spread_weights<dtype>(ambig_start, ambig_end, data, _val, params.spread);
-
-    for (int32_t ix = ambig_end - 1; ix >= ambig_start; ix--) {
-        base_t rbase = reference[ix];
-        __del_core<dtype>(data, ix, rbase, weights[ix - ambig_start], params);
-    }
-
-    op.advance();
-    rpos--;
-    last = rpos;
-
-    __match<dtype, true, false>(data, op, rpos, qpos, reference, mask, params);
 
 }
 
@@ -593,6 +886,8 @@ static inline void __count(
         );
     }
 
+    // Fill the tmp modification array if necessary
+
     if (params.pairwise) { data.tmp.assign(rpos, 0); }
 
     // Position of the most recent (3'-wise) mutation
@@ -605,6 +900,8 @@ static inline void __count(
         params.min_phred,
         params.quality_window
     );
+
+    // Update number of low-quality bases
 
     stats.update_bases(mask.mask.size() - mask.good, mask.mask.size());
 
@@ -744,8 +1041,8 @@ static inline void __count_reference(
     Stats& stats
 ) {
 
-
-    while (!iter.end()) {
+    int32_t count = 0;
+    while (!iter.end() && count < params.downsample) {
 
         HTS::Alignment aln = iter.next();
 
@@ -755,6 +1052,7 @@ static inline void __count_reference(
 
         if (params.pairwise) { __joint<dtype>(data); }
         stats.print();
+        count++;
 
     }
 
@@ -941,6 +1239,7 @@ Stats::Stats(
     int64_t unaligned,
     int32_t references,
     int32_t length,
+    double print_every,
     const MPI::Manager& mpi
 ) : 
     _aligned(aligned),
@@ -948,6 +1247,7 @@ Stats::Stats(
     _references(references),
     _length(length),
     _files(files),
+    _print_every(print_every),
     _mpi(mpi) {
 
         if (mpi.root()) {

@@ -27,6 +27,7 @@ namespace options {
     inline const OptionConfig FASTA{"-f", "--fasta", "The reference FASTA file."};
     inline const OptionConfig OVERWRITE{"", "--overwrite", "Overwrite an existing HDF5 file."};
     inline const OptionConfig REBUILD{"", "--rebuild", "Rebuild all index files."};
+    inline const TypedOptionConfig<float> PRINT_EVERY{"", "--print-every", "How often (in seconds) to print statistics.", 0.01};
 
     // Quality and filtering options
     inline const TypedOptionConfig<int> MIN_PHRED{"", "--min-phred", "PHRED score threshold for base processing.", 10};
@@ -34,7 +35,7 @@ namespace options {
     inline const TypedOptionConfig<int> MIN_LENGTH{"", "--min-length", "Skip reads shorter than this length.", 2};
     inline const TypedOptionConfig<int> MAX_LENGTH{"", "--max-length", "Skip reads longer than this length.", 1024};
     inline const TypedOptionConfig<int> MAX_HAMMING{"", "--max-hamming", "The maximum number of mismatches, insertions, and deletions in a processed read.", 1024};
-    inline const TypedOptionConfig<float> SUBSAMPLE{"", "--subsample", "Randomly choose to use a read with this probability.", 1.0f};
+    inline const TypedOptionConfig<int> DOWNSAMPLE{"", "--downsample", "Limit read depths per referece.", INT_MAX};
 
     // Processing options
     inline const TypedOptionConfig<int> COMPRESSION{"-c", "--compression", "Compression level of the HDF5 output (0-9).", 3};
