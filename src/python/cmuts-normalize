@@ -187,4 +187,4 @@ if __name__ == '__main__':
 
     # Plot figures
 
-    cmuts.plotting.generate(combined, args.group)
+    cmuts.visualize.all(combined, args.group)

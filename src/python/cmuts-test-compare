@@ -101,9 +101,11 @@ with h5py.File(CMUTS_FILE, "r") as cmuts_f, h5py.File(EXPECTED_FILE, "r") as exp
         print("   STATUS: FAILED")
         print("   CMUTS HEATMAP:")
         print(cmuts.sum((0, 1)))
+        print("   CMUTS SUM PER BASE:")
         print(cmuts.sum((1, 2, 3)))
         print("   EXPECTED HEATMAP:")
         print(exp.sum((0, 1)))
+        print("   EXPECTED SUM PER BASE:")
         print(exp.sum((1, 2, 3)))
 
     print(f"   MAE: {exp_mae:.4f}")

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+
+import argparse
+import h5py
+import numpy as np
+import cmuts
+
+
+parser = argparse.ArgumentParser(
+    description="Plot reactivity profiles stored in HDF5 files"
+)
+parser.add_argument(
+    "--files",
+    help="Path to HDF5 file(s)",
+    required=True,
+    nargs="+",
+)
+parser.add_argument(
+    "--datasets",
+    help="Dataset name in HDF5 file(s)",
+    required=True,
+    nargs="+",
+)
+parser.add_argument(
+    "--labels",
+    help="Labels to use on plots",
+    nargs="+",
+)
+parser.add_argument(
+    "--index",
+    type=int,
+    default=0,
+    help="Index of reactivity in the dataset.",
+)
+parser.add_argument(
+    "--trim-5p",
+    type=int,
+    default=0,
+    help="Trim this many bases from the 5' end of the reactivity data.",
+)
+parser.add_argument(
+    "--trim-3p",
+    type=int,
+    default=0,
+    help="Trim this many bases from the 3' end of the reactivity data.",
+)
+
+def _load_reactivity(
+    file: str,
+    dataset: str,
+    index: int,
+    trim5: int = 0,
+    trim3: int = 0,
+) -> np.ndarray:
+
+    with h5py.File(file, 'r') as f:
+        data = f[dataset]
+        if data.ndim == 2:
+            data = data[index]
+        else:
+            data = data[:]
+
+    if trim5:
+        data = data[trim5:]
+    if trim3:
+        data = data[:-trim3]
+
+    return data
+
+
+if __name__ == "__main__":
+
+    args = parser.parse_args()
+
+    reactivity = []
+    for file, dataset in zip(args.files, args.datasets):
+        tmp = _load_reactivity(file, dataset, args.index, args.trim_5p, args.trim_3p)
+        reactivity.append(tmp)
+
+    labels = args.labels or args.files
+    cmuts.visualize.profiles(reactivity, labels)

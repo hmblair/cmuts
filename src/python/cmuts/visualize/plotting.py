@@ -2,7 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, SymLogNorm
-from .internal import ProbingData
+from cmuts.internal import ProbingData
+from typing import Union
 
 
 # Figures directory
@@ -22,6 +23,10 @@ LEGEND_SIZE = 12
 DPI = 400
 
 CMAP = "RdPu"
+CMAPS = [
+    plt.cm.RdPu,
+    plt.cm.PiYG,
+]
 
 
 def _line_plot(data: np.ndarray, cmap = plt.cm.RdPu, label: str = "") -> None:
@@ -32,7 +37,7 @@ def _line_plot(data: np.ndarray, cmap = plt.cm.RdPu, label: str = "") -> None:
     n = data.shape[0]
     x = np.arange(n)
 
-    plt.fill_between(x, data, alpha=0.5, color=fill)
+    # plt.fill_between(x, data, alpha=0.5, color=fill)
     if label:
         plt.plot(data, color=draw, linewidth=1, label=label)
     else:
@@ -166,13 +171,34 @@ def _plot_termination(term: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
 def _plot_profile(
     reactivity: np.ndarray,
-    error: np.ndarray,
-    name: str,
+    error: Union[np.ndarray, None] = None,
+    name: str = "",
     dir: str = FIGURES,
 ) -> None:
 
-    _line_plot(reactivity, label="Reactivity")
-    _line_plot(-error, plt.cm.PuBu, label="Stat. Error")
+    if error is not None:
+        _line_plot(reactivity, label="Reactivity")
+        _line_plot(-error, plt.cm.PuBu, label="Stat. Error")
+    else:
+        _line_plot(reactivity)
+
+    _title("Reactivity Profile", name)
+    _xlabel("Residue")
+    _ylabel("Reactivity")
+
+    figtype = "profile"
+    _save_and_close(name, figtype)
+
+
+def _plot_profiles(
+    reactivities: list[np.ndarray],
+    names: list[str],
+) -> None:
+
+    for ix in range(len(names)):
+        _line_plot(reactivities[ix], cmap=CMAPS[ix], label=names[ix])
+
+    name = ""
 
     _title("Reactivity Profile", name)
     _xlabel("Residue")
@@ -280,7 +306,7 @@ def _plot_correlation(values: np.ndarray, name: str, dir: str = FIGURES) -> None
     vhigh = 1
     norm = SymLogNorm(linthresh=1E-3*vhigh, vmin=-vhigh, vmax=vhigh)
 
-    _matrix_plot(values, norm, "Pairwise Correlation", cmap="PuOr")
+    _matrix_plot(values, norm, "Pairwise Correlation", cmap="PiYG")
 
     _title("Correlation", name)
     _xlabel("Residue")
@@ -312,7 +338,7 @@ def _plot_mi(
     _save_and_close(name, figtype, dir)
 
 
-def generate(
+def all(
     data: ProbingData,
     name: str,
     dir: str = FIGURES,
