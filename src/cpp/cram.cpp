@@ -1600,10 +1600,14 @@ cramFile::cramFile(const std::string& name)
     _version    = _data.version;
 
     std::string _index_name = _name + CMUTS_INDEX;
-    if (!std::filesystem::exists(_index_name)) {
+    if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
         _build_cram_index(_hts_bgzf, _index_name, _references, _data.version);
         __log(_LOG_FILE, "Successfully created " + _index_name + ".");
     }
+
+    // Will trigger if another thread started creating the index file first
+
+    cmuts::mutex::wait(_name);
 
     _index = Index(_index_name, _references);
     __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");

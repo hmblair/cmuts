@@ -12,10 +12,12 @@ All modes of `cmuts core` require two inputs to run:
 The basic syntax is
 ```bash
 cmuts core \
-  -o $OUTPUT \
   -f $FASTA \
+  -o $OUTPUT \
   $FILES
 ```
+
+It is recommended to use default settings alongside the `--no-insertions` flag when processing chemical probing data.
 
 !!! warning
     The alignments must be sorted before passing to `cmuts`. If you are generating them via `cmuts align`, then they will automatically be sorted for you.
@@ -32,8 +34,8 @@ The name of the dataset is `counts-1d`, and the group to which it belongs corres
 
 ```bash
 cmuts core \
-  -o $OUTPUT \
   -f $FASTA \
+  -o $OUTPUT \
   IN1.bam SUBDIR/IN2.bam
 ```
 
@@ -65,8 +67,8 @@ Again for an example, the command
 ```bash
 cmuts core \
   --pairwise \
-  -o $OUTPUT \
   -f $FASTA \
+  -o $OUTPUT \
   IN1.bam SUBDIR/IN2.bam
 ```
 
@@ -165,4 +167,4 @@ will create an HDF5 file `$OUTPUT` with the structure
 
 **`--chunk-size`** : Internal buffer size per thread in references (default: 128)
 
-**`--print-every`** : Progress update frequency in reads processed (default: 1,000)
+**`--print-every`** : Progress update frequency in seconds (default: 0.01)

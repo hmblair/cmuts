@@ -45,6 +45,39 @@ static inline void __cleanup(
 }
 
 
+static inline cmuts::Params _construct_params(
+    const cmutsProgram& opt,
+    cmuts::Spread spread
+) {
+
+    return {
+        opt.joint,
+        spread,
+        opt.min_mapq,
+        opt.min_quality,
+        opt.min_length,
+        opt.max_length,
+        opt.max_indel_length,
+        opt .quality_window,
+        opt.collapse,
+        opt.max_hamming,
+        !opt.no_mismatch,
+        !opt.no_insertion,
+        !opt.no_deletion,
+        !opt.only_reverse,
+        !opt.no_reverse,
+        opt.downsample,
+        opt.no_filter_matches,
+        opt.no_filter_insertions,
+        opt.no_filter_deletions,
+        cmuts::_ignore_str_to_bool(opt.ignore_bases),
+        !opt.disable_ambiguous,
+        opt.deletion_gap
+    };
+
+}
+
+
 int main(int argc, char** argv) {
 
     // Initialize MPI processes
@@ -173,30 +206,7 @@ int main(int argc, char** argv) {
 
     cmuts::Params params;
     try {
-        params = {
-            opt.joint,
-            spread,
-            opt.min_mapq,
-            opt.min_quality,
-            opt.min_length,
-            opt.max_length,
-            opt.max_indel_length,
-            opt .quality_window,
-            opt.collapse,
-            opt.max_hamming,
-            !opt.no_mismatch,
-            !opt.no_insertion,
-            !opt.no_deletion,
-            !opt.only_reverse,
-            !opt.no_reverse,
-            opt.subsample,
-            opt.no_filter_matches,
-            opt.no_filter_insertions,
-            opt.no_filter_deletions,
-            cmuts::_ignore_str_to_bool(opt.ignore_bases),
-            !opt.disable_ambiguous,
-            opt.deletion_gap
-        };
+        params = _construct_params(opt, spread);
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         __cleanup(mpi, opt);
@@ -211,6 +221,7 @@ int main(int argc, char** argv) {
         files.unaligned(),
         files.references(),
         fasta.longest(),
+        static_cast<double>(opt.print_every),
         mpi
     );
     stats.header();

@@ -10,6 +10,7 @@ TRIM5=""
 TRIM3=""
 LOCAL=""
 OVERWRITE=false
+REBUILD=false
 FILES=()
 PAIRS=()
 
@@ -17,10 +18,10 @@ print-usage() {
   echo "Usage: cmuts align --fasta FASTA --output OUTPUT [FILES ...]
 Optional arguments:
     --overwrite
+    --rebuild
     --barcodes BARCODES
     --trim-5 5' ADAPTER
     --trim-3 3' ADAPTER
-    --local
     --log
     --pairs PAIRS ..."
 }
@@ -45,6 +46,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --overwrite)
       OVERWRITE=true
+      ;;
+    --rebuild)
+      REBUILD=true
       ;;
     --threads)
       shift
@@ -106,7 +110,13 @@ echo " -- $("$0" --version) ($(date '+%d-%m-%Y %H:%M:%S')) -- "
 echo
 
 IXDIR="index"
+TRDIR="trimmed"
+DMDIR="dmux"
 TMPDIR=".tmp"
+
+[[ "$OVERWRITE" == "true" ]] && rm -rf "$TRDIR" "$DMDIR" "$OUTPUT"
+[[ "$REBUILD" == "true" ]] && rm -rf "$IXDIR"
+
 mkdir -p "$TMPDIR" "$OUTPUT"
 
 [[ "$OVERWRITE" == "true" ]] && rm -rf "$OUTPUT"
@@ -118,9 +128,6 @@ sed '/^>/!s/U/T/g' "$FASTA" > "$TEMP_FASTA"
 FASTA="$TEMP_FASTA"
 
 # Trim if a sequence is provided
-
-TRDIR="trimmed"
-[[ "$OVERWRITE" == "true" ]] && rm -rf "$TRDIR"
 
 if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 
@@ -143,7 +150,6 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
       FARGS+=("-a" "$TRIM3")
     fi
 
-
     cutadapt \
       --cores "$THREADS" \
       -o "$TRDIR/$NAME" \
@@ -157,9 +163,6 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 fi
 
 # Demultiplex if a barcode file is provided
-
-DMDIR="dmux"
-[[ "$OVERWRITE" == "true" ]] && rm -rf "$DMDIR"
 
 if [[ ! -z "$BARCODES" ]]; then
 

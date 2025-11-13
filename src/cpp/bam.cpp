@@ -655,10 +655,15 @@ bamFile::bamFile(const std::string& name)
     _references = header.references;
 
     std::string _index_name = _name + CMUTS_INDEX;
-    if (!std::filesystem::exists(_index_name)) {
+    if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
         __log(_LOG_FILE, "Successfully created " + _index_name + ".");
         _build_bam_index(_hts_bgzf, _index_name, _references);
     }
+
+    // Will trigger if another thread started creating the index file first
+
+    cmuts::mutex::wait(_name);
+
     _index = Index(_index_name, _references);
     __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");
 

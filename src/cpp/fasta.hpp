@@ -4,6 +4,7 @@
 #include "common.hpp"
 #include "hdf5.hpp"
 #include "mpi.hpp"
+#include "mutex.hpp"
 
 // Indices of the bases in binary sequences
 

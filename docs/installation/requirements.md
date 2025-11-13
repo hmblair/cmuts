@@ -1,19 +1,26 @@
 
 ## Dependencies
 
-Installing and running the `cmuts` pipeline requires the following packages:
+Building and running the `cmuts` pipeline requires the following packages:
 
- - `python>=3.10` with all packages in `requirements.txt`
+ - `python>=3.9` with all packages in `requirements.txt`
  - `cmake>=3.29` with `pkg-config`
  - `autoconf`
  - `samtools` and `htslib`
  - `hdf5`
  - `omp`
+ - `fastp`
 
 The MPI build also requires
 
  - `openmpi`
  - `hdf5-mpi`
+
+In addition, demultiplexing with `cmuts align` requires
+
+ - `ultraplex`
+
+to be installed. Note that this requires `python==3.9`, and will not install for more recent versions of `python`.
 
 The following should install all (save for `python` and its packages) on a personal device. For installation on a managed cluster, consult the respective guidelines.
 
@@ -41,7 +48,22 @@ The following should install all (save for `python` and its packages) on a perso
     mpirun --version
     ```
 
-## Environment Variables
+### Python Dependencies
+
+To create a `conda` environment with all required dependencies, you may run
+
+```bash
+conda create -n cmuts python=3.9
+conda activate cmuts
+pip3 install -r requirements.txt
+conda install -c bioconda fastp
+```
+
+For the `cmuts align` dependencies required for demultiplexing, also run
+
+```bash
+conda install -c bioconda ultraplex
+```
 
 ### HDF5 Configuration
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.1] - 2025-11-14
+
+### Added
+
+- New subprogram `cmuts plot` to plot multiple reactivity profiles, or profiles generated outside of `cmuts normalize`
+- Re-instated `--print-every` argument of `cmuts core`, now measured in seconds rather than reads
+- Added `--downsample` argument to `cmuts core`, to limit read depths per reference
+- Lock for when multiple processes attempt to generate `.cmfa` or `.cmix` files
+
+### Changed
+
+#### Non-Breaking
+
+- Upgraded algorithm for detecting and spreading ambiguous deletions
+- `cmuts normalize` now compatible with Python 3.9 and Python 3.16
+
 ## [1.2.0] - 2025-11-07
 
 ### Added
