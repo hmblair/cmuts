@@ -74,7 +74,7 @@ def _ylabel(label: str) -> None:
     plt.ylabel(label, fontsize=LABEL_SIZE)
 
 
-def _save_and_close(name: str, figtype: str) -> None:
+def _save_and_close(name: str, figtype: str, dir: str = FIGURES) -> None:
 
     ax = plt.gca()
     _, labels = ax.get_legend_handles_labels()
@@ -86,11 +86,11 @@ def _save_and_close(name: str, figtype: str) -> None:
             fontsize=LEGEND_SIZE,
         )
 
-    plt.savefig(_prefix(name) + figtype + ".png", dpi=DPI, bbox_inches="tight")
+    plt.savefig(_prefix(name, dir) + figtype + ".png", dpi=DPI, bbox_inches="tight")
     plt.close()
 
 
-def _plot_heatmap(heatmap: np.ndarray, name: str) -> None:
+def _plot_heatmap(heatmap: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     im = plt.imshow(heatmap, cmap=CMAP, norm=LogNorm(vmin=1E-4, vmax=1E0), interpolation='none')
     plt.colorbar(im, label="Occurrence Probability")
@@ -100,10 +100,10 @@ def _plot_heatmap(heatmap: np.ndarray, name: str) -> None:
     plt.yticks(range(4), ["A", "C", "G", "U"], fontsize=TICK_SIZE)
 
     figtype = "heatmap"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_read_hist(reads: np.ndarray, name: str) -> None:
+def _plot_read_hist(reads: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     with np.errstate(divide='ignore'):
         lr = np.where(reads == 0, -1, np.log10(reads))
@@ -120,10 +120,10 @@ def _plot_read_hist(reads: np.ndarray, name: str) -> None:
     _ylabel("Count")
 
     figtype = "reads-hist"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100) -> None:
+def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100, dir: str = FIGURES) -> None:
 
     n = reads.shape[0] // block
     reads = reads[:n * block]
@@ -139,10 +139,10 @@ def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100) -> No
     _ylabel("Read Depth")
 
     figtype = "cumulative-reads"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_termination(term: np.ndarray, name: str) -> None:
+def _plot_termination(term: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     quot = term.sum(axis=1)[:, None]
     term = np.divide(
@@ -161,13 +161,14 @@ def _plot_termination(term: np.ndarray, name: str) -> None:
     _ylabel("Termination density")
 
     figtype = "termination"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_profile(
     reactivity: np.ndarray,
     error: np.ndarray,
     name: str,
+    dir: str = FIGURES,
 ) -> None:
 
     _line_plot(reactivity, label="Reactivity")
@@ -178,12 +179,13 @@ def _plot_profile(
     _ylabel("Reactivity")
 
     figtype = "profile"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_error(
     error: np.ndarray,
     name: str,
+    dir: str = FIGURES,
 ) -> None:
 
     _line_plot(error)
@@ -193,12 +195,13 @@ def _plot_error(
     _ylabel("Error")
 
     figtype = "error"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_multiple_examples(
     reactivity: np.ndarray, 
     name: str,
+    dir: str = FIGURES,
 ) -> None:
 
     masked = np.ma.masked_where(np.isnan(reactivity), reactivity)
@@ -213,7 +216,7 @@ def _plot_multiple_examples(
     _ylabel("Sequence Index")
 
     figtype = "examples"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_examples(
@@ -222,15 +225,16 @@ def _plot_examples(
     error: np.ndarray,
     name: str,
     num: int = 250,
+    dir: str = FIGURES,
 ) -> None:
 
     if reactivity.shape[0] == 1:
-        _plot_profile(reactivity[0], error[0], name)
+        _plot_profile(reactivity[0], error[0], name, dir)
     else:
-        _plot_multiple_examples(reactivity[:num], name)
+        _plot_multiple_examples(reactivity[:num], name, dir)
 
 
-def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str) -> None:
+def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     _line_plot(coverage / reads.mean())
     plt.ylim(0, 1.05)
@@ -240,10 +244,10 @@ def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str) -> None:
     _ylabel("Fraction of reads")
 
     figtype = "coverage"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_variance(values: np.ndarray,  name: str) -> None:
+def _plot_variance(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     _line_plot(values)
 
@@ -252,10 +256,10 @@ def _plot_variance(values: np.ndarray,  name: str) -> None:
     _ylabel("Variance")
 
     figtype = "variance"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_pairwise_coverage(values: np.ndarray,  name: str) -> None:
+def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     vlow = values.min()
     vhigh = 1
@@ -268,10 +272,10 @@ def _plot_pairwise_coverage(values: np.ndarray,  name: str) -> None:
     _ylabel("Residue")
 
     figtype = "pairwise-coverage"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
-def _plot_correlation(values: np.ndarray,  name: str) -> None:
+def _plot_correlation(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
     vhigh = 1
     norm = SymLogNorm(linthresh=1E-3*vhigh, vmin=-vhigh, vmax=vhigh)
@@ -283,12 +287,13 @@ def _plot_correlation(values: np.ndarray,  name: str) -> None:
     _ylabel("Residue")
 
     figtype = "correlation"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_mi(
     values: np.ndarray,
     name: str,
+    dir: str = FIGURES,
 ) -> None:
 
     mask = ~np.isnan(values)
@@ -304,7 +309,7 @@ def _plot_mi(
     _ylabel("Residue")
 
     figtype = "mutual-information"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def generate(
@@ -315,19 +320,19 @@ def generate(
 
     os.makedirs(dir, exist_ok=True)
 
-    _plot_heatmap(data.heatmap, name)
-    _plot_examples(data.reactivity, data.reads, data.error, name)
-    _plot_termination(data.terminations, name)
-    _plot_coverage(data.coverage, data.reads, name)
+    _plot_heatmap(data.heatmap, name, dir)
+    _plot_examples(data.reactivity, data.reads, data.error, name, dir=dir)
+    _plot_termination(data.terminations, name, dir)
+    _plot_coverage(data.coverage, data.reads, name, dir)
 
     if not data.single():
-        _plot_read_hist(data.reads, name)
-        _plot_cumulative_reads(data.reads, name)
+        _plot_read_hist(data.reads, name, dir)
+        _plot_cumulative_reads(data.reads, name, dir=dir)
 
     if data.mi is not None:
         for ix in range(data.size()):
-            _plot_mi(data.mi[ix], name)
+            _plot_mi(data.mi[ix], name, dir)
 
     if data.covariance is not None:
         for ix in range(data.size()):
-            _plot_correlation(data.covariance[ix], name)
+            _plot_correlation(data.covariance[ix], name, dir)
