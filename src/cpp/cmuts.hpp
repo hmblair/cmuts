@@ -169,7 +169,7 @@ private:
     int64_t _curr_file  = 0;
 
     double _last_print  = 0;
-    double _print_every = 0.01;
+    double _print_every = 0;
 
     const MPI::Manager& _mpi;
 
@@ -187,6 +187,7 @@ public:
         int64_t unaligned,
         int32_t references,
         int32_t length,
+        double print_every,
         const MPI::Manager& mpi
     );
 
@@ -237,7 +238,7 @@ public:
     bool deletions;
     bool forward;
     bool reverse;
-    float subsample;
+    int32_t downsample;
     bool no_filter_matches;
     bool no_filter_insertions;
     bool no_filter_deletions;

@@ -39,6 +39,7 @@ public:
     Arg<std::string> fasta;
     Arg<bool> overwrite;
     Arg<bool> rebuild;
+    Arg<float> print_every;
     
     // Quality and filtering
     Arg<int> min_mapq;
@@ -46,7 +47,7 @@ public:
     Arg<int> min_length;
     Arg<int> max_length;
     Arg<int> max_hamming;
-    Arg<float> subsample;
+    Arg<int> downsample;
     
     // Processing
     Arg<int> compression;
@@ -92,12 +93,13 @@ cmutsProgram::cmutsProgram()
       fasta(_parser, cmuts::options::FASTA.short_name, cmuts::options::FASTA.long_name, cmuts::options::FASTA.help),
       overwrite(_parser, cmuts::options::OVERWRITE.short_name, cmuts::options::OVERWRITE.long_name, cmuts::options::OVERWRITE.help),
       rebuild(_parser, cmuts::options::REBUILD.short_name, cmuts::options::REBUILD.long_name, cmuts::options::REBUILD.help),
+      print_every(_parser, cmuts::options::PRINT_EVERY.short_name, cmuts::options::PRINT_EVERY.long_name, cmuts::options::PRINT_EVERY.help, cmuts::options::PRINT_EVERY.default_value),
       min_mapq(_parser, cmuts::options::MIN_MAPQ.short_name, cmuts::options::MIN_MAPQ.long_name, cmuts::options::MIN_MAPQ.help, cmuts::options::MIN_MAPQ.default_value, "Filtering arguments"),
       min_quality(_parser, cmuts::options::MIN_PHRED.short_name, cmuts::options::MIN_PHRED.long_name, cmuts::options::MIN_PHRED.help, cmuts::options::MIN_PHRED.default_value),
       min_length(_parser, cmuts::options::MIN_LENGTH.short_name, cmuts::options::MIN_LENGTH.long_name, cmuts::options::MIN_LENGTH.help, cmuts::options::MIN_LENGTH.default_value),
       max_length(_parser, cmuts::options::MAX_LENGTH.short_name, cmuts::options::MAX_LENGTH.long_name, cmuts::options::MAX_LENGTH.help, cmuts::options::MAX_LENGTH.default_value),
       max_hamming(_parser, cmuts::options::MAX_HAMMING.short_name, cmuts::options::MAX_HAMMING.long_name, cmuts::options::MAX_HAMMING.help, cmuts::options::MAX_HAMMING.default_value),
-      subsample(_parser, cmuts::options::SUBSAMPLE.short_name, cmuts::options::SUBSAMPLE.long_name, cmuts::options::SUBSAMPLE.help, cmuts::options::SUBSAMPLE.default_value),
+      downsample(_parser, cmuts::options::DOWNSAMPLE.short_name, cmuts::options::DOWNSAMPLE.long_name, cmuts::options::DOWNSAMPLE.help, cmuts::options::DOWNSAMPLE.default_value),
       compression(_parser, cmuts::options::COMPRESSION.short_name, cmuts::options::COMPRESSION.long_name, cmuts::options::COMPRESSION.help, cmuts::options::COMPRESSION.default_value),
       max_indel_length(_parser, cmuts::options::MAX_INDEL_LENGTH.short_name, cmuts::options::MAX_INDEL_LENGTH.long_name, cmuts::options::MAX_INDEL_LENGTH.help, cmuts::options::MAX_INDEL_LENGTH.default_value),
       chunk_size(_parser, cmuts::options::CHUNK_SIZE.short_name, cmuts::options::CHUNK_SIZE.long_name, cmuts::options::CHUNK_SIZE.help, cmuts::options::CHUNK_SIZE.default_value),
