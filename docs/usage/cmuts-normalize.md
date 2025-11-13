@@ -40,6 +40,13 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 **`--group`** : HDF5 group to place the output datasets in (none if not specified)
 
 
+### Profile Computation
+
+**`--no-insertions`** : Do not use insertions to compute the reactivity profiles
+
+**`--no-deletions`** : Do not use deletions to compute the reactivity profiles
+
+
 ### Normalization Control
 
 **`--raw`** : Do not normalize the reactivity values
@@ -79,7 +86,7 @@ The output of `cmuts normalize` will be an HDF5 file with the following structur
 └── reads
 ```
 
-**roi-mask** (Region Of Interest): A boolean array indicating the region of the RNA which is of structural importance (i.e. all but the flanking sequences).
+**roi-mask** (Region Of Interest): A boolean array indicating the region of the RNA which is of structural importance (i.e. all but the flanking sequences and low-coverage regions).
 
 **SNR** (Signal-To-Noise): An estimate of the average SNR per nucleotide, based on the computed error, one for each reference.
 

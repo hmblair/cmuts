@@ -38,6 +38,7 @@ nav:
     - cmuts align: usage/cmuts-align.md
     - cmuts core: usage/cmuts-core.md
     - cmuts normalize: usage/cmuts-normalize.md
+    - cmuts plot: usage/cmuts-plot.md
     - cmuts visualize: usage/cmuts-visualize.md
     - Examples: usage/examples.md
 
