@@ -205,7 +205,7 @@ def _plot_profiles(
     _ylabel("Reactivity")
 
     figtype = "profile"
-    _save_and_close(name, figtype, dir)
+    _save_and_close(name, figtype)
 
 
 def _plot_error(
