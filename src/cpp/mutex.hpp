@@ -2,8 +2,10 @@
 #define _CMUTS_MUTEX_HPP_
 
 #include <string>
+#include <stdexcept>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/file.h>
 
 namespace cmuts::mutex {
 
