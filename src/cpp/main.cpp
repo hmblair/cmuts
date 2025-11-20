@@ -66,6 +66,7 @@ static inline cmuts::Params _construct_params(
         !opt.no_deletion,
         !opt.only_reverse,
         !opt.no_reverse,
+        opt.secondary,
         opt.downsample,
         opt.no_filter_matches,
         opt.no_filter_insertions,

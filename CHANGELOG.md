@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.2] - 2025-11-19
+
+### Added
+
+- Fast-path for processing sparse alignments (reads << references)
+- `--secondary` flag for processing secondary alignments
+
+### Changed
+
+#### Non-Breaking
+
+- Minor bugfixes
+- Reads with missing mapping qualities are skipped, unless `--min-mapq` is set to `0`
+- Seek BAM/CRAM only on MPI builds for slightly faster processing
+- Replaced file-based mutex with semaphores
+
 ## [1.2.1] - 2025-11-14
 
 ### Added

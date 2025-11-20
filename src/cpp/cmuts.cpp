@@ -166,9 +166,7 @@ static inline HDF5::Memspace<dtype, N> __memspace(
 
 template <typename dtype, Mode mode>
 DataView<dtype, mode>::DataView(HDF5::Memspace<dtype, _ndims(mode)> memspace) :
-    _memspace(memspace) {
-
-}
+    _memspace(memspace) {}
 
 
 template <typename dtype, Mode mode>
@@ -188,8 +186,11 @@ void DataView<dtype, mode>::update(int32_t offset) {
 template <typename dtype, Mode mode>
 void DataView<dtype, mode>::write(int32_t offset) {
 
-    _memspace.safe_write(offset);
-    _memspace.clear();
+    if (!skip) {
+        _memspace.safe_write(offset);
+        _memspace.clear();
+        skip = true;
+    }
 
 }
 
@@ -641,7 +642,7 @@ static inline void __del_core(
 
 
 template <typename dtype>
-static inline void __term_core(
+static inline void __term(
     Data<dtype>& data,
     int32_t rpos,
     base_t rbase
@@ -941,21 +942,15 @@ static inline void __count(
 
             case HTS::CIGAR_t::TERM: {
 
-                __term_core<dtype>(data, rpos, reference[rpos]);
+                __term<dtype>(data, rpos, reference[rpos]);
                 break;
 
             }
 
-            case HTS::CIGAR_t::SOFT: {
-
-                qpos -= op.length();
-                break;
-
-            }
-
+            case HTS::CIGAR_t::SOFT:
             case HTS::CIGAR_t::SKIP: {
 
-                rpos -= op.length();
+                qpos -= op.length();
                 break;
 
             }
@@ -988,6 +983,7 @@ static inline void __count(
 
 }
 
+
 static inline bool __check_sense(
     const HTS::Alignment& aln,
     const Params& params
@@ -998,21 +994,62 @@ static inline bool __check_sense(
 }
 
 
-static inline bool __check_quality(
+static inline bool __check_mapq(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+
+    return (aln.mapq >= params.min_mapq) && (aln.mapq < MISSING_MAPQ || params.min_mapq == 0);
+
+}
+
+
+static inline bool __check_primary(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+
+    return (aln.primary || params.secondary);
+
+}
+
+
+static inline bool __check_length(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+
+    return (aln.length >= params.min_length) && (aln.length <= params.max_length);
+
+}
+
+
+static inline bool __check_hamming(
+    const HTS::Alignment& aln,
+    const Params& params
+) {
+
+    return aln.cigar.hamming() <= params.max_hamming;
+
+}
+
+
+static inline bool __check_all(
     const HTS::Alignment& aln,
     const Params& params
 ) {
 
     return (
-        aln.aligned                       &&
-        __check_sense(aln, params)        &&
-        aln.mapq   >= params.min_mapq     &&
-        aln.length >= params.min_length   &&
-        aln.length <= params.max_length   &&
-        aln.cigar.hamming() <= params.max_hamming
+        aln.aligned                  &&
+        __check_primary(aln, params) &&
+        __check_sense(aln, params)   &&
+        __check_mapq(aln, params)    &&
+        __check_length(aln, params)  &&
+        __check_hamming(aln, params)
     );
 
 }
+
 
 template <typename dtype>
 static inline void __count_with_quality_check(
@@ -1023,14 +1060,16 @@ static inline void __count_with_quality_check(
     Stats& stats
 ) {
 
-    if (!__check_quality(aln, params)) {
+    if (!__check_all(aln, params)) {
         stats.skipped();
     } else {
         __count<dtype>(aln, reference, data, params, stats);
+        if (params.pairwise) { __joint<dtype>(data); }
         stats.processed();
     }
 
 }
+
 
 template <typename dtype>
 static inline void __count_reference(
@@ -1045,14 +1084,13 @@ static inline void __count_reference(
     while (!iter.end() && count < params.downsample) {
 
         HTS::Alignment aln = iter.next();
+        __count_with_quality_check<dtype>(aln, reference, data, params, stats);
 
-        __count_with_quality_check<dtype>(
-            aln, reference, data, params, stats
-        );
-
-        if (params.pairwise) { __joint<dtype>(data); }
         stats.print();
         count++;
+
+        data.mods.skip = false;
+        if (params.pairwise) { data.pairs->skip = false; }
 
     }
 
@@ -1068,22 +1106,6 @@ static inline void __count_reference(
 
 
 
-
-
-template <typename dtype>
-static inline void __fill_at_offset(
-    HTS::Iterator& iter,
-    const seq_t& reference,
-    Data<dtype>& data,
-    const Params& params,
-    Stats& stats,
-    int32_t offset
-) {
-
-    data.update(offset);
-    return __count_reference<dtype>(iter, reference, data, params, stats);
-
-}
 
 
 template <typename dtype>
@@ -1104,12 +1126,21 @@ static inline void __process(
 
     for (int32_t ix = min; ix < max; ix++) {
 
-        bool seek = (ix % hdf5.chunk_size() == 0);
-        std::shared_ptr<HTS::Iterator> iter = file.get(ix, seek);
-        seq_t reference = fasta.sequence(ix);
+        // Reads are processed sequentially if built in serial mode, so
+        // no need to seek at beginning of new chunk
 
-        int32_t offset = ix - min;
-        __fill_at_offset<dtype>(*iter, reference, data, params, stats, offset);
+        #ifdef MPI_BUILD
+        bool seek = (ix % hdf5.chunk_size() == 0);
+        #else
+        bool seek = (ix == 0);
+        #endif
+
+        std::shared_ptr<HTS::Iterator> iter = file.get(ix, seek);
+        if (iter->end()) { continue; }
+
+        seq_t reference = fasta.sequence(ix);
+        data.update(ix - min);
+        __count_reference<dtype>(*iter, reference, data, params, stats);
 
     }
 
@@ -1134,7 +1165,7 @@ void run(
 
     Data<dtype> data(fasta, hdf5, name, params.pairwise);
 
-    for (int32_t ix = chunk.low; ix < chunk.high; ix += chunk.step) {
+    for (int32_t min = chunk.low; min < chunk.high; min += chunk.step) {
 
         __process<dtype>(
             file,
@@ -1143,7 +1174,7 @@ void run(
             params,
             stats,
             data,
-            ix
+            min
         );
 
     }
@@ -1190,10 +1221,11 @@ Spread spread(bool uniform, bool none) {
 
 
 static inline double _percent(int64_t a, int64_t b) {
-    if (b == 0) return 0.0;
-    double a_double = static_cast<double>(a);
-    double b_double = static_cast<double>(b);
-    return a_double / b_double * 100;
+
+    double max = 100;
+    if (b == 0) return max;
+    return static_cast<double>(a) / static_cast<double>(b) * max;
+
 }
 
 static inline void _print_header(
@@ -1248,14 +1280,7 @@ Stats::Stats(
     _length(length),
     _files(files),
     _print_every(print_every),
-    _mpi(mpi) {
-
-        if (mpi.root()) {
-            _processed += unaligned;
-            _skipped   += unaligned;
-        }
-
-    }
+    _mpi(mpi) {}
 
 
 void Stats::update_bases(int64_t skipped, int64_t total) {
@@ -1294,8 +1319,13 @@ void Stats::file() {
 
 
 void Stats::aggregate() {
+
     _processed = _mpi.reduce(_processed);
     _skipped   = _mpi.reduce(_skipped);
+
+    _bases_processed = _mpi.reduce(_bases_processed);
+    _bases_skipped   = _mpi.reduce(_bases_skipped);
+
 }
 
 
@@ -1312,15 +1342,19 @@ void Stats::body() {
     _mpi.up(fields);
 
     if (_mpi.root()) {
-        double processed = _percent(_processed, _aligned + _unaligned);
-        double skipped   = _percent(_skipped, _processed);
-        double bases_skipped   = _percent(_bases_skipped, _bases_processed);
+
+        double processed     = _percent(_processed, _aligned);
+        double skipped       = _percent(_skipped, _processed);
+        double bases_skipped = _percent(_bases_skipped, _bases_processed);
+
         std::string file = std::to_string(_curr_file) + "/" + std::to_string(_files);
+
         _print_files.print(file);
         _print_processed.print(processed);
         _print_skipped.print(skipped);
         _print_bases_skipped.print(bases_skipped);
         _print_elapsed.print(_mpi.time_str());
+
     }
 
     _mpi.divide();

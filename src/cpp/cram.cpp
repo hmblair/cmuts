@@ -1475,7 +1475,9 @@ Alignment cramIterator::next() {
     std::vector<uint8_t> scores = at(ExtData_t::QS)->array(length);
     PHRED phred(scores);
 
-    return {aligned, reversed, mapq, length, _offset, reference, _cigar, phred};
+    // TODO: get this value from the file
+    bool primary = true;
+    return {aligned, reversed, primary, mapq, length, _offset, reference, _cigar, phred};
 
 }
 

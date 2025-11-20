@@ -35,7 +35,8 @@ namespace options {
     inline const TypedOptionConfig<int> MIN_LENGTH{"", "--min-length", "Skip reads shorter than this length.", 2};
     inline const TypedOptionConfig<int> MAX_LENGTH{"", "--max-length", "Skip reads longer than this length.", 1024};
     inline const TypedOptionConfig<int> MAX_HAMMING{"", "--max-hamming", "The maximum number of mismatches, insertions, and deletions in a processed read.", 1024};
-    inline const TypedOptionConfig<int> DOWNSAMPLE{"", "--downsample", "Limit read depths per referece.", INT_MAX};
+    inline const TypedOptionConfig<int> DOWNSAMPLE{"", "--downsample", "Limit read depths per reference.", INT_MAX};
+    inline const OptionConfig SECONDARY {"", "--secondary", "Consider secondary alignments for processing as well."};
 
     // Processing options
     inline const TypedOptionConfig<int> COMPRESSION{"-c", "--compression", "Compression level of the HDF5 output (0-9).", 3};

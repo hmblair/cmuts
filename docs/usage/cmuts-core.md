@@ -111,7 +111,7 @@ will create an HDF5 file `$OUTPUT` with the structure
 
 ### Quality Filtering
 
-**`--min-mapq`** : Mapping quality threshold (default: 10)
+**`--min-mapq`** : Mapping quality threshold (default: 10). If set to 0, reads with missing mapping qualities will also be processed
 
 **`--min-phred`** : PHRED score threshold (default: 10)
 
@@ -130,6 +130,10 @@ will create an HDF5 file `$OUTPUT` with the structure
 **`--no-reverse`** : Skip reverse-complemented reads
 
 **`--only-reverse`** : Only use reverse-complemented reads
+
+**`--secondary`** : Consider secondary alignments for processing as well
+
+**`--downsample`** : Limit read depths per reference
 
 ### Modification Detection
 

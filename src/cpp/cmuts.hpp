@@ -102,6 +102,8 @@ private:
 
 public:
 
+    bool skip = false;
+
     // view_t<dtype, _ndims(mode)> arr;
 
     DataView<dtype, mode>(HDF5::Memspace<dtype, _ndims(mode)> memspace);
@@ -238,6 +240,7 @@ public:
     bool deletions;
     bool forward;
     bool reverse;
+    bool secondary;
     int32_t downsample;
     bool no_filter_matches;
     bool no_filter_insertions;

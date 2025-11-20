@@ -4,59 +4,59 @@ namespace cmuts::mutex {
 
 Mutex::~Mutex() {
 
-    if (fd != -1) {
-        close(fd);
-        unlink(file.c_str());
+    if (sem != SEM_FAILED) {
+        sem_close(sem);
+        sem_unlink(name.c_str());
     }
 
 }
 
-
-Mutex lock(const std::string& file) {
+Mutex lock(const std::string& name) {
 
     Mutex mutex;
-    mutex.file = file + ".lock";
+    mutex.name = "/" + name + "_lock";
 
-    mutex.fd = open(mutex.file.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644);
-    if (mutex.fd == -1) {
-        throw std::runtime_error("Another process is already processing " + file);
+    mutex.sem = sem_open(mutex.name.c_str(), O_CREAT | O_EXCL, 0644, 1);
+    if (mutex.sem == SEM_FAILED) {
+        throw std::runtime_error("Another process is already processing " + name);
     }
 
-    if (flock(mutex.fd, LOCK_EX | LOCK_NB) == -1) {
-        close(mutex.fd);
-        unlink(mutex.file.c_str());
-        mutex.fd = -1;
-        throw std::runtime_error("Failed to acquire lock for " + file);
+    if (sem_trywait(mutex.sem) == -1) {
+        sem_close(mutex.sem);
+        sem_unlink(mutex.name.c_str());
+        mutex.sem = SEM_FAILED;
+        throw std::runtime_error("Failed to acquire lock for " + name);
     }
 
     return mutex;
 
 }
 
+bool check(const std::string& name) {
 
-bool check(const std::string& file) {
+    std::string semname = "/" + name + "_lock";
 
-    std::string lock = file + ".lock";
+    sem_t* sem = sem_open(semname.c_str(), 0);
+    if (sem == SEM_FAILED) return false;
 
-    int fd = open(lock.c_str(), O_RDONLY);
-    if (fd == -1) return false;
-
-    bool locked = (flock(fd, LOCK_EX | LOCK_NB) == -1);
-    close(fd);
+    bool locked = (sem_trywait(sem) == -1);
+    if (!locked) {
+        sem_post(sem);
+    }
+    sem_close(sem);
 
     return locked;
 
 }
 
+bool wait(const std::string& name) {
 
-bool wait(const std::string& file) {
-
-    bool locked = false;
-    while (check(file)) {
-        locked = true;
+    bool was_locked = false;
+    while (check(name)) {
+        was_locked = true;
         usleep(100000);
     }
-    return locked;
+    return was_locked;
 
 }
 

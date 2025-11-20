@@ -287,7 +287,7 @@ def _plot_variance(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
 def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
-    vlow = values.min()
+    vlow = max(values.min(), 1E-4)
     vhigh = 1
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 
@@ -325,7 +325,10 @@ def _plot_mi(
     mask = ~np.isnan(values)
     vlow = np.percentile(values[mask], 95).astype(float)
     vhigh = np.percentile(values[mask], 99).astype(float)
+
     vlow = max(vlow, 1E-6)
+    vhigh = max(vhigh, 1E-6)
+
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 
     _matrix_plot(values, norm, "Mutual information")

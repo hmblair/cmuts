@@ -47,6 +47,7 @@ public:
     Arg<int> min_length;
     Arg<int> max_length;
     Arg<int> max_hamming;
+    Arg<bool> secondary;
     Arg<int> downsample;
     
     // Processing
@@ -99,6 +100,7 @@ cmutsProgram::cmutsProgram()
       min_length(_parser, cmuts::options::MIN_LENGTH.short_name, cmuts::options::MIN_LENGTH.long_name, cmuts::options::MIN_LENGTH.help, cmuts::options::MIN_LENGTH.default_value),
       max_length(_parser, cmuts::options::MAX_LENGTH.short_name, cmuts::options::MAX_LENGTH.long_name, cmuts::options::MAX_LENGTH.help, cmuts::options::MAX_LENGTH.default_value),
       max_hamming(_parser, cmuts::options::MAX_HAMMING.short_name, cmuts::options::MAX_HAMMING.long_name, cmuts::options::MAX_HAMMING.help, cmuts::options::MAX_HAMMING.default_value),
+      secondary(_parser, cmuts::options::SECONDARY.short_name, cmuts::options::SECONDARY.long_name, cmuts::options::SECONDARY.help),
       downsample(_parser, cmuts::options::DOWNSAMPLE.short_name, cmuts::options::DOWNSAMPLE.long_name, cmuts::options::DOWNSAMPLE.help, cmuts::options::DOWNSAMPLE.default_value),
       compression(_parser, cmuts::options::COMPRESSION.short_name, cmuts::options::COMPRESSION.long_name, cmuts::options::COMPRESSION.help, cmuts::options::COMPRESSION.default_value),
       max_indel_length(_parser, cmuts::options::MAX_INDEL_LENGTH.short_name, cmuts::options::MAX_INDEL_LENGTH.long_name, cmuts::options::MAX_INDEL_LENGTH.help, cmuts::options::MAX_INDEL_LENGTH.default_value),

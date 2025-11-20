@@ -51,7 +51,7 @@ void __init_log(const std::string& filename) {
         if (rank == 0) {
     #endif
 
-    file << "--------------- " << std::ctime(&now);
+    file << "--------------- " << ("cmuts v" + std::string(VERSION) + " - ") << std::ctime(&now);
 
     #ifdef MPI_BUILD
         }

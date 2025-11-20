@@ -412,6 +412,14 @@ static inline bool _bam_aligned(bam1_t* _hts_aln) {
 }
 
 
+static inline bool _bam_primary(bam1_t* _hts_aln) {
+
+    int32_t mask = 0x100;
+    return !static_cast<bool>(_hts_aln->core.flag & mask);
+
+}
+
+
 static inline int32_t _bam_length(bam1_t* _hts_aln) {
 
     return _hts_aln->core.l_qseq;
@@ -516,6 +524,7 @@ Alignment bamIterator::next() {
     Alignment aln;
 
     aln.aligned  = _bam_aligned(_hts_aln);
+    aln.primary  = _bam_primary(_hts_aln);
     aln.reversed = bam_is_rev(_hts_aln);
     aln.mapq     = _bam_mapq(_hts_aln);
     aln.length   = _bam_length(_hts_aln);
@@ -559,17 +568,15 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
 
     // Skip the remainder of the compressed portion
 
-    char buffer[BGZF_BUFFER];
+    char buffer[BGZF_BUFFER + sizeof(uint32_t)];
     uint32_t name_len = 0;
-    uint32_t ref_len  = 0;
 
     for (int32_t ix = 0; ix < data.references; ix++) {
         _read_bgzf(_bgzf_file, &name_len, sizeof(uint32_t));
         if (name_len >= BGZF_BUFFER) {
             __throw_and_log(_LOG_FILE, "Header name larger than the buffer.");
         }
-        _read_bgzf(_bgzf_file, buffer, name_len);
-        _read_bgzf(_bgzf_file, &ref_len, sizeof(uint32_t));
+        _read_bgzf(_bgzf_file, buffer, name_len + sizeof(uint32_t));
     }
 
     return data;
@@ -656,8 +663,8 @@ bamFile::bamFile(const std::string& name)
 
     std::string _index_name = _name + CMUTS_INDEX;
     if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
-        __log(_LOG_FILE, "Successfully created " + _index_name + ".");
         _build_bam_index(_hts_bgzf, _index_name, _references);
+        __log(_LOG_FILE, "Successfully created " + _index_name + ".");
     }
 
     // Will trigger if another thread started creating the index file first

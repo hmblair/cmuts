@@ -102,7 +102,7 @@ static inline seq_t _from_binary(const seq_t& binary, int32_t length) {
 }
 
 
-static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, int32_t offset) {
+static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, int64_t offset) {
 
     int32_t bytes = _bytes_from_seq(length);
     seq_t binary(bytes);
@@ -206,30 +206,43 @@ static inline std::vector<HeaderBlock> _get_fasta_header(const std::string& name
 }
 
 
-static inline void _fasta_to_binary(const std::string& fasta_name, const std::string& binary_name) {
+static inline void _fasta_to_binary(const std::string& fname, const std::string& bname) {
 
-    _throw_if_not_exists(fasta_name);
-    _throw_if_exists(binary_name);
+    __log(
+        _LOG_FILE,
+        "Building index for " + fname + "..."
+    );
 
-    std::ofstream binary(binary_name);
-    std::vector<HeaderBlock> blocks = _get_fasta_header(fasta_name);
+    _throw_if_not_exists(fname);
+    _throw_if_exists(bname);
+
+    std::ofstream binary(bname);
+    std::vector<HeaderBlock> blocks = _get_fasta_header(fname);
     _write_fasta_header(binary, blocks);
 
-    FASTA fasta(fasta_name);
+    FASTA fasta(fname);
 
     std::string sequence = fasta.next();
-    if (sequence.empty()) { 
+    if (sequence.empty()) {
         binary.close();
         return;
     }
+
+    int32_t count = 0;
 
     _write_binary_sequence(binary, sequence);
     while (!sequence.empty()) {
         sequence = fasta.next();
         _write_binary_sequence(binary, sequence);
+        count++;
     }
 
     binary.close();
+
+    __log(
+        _LOG_FILE,\
+        "Successfully created " + bname + " with " + std::to_string(count) + " sequences."
+    );
 
 }
 
@@ -307,7 +320,9 @@ Offset Header::offset(int32_t ix) {
 
     for (const auto& block : _blocks) {
 
-        int32_t bytes = _bytes_from_seq(block.length);
+        auto bytes = static_cast<int64_t>(
+            _bytes_from_seq(block.length)
+        );
 
         if (count + block.sequences > ix) {
             offset.offset += (ix - count) * bytes;
@@ -408,7 +423,6 @@ BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
     if (!_exists(_name) && !cmuts::mutex::check(_name)) {
         cmuts::mutex::Mutex mutex = cmuts::mutex::lock(_name);
         _fasta_to_binary(_fasta_name, _name);
-        __log(_LOG_FILE, "Successfully created " + _name + ".");
     }
 
     // Will trigger if another thread started creating the index file first

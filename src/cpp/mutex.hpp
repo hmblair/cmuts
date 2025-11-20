@@ -3,21 +3,17 @@
 
 #include <string>
 #include <stdexcept>
-#include <fcntl.h>
+#include <semaphore.h>
 #include <unistd.h>
-#include <sys/file.h>
+#include <errno.h>
 
 namespace cmuts::mutex {
 
 struct Mutex {
-
-    int fd = -1;
-    std::string file;
-
+    sem_t* sem = SEM_FAILED;
+    std::string name;
     ~Mutex();
-
 };
-
 
 Mutex lock(const std::string& file);
 bool check(const std::string& file);
