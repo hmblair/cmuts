@@ -260,7 +260,11 @@ static inline void __joint(Data<dtype>& data) {
         dtype ix_val   = data.tmp[ix];
         dtype ix_val_c = 1 - ix_val;
 
-        #pragma clang loop vectorize(enable)
+        #if defined(__clang__)
+            #pragma clang loop vectorize(enable)
+        #elif defined(__GNUC__) && !defined(__clang__)
+            #pragma GCC ivdep
+        #endif
         for (int32_t jx = data.min; jx < data.tmp.size(); jx++) {
 
             dtype jx_val   = data.tmp[jx];
