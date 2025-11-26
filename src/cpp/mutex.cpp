@@ -3,29 +3,25 @@
 namespace cmuts::mutex {
 
 Mutex::~Mutex() {
-
-    if (sem != SEM_FAILED) {
-        sem_close(sem);
-        sem_unlink(name.c_str());
+    if (fd != -1) {
+        close(fd);
     }
-
 }
 
 Mutex lock(const std::string& name) {
 
     Mutex mutex;
-    mutex.name = "/" + name + "_lock";
+    mutex.name = name;
 
-    mutex.sem = sem_open(mutex.name.c_str(), O_CREAT | O_EXCL, 0644, 1);
-    if (mutex.sem == SEM_FAILED) {
-        throw std::runtime_error("Another process is already processing " + name);
+    mutex.fd = open(name.c_str(), O_RDWR);
+    if (mutex.fd == -1) {
+        throw std::runtime_error("Failed to open " + name + " for locking");
     }
 
-    if (sem_trywait(mutex.sem) == -1) {
-        sem_close(mutex.sem);
-        sem_unlink(mutex.name.c_str());
-        mutex.sem = SEM_FAILED;
-        throw std::runtime_error("Failed to acquire lock for " + name);
+    if (flock(mutex.fd, LOCK_EX | LOCK_NB) == -1) {
+        close(mutex.fd);
+        mutex.fd = -1;
+        throw std::runtime_error("Another process is already processing " + name);
     }
 
     return mutex;
@@ -34,16 +30,14 @@ Mutex lock(const std::string& name) {
 
 bool check(const std::string& name) {
 
-    std::string semname = "/" + name + "_lock";
+    int fd = open(name.c_str(), O_RDONLY);
+    if (fd == -1) return false;
 
-    sem_t* sem = sem_open(semname.c_str(), 0);
-    if (sem == SEM_FAILED) return false;
-
-    bool locked = (sem_trywait(sem) == -1);
+    bool locked = (flock(fd, LOCK_EX | LOCK_NB) == -1);
     if (!locked) {
-        sem_post(sem);
+        flock(fd, LOCK_UN);
     }
-    sem_close(sem);
+    close(fd);
 
     return locked;
 
@@ -51,11 +45,16 @@ bool check(const std::string& name) {
 
 bool wait(const std::string& name) {
 
-    bool was_locked = false;
-    while (check(name)) {
-        was_locked = true;
-        usleep(100000);
+    int fd = open(name.c_str(), O_RDONLY);
+    if (fd == -1) return false;
+
+    // Block until we can acquire the lock, then release immediately
+    bool was_locked = (flock(fd, LOCK_EX) == 0);
+    if (was_locked) {
+        flock(fd, LOCK_UN);
     }
+    close(fd);
+
     return was_locked;
 
 }

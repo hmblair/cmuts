@@ -3,15 +3,15 @@
 
 #include <string>
 #include <stdexcept>
-#include <semaphore.h>
 #include <unistd.h>
 #include <errno.h>
-#include <fcntl.h> 
+#include <fcntl.h>
+#include <sys/file.h>
 
 namespace cmuts::mutex {
 
 struct Mutex {
-    sem_t* sem = SEM_FAILED;
+    int fd = -1;
     std::string name;
     ~Mutex();
 };

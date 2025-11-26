@@ -420,14 +420,14 @@ BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
 
     if (rebuild) { _delete(_name); }
 
-    if (!_exists(_name) && !cmuts::mutex::check(_name)) {
-        cmuts::mutex::Mutex mutex = cmuts::mutex::lock(_name);
+    if (!_exists(_name) && !cmuts::mutex::check(_fasta_name)) {
+        cmuts::mutex::Mutex mutex = cmuts::mutex::lock(_fasta_name);
         _fasta_to_binary(_fasta_name, _name);
     }
 
     // Will trigger if another thread started creating the index file first
 
-    cmuts::mutex::wait(_name);
+    cmuts::mutex::wait(_fasta_name);
 
     _file   = std::ifstream(_name);
     _header = Header(_file);
