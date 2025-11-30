@@ -1,0 +1,293 @@
+{
+  "program": {
+    "name": "cmuts core",
+    "version_suffix": true,
+    "mpi_suffix": true,
+    "debug_suffix": true
+  },
+  "groups": [
+    {
+      "name": "Input/Output",
+      "args": [
+        {
+          "name": "files",
+          "type": "vector<string>",
+          "short": "",
+          "long": "files",
+          "help": "The input SAM/BAM/CRAM files.",
+          "default": []
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "short": "-o",
+          "long": "--output",
+          "help": "The output HDF5 file."
+        },
+        {
+          "name": "fasta",
+          "type": "string",
+          "short": "-f",
+          "long": "--fasta",
+          "help": "The reference FASTA file."
+        },
+        {
+          "name": "overwrite",
+          "type": "bool",
+          "short": "",
+          "long": "--overwrite",
+          "help": "Overwrite an existing HDF5 file."
+        },
+        {
+          "name": "rebuild",
+          "type": "bool",
+          "short": "",
+          "long": "--rebuild",
+          "help": "Rebuild all index files."
+        },
+        {
+          "name": "compression",
+          "type": "int",
+          "short": "-c",
+          "long": "--compression",
+          "help": "Compression level of the HDF5 output (0-9).",
+          "default": 3
+        },
+        {
+          "name": "print_every",
+          "type": "float",
+          "short": "",
+          "long": "--print-every",
+          "help": "How often (in seconds) to print statistics.",
+          "default": 0.01
+        }
+      ]
+    },
+    {
+      "name": "Mode",
+      "args": [
+        {
+          "name": "joint",
+          "type": "bool",
+          "short": "",
+          "long": "--pairwise",
+          "help": "Compute pairwise modification counts."
+        },
+        {
+          "name": "tokenize",
+          "type": "bool",
+          "short": "",
+          "long": "--tokenize",
+          "help": "Tokenize the reference sequences."
+        }
+      ]
+    },
+    {
+      "name": "Filtering",
+      "args": [
+        {
+          "name": "min_mapq",
+          "type": "int",
+          "short": "",
+          "long": "--min-mapq",
+          "help": "Mapping quality threshold for alignment processing.",
+          "default": 10
+        },
+        {
+          "name": "min_quality",
+          "type": "int",
+          "short": "",
+          "long": "--min-phred",
+          "help": "PHRED score threshold for base processing.",
+          "default": 10
+        },
+        {
+          "name": "min_length",
+          "type": "int",
+          "short": "",
+          "long": "--min-length",
+          "help": "Skip reads shorter than this length.",
+          "default": 2
+        },
+        {
+          "name": "max_length",
+          "type": "int",
+          "short": "",
+          "long": "--max-length",
+          "help": "Skip reads longer than this length.",
+          "default": 1024
+        },
+        {
+          "name": "max_hamming",
+          "type": "int",
+          "short": "",
+          "long": "--max-hamming",
+          "help": "The maximum number of mismatches, insertions, and deletions in a processed read.",
+          "default": 1024
+        },
+        {
+          "name": "secondary",
+          "type": "bool",
+          "short": "",
+          "long": "--secondary",
+          "help": "Consider secondary alignments for processing as well."
+        },
+        {
+          "name": "downsample",
+          "type": "int",
+          "short": "",
+          "long": "--downsample",
+          "help": "Limit read depths per reference.",
+          "default": 2147483647
+        },
+        {
+          "name": "ignore_bases",
+          "type": "string",
+          "short": "",
+          "long": "--ignore-bases",
+          "help": "Do not count mismatches or deletions occuring at these bases. Pass as a single string.",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "name": "Processing",
+      "args": [
+        {
+          "name": "max_indel_length",
+          "type": "int",
+          "short": "",
+          "long": "--max-indel-length",
+          "help": "The longest indels to consider.",
+          "default": 10
+        },
+        {
+          "name": "quality_window",
+          "type": "int",
+          "short": "",
+          "long": "--quality-window",
+          "help": "Check the quality of each base in a window of this size around each base.",
+          "default": 2
+        },
+        {
+          "name": "collapse",
+          "type": "int",
+          "short": "",
+          "long": "--collapse",
+          "help": "Collapse modifications within this distance of each other in a given read.",
+          "default": 2
+        }
+      ]
+    },
+    {
+      "name": "Performance",
+      "args": [
+        {
+          "name": "chunk_size",
+          "type": "int",
+          "short": "",
+          "long": "--chunk-size",
+          "help": "The number of references to process at a time per thread.",
+          "default": 128
+        }
+      ]
+    },
+    {
+      "name": "Mutation type filters",
+      "args": [
+        {
+          "name": "no_mismatch",
+          "type": "bool",
+          "short": "",
+          "long": "--no-mismatches",
+          "help": "Do not count mismatches as modifications."
+        },
+        {
+          "name": "no_insertion",
+          "type": "bool",
+          "short": "",
+          "long": "--no-insertions",
+          "help": "Do not count insertions as modifications."
+        },
+        {
+          "name": "no_deletion",
+          "type": "bool",
+          "short": "",
+          "long": "--no-deletions",
+          "help": "Do not count deletions as modifications."
+        }
+      ]
+    },
+    {
+      "name": "Strand options",
+      "args": [
+        {
+          "name": "no_reverse",
+          "type": "bool",
+          "short": "",
+          "long": "--no-reverse",
+          "help": "Ignore reverse-complemented reads."
+        },
+        {
+          "name": "only_reverse",
+          "type": "bool",
+          "short": "",
+          "long": "--only-reverse",
+          "help": "Use only reverse-complemented reads."
+        }
+      ]
+    },
+    {
+      "name": "Ambiguous Deletions",
+      "args": [
+        {
+          "name": "uniform_spread",
+          "type": "bool",
+          "short": "",
+          "long": "--uniform-spread",
+          "help": "Uniformly spread out ambiguous deletions."
+        },
+        {
+          "name": "no_spread",
+          "type": "bool",
+          "short": "",
+          "long": "--no-spread",
+          "help": "Do not spread ambiguous deletions."
+        },
+        {
+          "name": "disable_ambiguous",
+          "type": "bool",
+          "short": "",
+          "long": "--disable-ambiguous",
+          "help": "Disable the ambiguous deletion detection algorithm, relying on the deletion provided by the alignment."
+        }
+      ]
+    },
+    {
+      "name": "Quality filtering",
+      "args": [
+        {
+          "name": "no_filter_matches",
+          "type": "bool",
+          "short": "",
+          "long": "--no-match-filter",
+          "help": "Do not filter matches based on their PHRED base score."
+        },
+        {
+          "name": "no_filter_insertions",
+          "type": "bool",
+          "short": "",
+          "long": "--no-insertion-filter",
+          "help": "Do not filter insertions based on their PHRED base score."
+        },
+        {
+          "name": "no_filter_deletions",
+          "type": "bool",
+          "short": "",
+          "long": "--no-deletion-filter",
+          "help": "Do not filter deletions based on their PHRED base score."
+        }
+      ]
+    }
+  ]
+}

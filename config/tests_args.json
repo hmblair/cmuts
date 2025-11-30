@@ -1,0 +1,144 @@
+{
+  "program": {
+    "name": "cmuts generate",
+    "version_suffix": false,
+    "mpi_suffix": false,
+    "debug_suffix": false
+  },
+  "groups": [
+    {
+      "name": "Generation",
+      "args": [
+        {
+          "name": "length",
+          "type": "int",
+          "short": "",
+          "long": "--length",
+          "help": "The length of the reference sequences."
+        },
+        {
+          "name": "queries",
+          "type": "int",
+          "short": "",
+          "long": "--queries",
+          "help": "The number of queries to generate per reference."
+        },
+        {
+          "name": "references",
+          "type": "int",
+          "short": "",
+          "long": "--references",
+          "help": "The number of references to generate."
+        }
+      ]
+    },
+    {
+      "name": "Output files",
+      "args": [
+        {
+          "name": "out_fasta",
+          "type": "string",
+          "short": "",
+          "long": "--out-fasta",
+          "help": "The file to store the references in."
+        },
+        {
+          "name": "out_sam",
+          "type": "string",
+          "short": "",
+          "long": "--out-sam",
+          "help": "The file to store the queries in."
+        },
+        {
+          "name": "out_h5",
+          "type": "string",
+          "short": "",
+          "long": "--out-h5",
+          "help": "The file to store the expected modifications in."
+        }
+      ]
+    },
+    {
+      "name": "Quality thresholds",
+      "args": [
+        {
+          "name": "min_mapq",
+          "type": "int",
+          "short": "",
+          "long": "--min-mapq",
+          "help": "The minimum quality to consider a read."
+        },
+        {
+          "name": "min_phred",
+          "type": "int",
+          "short": "",
+          "long": "--min-phred",
+          "help": "The minimum quality to consider a base."
+        },
+        {
+          "name": "min_length",
+          "type": "int",
+          "short": "",
+          "long": "--min-length",
+          "help": "The smallest query sequences to consider when counting modifications.",
+          "default": 2
+        },
+        {
+          "name": "max_length",
+          "type": "int",
+          "short": "",
+          "long": "--max-length",
+          "help": "The longest query sequences to consider when counting modifications."
+        },
+        {
+          "name": "max_indel_length",
+          "type": "int",
+          "short": "",
+          "long": "--max-indel-length",
+          "help": "Skip indels longer than this."
+        },
+        {
+          "name": "collapse",
+          "type": "int",
+          "short": "",
+          "long": "--collapse",
+          "help": "The minimum number of bases between modifications to consider them consecutive.",
+          "default": 2
+        },
+        {
+          "name": "quality_window",
+          "type": "int",
+          "short": "",
+          "long": "--quality-window",
+          "help": "The number of neighbouring bases to consider when calculating PHRED scores."
+        }
+      ]
+    },
+    {
+      "name": "Mutation type filters",
+      "args": [
+        {
+          "name": "no_mismatch",
+          "type": "bool",
+          "short": "",
+          "long": "--no-mismatches",
+          "help": "Do not count mismatches as modifications."
+        },
+        {
+          "name": "no_insertion",
+          "type": "bool",
+          "short": "",
+          "long": "--no-insertions",
+          "help": "Do not count insertions as modifications."
+        },
+        {
+          "name": "no_deletion",
+          "type": "bool",
+          "short": "",
+          "long": "--no-deletions",
+          "help": "Do not count deletions as modifications."
+        }
+      ]
+    }
+  ]
+}

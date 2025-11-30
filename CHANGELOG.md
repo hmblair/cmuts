@@ -6,6 +6,7 @@
 
 - Fast-path for processing sparse alignments (reads << references)
 - `--secondary` flag for processing secondary alignments
+- JSON-based argument file for `cmuts core` and `cmuts generate`
 
 ### Changed
 

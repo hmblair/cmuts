@@ -3,6 +3,7 @@ CLAUDE.md
 !/.gitignore
 bin/
 build/
+src/cpp/generated/
 include/
 share/
 *.bai

@@ -70,6 +70,42 @@ FetchContent_MakeAvailable_If_Not_Already_Present(xtensor)
 
 
 #
+# Generate argument parsing headers from JSON
+#
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/generated)
+file(MAKE_DIRECTORY ${GENERATED_DIR})
+
+add_custom_command(
+    OUTPUT ${GENERATED_DIR}/cmuts_args.hpp
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/cmuts_args.json
+            ${GENERATED_DIR}/cmuts_args.hpp
+            cmutsProgram
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/cmuts_args.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+    COMMENT "Generating cmuts argument header"
+)
+
+add_custom_command(
+    OUTPUT ${GENERATED_DIR}/tests_args.hpp
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/tests_args.json
+            ${GENERATED_DIR}/tests_args.hpp
+            testsProgram
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/tests_args.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+    COMMENT "Generating tests argument header"
+)
+
+add_custom_target(generate_args
+    DEPENDS ${GENERATED_DIR}/cmuts_args.hpp ${GENERATED_DIR}/tests_args.hpp
+)
+
+
+#
 # Shared static library
 #
 
@@ -192,6 +228,9 @@ add_executable(${TESTS}
 
 setup_target(${CORE})
 setup_target(${TESTS})
+
+add_dependencies(${CORE} generate_args)
+add_dependencies(${TESTS} generate_args)
 
 install(TARGETS ${CORE} ${TESTS}
     RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin

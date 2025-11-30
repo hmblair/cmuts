@@ -85,90 +85,96 @@ will create an HDF5 file `$OUTPUT` with the structure
         └── counts-2d
 ```
 
+<!-- BEGIN AUTO-GENERATED CLI OPTIONS -->
 ## Command Line Options
 
-### Core Options
+### Input/Output
 
-**`-o, --output`** : Output HDF5 filename (required)
+**`files`** : The input SAM/BAM/CRAM files.
 
-**`-f, --fasta`** : Reference FASTA file (required)
+**`-o, --output`** : The output HDF5 file. (required)
 
-**`-t, --threads`** : The number of MPI processes to use (if built with MPI, default: 1)
+**`-f, --fasta`** : The reference FASTA file. (required)
 
-**`--rebuild`** : Rebuild all index files (*.cmix and *.cmfa)
+**`--overwrite`** : Overwrite an existing HDF5 file.
 
-### Output Control
+**`--rebuild`** : Rebuild all index files.
 
-**`--overwrite`** : Overwrite existing HDF5 file
+**`-c, --compression`** : Compression level of the HDF5 output (0-9). (default: 3)
 
-**`--compression`** : HDF5 compression level (0-9, default: 3)
+**`--print-every`** : How often (in seconds) to print statistics. (default: 0.01)
 
-### Analysis Modes
 
-**`--tokenize`** : Tokenize reference sequences and store in `sequence` dataset
+### Mode
 
-**`--pairwise`** : Compute pairwise modification counts
+**`--pairwise`** : Compute pairwise modification counts.
 
-### Quality Filtering
+**`--tokenize`** : Tokenize the reference sequences.
 
-**`--min-mapq`** : Mapping quality threshold (default: 10). If set to 0, reads with missing mapping qualities will also be processed
 
-**`--min-phred`** : PHRED score threshold (default: 10)
+### Filtering
 
-**`--quality-window`** : Quality check window size around each base (default: 2)
+**`--min-mapq`** : Mapping quality threshold for alignment processing. (default: 10)
 
-**`--min-length`** : Minimum alignment length (default: 2)
+**`--min-phred`** : PHRED score threshold for base processing. (default: 10)
 
-**`--max-length`** : Maximum alignment length (default: 1,024)
+**`--min-length`** : Skip reads shorter than this length. (default: 2)
 
-**`--max-hamming`** : Skip reads with more than this many combined mismatches, insertions, and deletions (default: 1,024)
+**`--max-length`** : Skip reads longer than this length. (default: 1024)
 
-### Other Filtering
+**`--max-hamming`** : The maximum number of mismatches, insertions, and deletions in a processed read. (default: 1024)
 
-**`--ignore-bases`** : Do not count mismatches or deletions occuring at these bases. Pass as a single string (e.g. `--ignore-bases GU` for DMS experiments).
+**`--secondary`** : Consider secondary alignments for processing as well.
 
-**`--no-reverse`** : Skip reverse-complemented reads
+**`--downsample`** : Limit read depths per reference.
 
-**`--only-reverse`** : Only use reverse-complemented reads
+**`--ignore-bases`** : Do not count mismatches or deletions occuring at these bases. Pass as a single string.
 
-**`--secondary`** : Consider secondary alignments for processing as well
 
-**`--downsample`** : Limit read depths per reference
+### Processing
 
-### Modification Detection
+**`--max-indel-length`** : The longest indels to consider. (default: 10)
 
-**`--max-indel-length`** : Maximum indel length to consider (default: 10)
+**`--quality-window`** : Check the quality of each base in a window of this size around each base. (default: 2)
 
-**`--collapse`** : Collapse modifications within this distance in a read (default: 2)
+**`--collapse`** : Collapse modifications within this distance of each other in a given read. (default: 2)
 
-**`--no-mismatches`** : Exclude mismatches from modification counts
-
-**`--no-insertions`** : Exclude insertions from modification counts
-
-**`--no-deletions`** : Exclude deletions from modification counts
-
-### Deletion Handling
-
-**`--deletion-gap`** : The number of gaps to allow when detecting ambiguous deletions (default: 0)
-
-**`--uniform-spread`** : Uniformly spread ambiguous deletions
-
-**`--no-spread`** : Do not spread ambiguous deletions
-
-**`--disable-ambiguous`** : Use alignment-provided deletions only
-
-**`--contiguous-ambiguous`** : Allow only contiguous regions as ambiguous deletions
-
-### Sampling and Coverage
-
-**`--no-match-filter`** : Do not filter matches based on their PHRED base score (as in `rf-count`)
-
-**`--no-insertion-filter`** : Do not filter insertions based on their PHRED base score (as in `rf-count`)
-
-**`--no-deletion-filter`** : Do not filter deletions based on their PHRED base score (as in `rf-count`)
 
 ### Performance
 
-**`--chunk-size`** : Internal buffer size per thread in references (default: 128)
+**`--chunk-size`** : The number of references to process at a time per thread. (default: 128)
 
-**`--print-every`** : Progress update frequency in seconds (default: 0.01)
+
+### Mutation type filters
+
+**`--no-mismatches`** : Do not count mismatches as modifications.
+
+**`--no-insertions`** : Do not count insertions as modifications.
+
+**`--no-deletions`** : Do not count deletions as modifications.
+
+
+### Strand options
+
+**`--no-reverse`** : Ignore reverse-complemented reads.
+
+**`--only-reverse`** : Use only reverse-complemented reads.
+
+
+### Ambiguous Deletions
+
+**`--uniform-spread`** : Uniformly spread out ambiguous deletions.
+
+**`--no-spread`** : Do not spread ambiguous deletions.
+
+**`--disable-ambiguous`** : Disable the ambiguous deletion detection algorithm, relying on the deletion provided by the alignment.
+
+
+### Quality filtering
+
+**`--no-match-filter`** : Do not filter matches based on their PHRED base score.
+
+**`--no-insertion-filter`** : Do not filter insertions based on their PHRED base score.
+
+**`--no-deletion-filter`** : Do not filter deletions based on their PHRED base score.
+<!-- END AUTO-GENERATED CLI OPTIONS -->

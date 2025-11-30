@@ -72,8 +72,7 @@ static inline cmuts::Params _construct_params(
         opt.no_filter_insertions,
         opt.no_filter_deletions,
         cmuts::_ignore_str_to_bool(opt.ignore_bases),
-        !opt.disable_ambiguous,
-        opt.deletion_gap
+        !opt.disable_ambiguous
     };
 
 }

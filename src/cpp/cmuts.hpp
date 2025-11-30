@@ -247,7 +247,6 @@ public:
     bool no_filter_deletions;
     std::vector<bool> bases;
     bool ambiguous;
-    int32_t gap;
 
 };
 

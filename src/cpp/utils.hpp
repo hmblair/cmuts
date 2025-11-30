@@ -16,6 +16,9 @@ constexpr int32_t MAX_TRACE = 256;
 
 typedef argparse::ArgumentParser Parser;
 
+// Tag type to disambiguate group-only constructor from default value constructor
+struct GroupTag {};
+
 void __log(const std::string& filename, const std::string& message);
 void __init_log(const std::string& filename);
 [[noreturn]] void __throw_and_log(const std::string& filename, const std::string& err);
@@ -34,6 +37,14 @@ public:
         const std::string& short_name,
         const std::string& long_name,
         const std::string& help
+    );
+    Arg(
+        Parser& parser,
+        const std::string& short_name,
+        const std::string& long_name,
+        const std::string& help,
+        GroupTag,
+        const std::string& group
     );
     Arg(
         Parser& parser,

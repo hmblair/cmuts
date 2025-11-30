@@ -240,6 +240,19 @@ Arg<T>::Arg (
     const std::string& short_name,
     const std::string& long_name,
     const std::string& help,
+    GroupTag,
+    const std::string& group
+) : _parser(parser), _name(long_name) {
+    if (!group.empty()) { parser.add_group(group); }
+    _add_arg<T>(parser, short_name, long_name, help);
+}
+
+template <typename T>
+Arg<T>::Arg (
+    Parser& parser,
+    const std::string& short_name,
+    const std::string& long_name,
+    const std::string& help,
     T default_value,
     const std::string& group
 ) : _parser(parser), _name(long_name) {
