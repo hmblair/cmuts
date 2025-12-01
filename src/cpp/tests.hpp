@@ -236,6 +236,7 @@ void write_sam_header(size_t num_references, size_t ref_length, std::ostream& ou
 //
 
 /// Generate test data files (SAM, FASTA, HDF5 with expected values)
+/// @param seed Random seed for reproducibility. Use -1 for time-based seed.
 void generate_test_data(
     const MPI::Manager& mpi,
     size_t num_references,
@@ -244,7 +245,8 @@ void generate_test_data(
     const Params& params,
     const std::string& sam_path,
     const std::string& fasta_path,
-    const std::string& hdf5_path
+    const std::string& hdf5_path,
+    int seed = -1
 );
 
 } // namespace TestGen

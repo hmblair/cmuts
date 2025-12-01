@@ -235,3 +235,76 @@ add_dependencies(${TESTS} generate_args)
 install(TARGETS ${CORE} ${TESTS}
     RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin
 )
+
+
+#
+# Testing (CTest integration)
+#
+
+
+option(BUILD_TESTING "Build tests" ON)
+
+if(BUILD_TESTING)
+    enable_testing()
+
+    # Python integration tests via pytest
+    find_program(PYTEST_EXECUTABLE pytest)
+    if(PYTEST_EXECUTABLE)
+        # Quick tests (edge cases only, ~30 seconds)
+        add_test(
+            NAME python_integration_quick
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py::TestEdgeCases
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Standard tests (edge cases + BAM fuzzing)
+        add_test(
+            NAME python_integration
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py
+                -v --tb=short
+                -m "not slow"
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # CRAM-specific tests
+        add_test(
+            NAME python_integration_cram
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py::TestCramFormat
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Full tests including stress tests (slow)
+        add_test(
+            NAME python_integration_full
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Set test properties
+        set_tests_properties(python_integration_quick PROPERTIES
+            LABELS "quick;python"
+            TIMEOUT 120
+        )
+        set_tests_properties(python_integration PROPERTIES
+            LABELS "python"
+            TIMEOUT 600
+        )
+        set_tests_properties(python_integration_cram PROPERTIES
+            LABELS "cram;python"
+            TIMEOUT 300
+        )
+        set_tests_properties(python_integration_full PROPERTIES
+            LABELS "slow;python"
+            TIMEOUT 1800
+        )
+    else()
+        message(WARNING "pytest not found, Python integration tests disabled")
+    endif()
+endif()

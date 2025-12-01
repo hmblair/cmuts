@@ -29,6 +29,14 @@
           "short": "",
           "long": "--references",
           "help": "The number of references to generate."
+        },
+        {
+          "name": "seed",
+          "type": "int",
+          "short": "",
+          "long": "--seed",
+          "help": "Random seed for reproducibility. If not provided, uses time-based seed.",
+          "default": -1
         }
       ]
     },

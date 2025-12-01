@@ -409,9 +409,11 @@ void generate_test_data(
     const Params& params,
     const std::string& sam_path,
     const std::string& fasta_path,
-    const std::string& hdf5_path
+    const std::string& hdf5_path,
+    int seed
 ) {
-    Random rng;
+    // Use provided seed if non-negative, otherwise use time-based seed
+    Random rng = (seed >= 0) ? Random(static_cast<unsigned>(seed)) : Random();
 
     // Determine chunking for HDF5 output
     size_t chunk_size = std::min(DEFAULT_CHUNK_SIZE, num_references);
@@ -441,7 +443,7 @@ void generate_test_data(
         BASES,
         6  // A, C, G, U, DEL, INS
     };
-    HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path));
+    HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path) + "/counts-1d");
 
     // Generate test data for each reference
     for (size_t chunk_ix = 0; chunk_ix < num_chunks; chunk_ix++) {
@@ -522,7 +524,8 @@ int main(int argc, char** argv) {
             params,
             opt.out_sam,
             opt.out_fasta,
-            opt.out_h5
+            opt.out_h5,
+            opt.seed
         );
     } catch (const std::exception& err) {
         mpi.err() << "Error: " << err.what() << "\n";
