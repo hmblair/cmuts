@@ -9,7 +9,6 @@ print-usage() {
   echo "  test              Run pytest integration tests"
   echo "  test --quick      Run quick tests only (skip slow/stress tests)"
   echo "  test --cram       Run CRAM-specific tests only"
-  echo "  test --legacy     Run legacy bash-based fuzz test"
 }
 
 export _CMUTS_DIR="$(dirname "$(dirname "$(which cmuts)")")"
@@ -91,28 +90,23 @@ case "${args[0]:-}" in
     cmuts-visualize "${args[@]:1}"
     ;;
   test)
-    # Check for --legacy flag to run old bash-based fuzz test
-    if [[ "${args[1]:-}" == "--legacy" ]]; then
-      cmuts-test "${args[@]:2}"
-    else
-      # Run pytest tests
-      pytest_args=("-v" "--tb=short")
-      # Pass through any additional args (e.g., -k, --quick)
-      for arg in "${args[@]:1}"; do
-        case "$arg" in
-          --quick)
-            pytest_args+=("-m" "not slow")
-            ;;
-          --cram)
-            pytest_args+=("-k" "cram")
-            ;;
-          *)
-            pytest_args+=("$arg")
-            ;;
-        esac
-      done
-      python3 -m pytest "$_CMUTS_DIR/tests/python" "${pytest_args[@]}"
-    fi
+    # Run pytest tests
+    pytest_args=("-v" "--tb=short")
+    # Pass through any additional args (e.g., -k, --quick)
+    for arg in "${args[@]:1}"; do
+      case "$arg" in
+        --quick)
+          pytest_args+=("-m" "not slow")
+          ;;
+        --cram)
+          pytest_args+=("-k" "cram")
+          ;;
+        *)
+          pytest_args+=("$arg")
+          ;;
+      esac
+    done
+    python3 -m pytest "$_CMUTS_DIR/tests/python" "${pytest_args[@]}"
     ;;
   generate)
     cmuts-generate-tests "${args[@]:1}"
