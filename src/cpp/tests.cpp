@@ -1,528 +1,492 @@
 #include "tests.hpp"
 
-
+namespace TestGen {
 
 //
-// For generation
+// Random class implementation
 //
 
-
-
-static inline std::mt19937 _init_gen() {
+Random::Random() {
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    return std::mt19937(seed);
+    _gen = std::mt19937(seed);
 }
 
-static inline int _random_int(std::mt19937& gen, int low, int high) {
+Random::Random(unsigned seed) : _gen(seed) {}
 
+int Random::integer(int low, int high) {
     std::uniform_int_distribution<> dist(low, high);
-    return dist(gen);
-
+    return dist(_gen);
 }
 
-static inline int _random_int_excluding(std::mt19937& gen, int low, int high, int n) {
-
-    int rand_val = _random_int(gen, low, high - 1);
-    if (rand_val >= n) { ++rand_val; }
-    return rand_val;
-
+int Random::integer_excluding(int low, int high, int exclude) {
+    // Generate in range [low, high-1], then shift if >= exclude
+    int value = integer(low, high - 1);
+    if (value >= exclude) {
+        ++value;
+    }
+    return value;
 }
 
-
-static inline float _random_float(std::mt19937& gen) {
-
-    std::uniform_real_distribution<float> dist(0, 1);
-    return dist(gen);
-
+float Random::uniform() {
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    return dist(_gen);
 }
 
-template <typename dtype>
-static inline dtype _sample_from_vector(std::mt19937& gen, const std::vector<dtype>& vals) {
-
-    int ix = _random_int(gen, 0, vals.size() - 1);
-    return vals[ix];
-
+bool Random::bernoulli(float probability) {
+    return uniform() < probability;
 }
 
-static inline base_t _random_base(std::mt19937& gen) {
-
-    return _random_int(gen, 0, 3);
-
+base_t Random::base() {
+    return static_cast<base_t>(integer(0, BASES - 1));
 }
 
-static inline base_t _random_base_excluding(std::mt19937& gen, base_t n) {
-
-    return _random_int_excluding(gen, 0, 3, n);
-
+base_t Random::base_excluding(base_t exclude) {
+    return static_cast<base_t>(integer_excluding(0, BASES - 1, exclude));
 }
 
-static inline seq_t _random_sequence(
-    hts_pos_t length,
-    std::mt19937& gen
-) {
+qual_t Random::mapq() {
+    return static_cast<qual_t>(integer(0, MAX_MAPQ));
+}
 
+qual_t Random::phred() {
+    return static_cast<qual_t>(integer(0, MAX_PHRED));
+}
+
+template <typename T>
+T Random::sample(const std::vector<T>& values) {
+    int ix = integer(0, static_cast<int>(values.size()) - 1);
+    return values[ix];
+}
+
+// Explicit instantiation for CIGAR_t
+template HTS::CIGAR_t Random::sample(const std::vector<HTS::CIGAR_t>& values);
+
+std::mt19937& Random::generator() {
+    return _gen;
+}
+
+//
+// Sequence generation
+//
+
+seq_t random_sequence(int32_t length, Random& rng) {
     seq_t sequence(length);
-    for (hts_pos_t ix = 0; ix < length; ix++) {
-        sequence[ix] = _random_base(gen);
+    for (int32_t ix = 0; ix < length; ix++) {
+        sequence[ix] = rng.base();
     }
-
     return sequence;
-
 }
 
-static inline int _random_length(std::mt19937& gen, size_t max) {
-
-    return _random_int(gen, 1, max);
-
+HTS::PHRED random_qualities(int32_t length, Random& rng) {
+    std::vector<qual_t> qualities(length);
+    for (auto& q : qualities) {
+        q = rng.phred();
+    }
+    return HTS::PHRED(qualities);
 }
 
-static inline int _random_mapq(std::mt19937& gen) {
+//
+// AlignmentGenerator implementation
+//
 
-    return _random_int(gen, 0, MAX_MAPQ);
+AlignmentGenerator::AlignmentGenerator(
+    const seq_t& reference,
+    const Params& params,
+    view_t<float, 4>& expected_output,
+    Random& rng
+) : _rng(rng),
+    _params(params),
+    _reference(reference),
+    _expected(expected_output)
+{
+    int32_t ref_length = static_cast<int32_t>(reference.size());
 
+    // Generate random alignment start position
+    // Leave room for at least 2 bases of alignment
+    _start_pos = rng.integer(0, ref_length - 2);
+
+    // Generate random indel counts
+    // Deletions are bounded by remaining reference length
+    _ins_remaining = rng.integer(0, ref_length);
+    _del_remaining = rng.integer(0, ref_length - _start_pos - 2);
+    _match_remaining = ref_length - _start_pos - _del_remaining;
+
+    // Initialize position tracking (building 3'→5')
+    // We start at the 3' end and work backwards
+    _rpos = ref_length;
+    _qpos = _match_remaining + _ins_remaining;
+    _last_mod_pos = _rpos + params.collapse;  // Allow first modification
+
+    // Generate mapping quality
+    _mapq = rng.mapq();
+
+    // Determine if read passes length filter
+    bool passes_length = (_qpos >= params.min_length && _qpos <= params.max_length);
+
+    // Determine if read passes MAPQ filter
+    _passes_mapq = passes_length && (_mapq >= params.min_mapq);
+
+    // Randomly make some reads unaligned (for testing unaligned handling)
+    _is_aligned = !rng.bernoulli(UNALIGNED_PROBABILITY);
+    if (!_is_aligned) {
+        _passes_mapq = false;
+    }
+
+    // Generate quality scores for the query
+    _phred = random_qualities(_qpos, rng);
+
+    // Build the alignment backwards (3'→5')
+    // This matches how cmuts processes alignments internally
+    while (_match_remaining > 0 || _ins_remaining > 0 || _del_remaining > 0) {
+        extend_alignment();
+    }
+
+    // Reverse to get correct 5'→3' orientation for output
+    std::reverse(_query.begin(), _query.end());
+    std::reverse(_cigar.begin(), _cigar.end());
 }
 
-static inline uint8_t _random_phred_quality(std::mt19937& gen) {
-
-    return _random_int(gen, 0, MAX_PHRED);
-
+float AlignmentGenerator::mask_value(int32_t qpos) const {
+    bool passes_phred = _phred.check(qpos, _params.min_phred, _params.quality_window);
+    return static_cast<float>(_passes_mapq && passes_phred);
 }
 
-static inline HTS::PHRED _random_phred(std::mt19937& gen, size_t count) {
-
-    std::vector<uint8_t> _phred(count);
-    for (auto& val : _phred) {
-        val = _random_phred_quality(gen);
-    }
-
-    HTS::PHRED phred(_phred);
-    return phred;
-
-}
-
-static inline HTS::CIGAR_op _random_cigar_op(
-    std::mt19937& gen,
-    hts_pos_t match,
-    hts_pos_t ins,
-    hts_pos_t del,
-    HTS::CIGAR_t prev
-) {
-
-    HTS::CIGAR_t type;
-    hts_pos_t length;
-
-    if (match == 0) {
-        if (ins == 0) {
-            return HTS::CIGAR_op(HTS::CIGAR_t::DEL, del);
+HTS::CIGAR_op AlignmentGenerator::select_next_operation() {
+    // Handle edge cases where only one operation type remains
+    if (_match_remaining == 0) {
+        if (_ins_remaining == 0) {
+            return HTS::CIGAR_op(HTS::CIGAR_t::DEL, _del_remaining);
         }
-        if (del == 0) {
-            return HTS::CIGAR_op(HTS::CIGAR_t::INS, ins);
+        if (_del_remaining == 0) {
+            return HTS::CIGAR_op(HTS::CIGAR_t::INS, _ins_remaining);
         }
     }
 
-    std::vector<HTS::CIGAR_t> samples;
-    if (match > 0) {
-        if (prev != HTS::CIGAR_t::MATCH) {
-            samples.push_back(HTS::CIGAR_t::MATCH);
+    // Build list of valid next operations
+    // Avoid consecutive operations of the same type
+    std::vector<HTS::CIGAR_t> candidates;
+    HTS::CIGAR_t prev_type = _cigar.back().type();
+
+    if (_match_remaining > 0) {
+        if (prev_type != HTS::CIGAR_t::MATCH) {
+            candidates.push_back(HTS::CIGAR_t::MATCH);
         }
-        if (prev != HTS::CIGAR_t::MISMATCH) {
-            samples.push_back(HTS::CIGAR_t::MISMATCH);
+        if (prev_type != HTS::CIGAR_t::MISMATCH) {
+            candidates.push_back(HTS::CIGAR_t::MISMATCH);
         }
     }
-    if (ins > 0) {
-        if (prev != HTS::CIGAR_t::INS) {
-            samples.push_back(HTS::CIGAR_t::INS);
-        }
+    if (_ins_remaining > 0 && prev_type != HTS::CIGAR_t::INS) {
+        candidates.push_back(HTS::CIGAR_t::INS);
     }
-    if (del > 0) {
-        if (prev != HTS::CIGAR_t::DEL) {
-            samples.push_back(HTS::CIGAR_t::DEL);
-        }
+    if (_del_remaining > 0 && prev_type != HTS::CIGAR_t::DEL) {
+        candidates.push_back(HTS::CIGAR_t::DEL);
     }
 
-    type = _sample_from_vector<HTS::CIGAR_t>(gen, samples);
+    // Select random operation type
+    HTS::CIGAR_t type = _rng.sample(candidates);
 
+    // Select random length based on operation type
+    int32_t max_length;
     switch (type) {
-
         case HTS::CIGAR_t::MATCH:
+        case HTS::CIGAR_t::MISMATCH:
+            max_length = _match_remaining;
+            break;
+        case HTS::CIGAR_t::INS:
+            max_length = _ins_remaining;
+            break;
+        case HTS::CIGAR_t::DEL:
+            max_length = _del_remaining;
+            break;
+        default:
+            CMUTS_THROW("Invalid CIGAR operation type in test generation");
+    }
+
+    int32_t length = _rng.integer(1, max_length);
+    return HTS::CIGAR_op(type, length);
+}
+
+void AlignmentGenerator::add_match() {
+    _qpos--;
+    _rpos--;
+    base_t ref_base = _reference[_rpos];
+    _query.push_back(ref_base);
+
+    // Record match in expected output
+    _expected(_rpos, ref_base, ref_base) += mask_value(_qpos);
+}
+
+void AlignmentGenerator::add_mismatch(bool count_modification) {
+    _qpos--;
+    _rpos--;
+    base_t ref_base = _reference[_rpos];
+    base_t query_base = _rng.base_excluding(ref_base);
+    _query.push_back(query_base);
+
+    // Check collapse distance and whether mismatches are enabled
+    bool should_count = count_modification &&
+                        (_last_mod_pos - _rpos >= _params.collapse) &&
+                        _params.mismatches;
+
+    if (should_count) {
+        _expected(_rpos, ref_base, query_base) += mask_value(_qpos);
+        _last_mod_pos = _rpos;
+    } else {
+        // Count as match if not counting the mismatch
+        _expected(_rpos, ref_base, ref_base) += mask_value(_qpos);
+    }
+}
+
+void AlignmentGenerator::add_insertion(bool count_modification) {
+    _qpos--;
+    base_t query_base = _rng.base();
+    _query.push_back(query_base);
+
+    // Check collapse distance, position validity, and whether insertions are enabled
+    bool valid_position = (_rpos <= static_cast<int32_t>(_reference.size()) && _rpos > 0);
+    bool should_count = count_modification &&
+                        valid_position &&
+                        (_last_mod_pos - _rpos >= _params.collapse) &&
+                        _params.insertions;
+
+    if (should_count) {
+        // Insertions are recorded at the position before the insertion
+        _expected(_rpos - 1, query_base, IX_INS) += mask_value(_qpos);
+        _last_mod_pos = _rpos;
+    }
+}
+
+void AlignmentGenerator::add_deletion(bool count_modification) {
+    _rpos--;
+    base_t ref_base = _reference[_rpos];
+
+    // Check collapse distance and whether deletions are enabled
+    bool should_count = count_modification &&
+                        (_last_mod_pos - _rpos >= _params.collapse) &&
+                        _params.deletions;
+
+    if (should_count) {
+        _expected(_rpos, ref_base, IX_DEL) += mask_value(_qpos);
+        _last_mod_pos = _rpos;
+    } else {
+        // Count as match if not counting the deletion
+        _expected(_rpos, ref_base, ref_base) += mask_value(_qpos);
+    }
+}
+
+void AlignmentGenerator::extend_alignment() {
+    HTS::CIGAR_op op = select_next_operation();
+    _cigar.extend(op);
+
+    switch (op.type()) {
+        case HTS::CIGAR_t::MATCH: {
+            while (op.advance()) {
+                add_match();
+            }
+            _match_remaining -= op.length();
+            break;
+        }
+
         case HTS::CIGAR_t::MISMATCH: {
-
-            length = _random_length(gen, match);
+            // First base of mismatch run counts as modification
+            add_mismatch(true);
+            op.advance();
+            // Subsequent bases don't count as separate modifications
+            while (op.advance()) {
+                add_mismatch(false);
+            }
+            _match_remaining -= op.length();
             break;
-
         }
 
-        case HTS::CIGAR_t::INS:      {
-
-            length = _random_length(gen, ins);
+        case HTS::CIGAR_t::DEL: {
+            // Only count if within max indel length
+            bool count_first = (op.length() <= _params.max_indel_length);
+            if (count_first) {
+                add_deletion(true);
+                op.advance();
+            }
+            while (op.advance()) {
+                add_deletion(false);
+            }
+            _del_remaining -= op.length();
             break;
-
         }
 
-        case HTS::CIGAR_t::DEL:      {
-
-            length = _random_length(gen, del);
+        case HTS::CIGAR_t::INS: {
+            // Only count if within max indel length
+            bool count_first = (op.length() <= _params.max_indel_length);
+            if (count_first) {
+                add_insertion(true);
+                op.advance();
+            }
+            while (op.advance()) {
+                add_insertion(false);
+            }
+            _ins_remaining -= op.length();
             break;
-
         }
 
         default: {
-
-            throw std::runtime_error("Error in CIGAR type.");
-
+            CMUTS_THROW("Unexpected CIGAR operation in test generation");
         }
-
     }
-
-    return HTS::CIGAR_op(type, length);
-
 }
 
-template <typename dtype>
-class Record {
-private:
-
-    hts_pos_t _match;
-    hts_pos_t _ins;
-    hts_pos_t _del;
-
-    hts_pos_t _rpos;
-    hts_pos_t _qpos;
-    hts_pos_t _last_mod;
-
-    std::mt19937& gen;
-    view_t<dtype, 4>& arr;
-    const Params& params;
-
-    bool _aligned;
-    bool _mapq_mask;
-
-public:
-
-    const seq_t& reference;
-    seq_t query;
-    HTS::CIGAR cigar;
-    HTS::PHRED phred;
-    int mapq;
-    hts_pos_t pos;
-
-    Record(
-        const seq_t& reference,
-        const Params& params,
-        view_t<dtype, 4>& arr,
-        std::mt19937& gen
-    ) : gen(gen), arr(arr), params(params), reference(reference) {
-
-        hts_pos_t length = reference.size();
-
-        // Generate a random alignment position
-
-        pos = _random_int(gen, 0, length - 2);
-
-        // Generate random lengths of insertions and deletions
-
-        _ins = _random_int(gen, 0, length);
-        _del = _random_int(gen, 0, length - pos - 2);
-        _match = length - pos - _del;
-
-        // Start at the 3' end of the sequence
-
-        _rpos = length;
-        _qpos = _match + _ins;
-        _last_mod = _rpos + params.collapse;
-
-        // Generate a random mapping quality
-
-        mapq = _random_mapq(gen);
-
-        // Pretend the read is low-quality if it is too short or too long
-
-        if (_qpos < params.min_length || _qpos > params.max_length) {
-            _mapq_mask = false;
-        } else {
-            _mapq_mask = (mapq >= params.min_mapq);
-        }
-
-        // Randomly determine if the read is aligned
-
-        float _ALIGN_P = 0.1;
-        _aligned = (_random_float(gen) > _ALIGN_P);
-        if (!_aligned) { _mapq_mask = false; }
-
-        // Generate a random PHRED score per base
-
-        phred = _random_phred(gen, _qpos);
-
-        // Generate the query sequence
-
-        while (_match > 0 || _ins > 0 || _del > 0) { extend(); }
-
-        // Reverse as we generated 3' -> 5'
-
-        std::reverse(query.begin(), query.end());
-        std::reverse(cigar.begin(), cigar.end());
-
-    }
-
-    dtype mask(hts_pos_t qpos) const {
-
-        bool _phred_mask = phred.check(qpos, params.min_phred, params.quality_window);
-        return static_cast<dtype>(_mapq_mask && _phred_mask);
-
-    }
-
-    void match() {
-
-        _qpos--;
-        _rpos--;
-        base_t rbase = reference[_rpos];
-        query.push_back(rbase);
-
-        arr(_rpos, rbase, rbase) += mask(_qpos);
-
-    }
-
-    void mismatch(bool mod = true) {
-
-        _qpos--;
-        _rpos--;
-        base_t rbase = reference[_rpos];
-        base_t qbase = _random_base_excluding(gen, rbase);
-        query.push_back(qbase);
-
-        if (mod && _last_mod - _rpos >= params.collapse && params.mismatches) {
-            arr(_rpos, rbase, qbase) += mask(_qpos);
-            _last_mod = _rpos;
-        } else {
-            arr(_rpos, rbase, rbase) += mask(_qpos);
-        }
-
-    }
-
-    void ins(bool mod = true) {
-
-        _qpos--;
-        base_t qbase = _random_base(gen);
-        query.push_back(qbase);
-
-        if (mod && _last_mod - _rpos >= params.collapse && params.insertions) {
-            arr(_rpos - 1, qbase, IX_INS) += mask(_qpos);
-            _last_mod = _rpos;
-        }
-
-    }
-
-    void del(bool mod = true) {
-
-        _rpos--;
-        base_t rbase = reference[_rpos];
-
-        if (mod && _last_mod - _rpos >= params.collapse && params.deletions) {
-            arr(_rpos, rbase, IX_DEL) += mask(_qpos);
-            _last_mod = _rpos;
-        } else {
-            arr(_rpos, rbase, rbase)  += mask(_qpos);
-        }
-
-    }
-
-    void extend() {
-
-        HTS::CIGAR_op op =_random_cigar_op(gen, _match, _ins, _del, cigar.back().type());
-        cigar.extend(op);
-
-        switch (op.type()) {
-
-            case HTS::CIGAR_t::MATCH: {
-
-                while (op.advance()) { match(); }
-
-                _match -= op.length();
-                break;
-
-            }
-
-            case HTS::CIGAR_t::MISMATCH: {
-
-                mismatch();
-                op.advance();
-                while (op.advance()) { mismatch(false); }
-
-                _match -= op.length();
-                break;
-
-            }
-
-            case HTS::CIGAR_t::DEL: {
-
-                if (op.length() <= params.max_indel_length) {
-                    del();
-                    op.advance();
-                }
-                while (op.advance()) { del(false); }
-
-                _del -= op.length();
-                break;
-
-            }
-
-            case HTS::CIGAR_t::INS: {
-
-                if (op.length() <= params.max_indel_length && _rpos <= reference.size() && _rpos > 0) {
-                    ins();
-                    op.advance();
-                }
-                while (op.advance()) { ins(false); }
-
-                _ins -= op.length();
-                break;
-
-            }
-
-            default: {
-
-                throw std::runtime_error("Error generating test case.");
-
-            }
-
-        }
-
-    }
-
-    std::string str(const std::string& ref_name) const {
-
-        int flag = 0;
-        std::string rnext = "*";
-        int pnext = 0;
-        int tlen = 0;
-        std::string read_name = "read";
-
-        // The read is aligneed 1/10 of the time
-
-        std::string _ref_name = ref_name;
-        if (!_aligned) { _ref_name = "*"; }
-
-        std::stringstream ss;
-        ss << read_name << "\t" << flag << "\t" << _ref_name << "\t" << (pos + 1) << "\t" << mapq << "\t" << cigar.str() << "\t" << rnext << "\t" << pnext << "\t" << tlen << "\t" << HTS::str(query) << "\t" << phred.str();
-
-        return ss.str();
-
-    }
-
-};
-
-
-template <typename dtype>
-std::vector<Record<dtype>> _random_records(
-    const seq_t& reference,
-    const Params& params,
-    view_t<dtype, 4>& arr,
-    hts_pos_t count,
-    std::mt19937& gen
-) {
-
-    std::vector<Record<dtype>> records;
-
-    for (hts_pos_t ix = 0; ix < count; ix++) {
-        Record<dtype> record(reference, params, arr, gen);
-        records.push_back(record);
-    }
-
-    return records;
-
-}
-
-
-static inline std::string __sam_header_sorted() {
-
-    return "@HD\tVN:1.6\tSO:unsorted";
-
-}
-
-static inline std::string __sam_header_ref(size_t n, size_t length) {
-
+const seq_t& AlignmentGenerator::query() const { return _query; }
+const HTS::CIGAR& AlignmentGenerator::cigar() const { return _cigar; }
+const HTS::PHRED& AlignmentGenerator::phred() const { return _phred; }
+int32_t AlignmentGenerator::position() const { return _start_pos; }
+qual_t AlignmentGenerator::mapq() const { return _mapq; }
+bool AlignmentGenerator::is_aligned() const { return _is_aligned; }
+
+//
+// SamRecord implementation
+//
+
+SamRecord::SamRecord(
+    const std::string& ref_name,
+    const AlignmentGenerator& alignment
+) : _read_name("read"),
+    _flag(0),
+    _ref_name(alignment.is_aligned() ? ref_name : "*"),
+    _pos(alignment.position() + 1),  // SAM uses 1-based positions
+    _mapq(alignment.mapq()),
+    _cigar(alignment.cigar().str()),
+    _rnext("*"),
+    _pnext(0),
+    _tlen(0),
+    _seq(HTS::str(alignment.query())),
+    _qual(alignment.phred().str())
+{}
+
+std::string SamRecord::str() const {
     std::stringstream ss;
-    ss << "@SQ\tSN:ref" << n << "\tLN:" << length;
-
+    ss << _read_name << "\t"
+       << _flag << "\t"
+       << _ref_name << "\t"
+       << _pos << "\t"
+       << static_cast<int>(_mapq) << "\t"
+       << _cigar << "\t"
+       << _rnext << "\t"
+       << _pnext << "\t"
+       << _tlen << "\t"
+       << _seq << "\t"
+       << _qual;
     return ss.str();
-
 }
 
-static inline void _write_header(size_t references, size_t length, std::ostream& file) {
+//
+// SAM header generation
+//
 
-    file << __sam_header_sorted() << "\n";
-    for (size_t ix = 0; ix < references; ix++) {
-        file << __sam_header_ref(ix, length) << "\n";
+std::string sam_header_line() {
+    return "@HD\tVN:1.6\tSO:unsorted";
+}
+
+std::string sam_reference_line(size_t index, size_t length) {
+    std::stringstream ss;
+    ss << "@SQ\tSN:ref" << index << "\tLN:" << length;
+    return ss.str();
+}
+
+void write_sam_header(size_t num_references, size_t ref_length, std::ostream& out) {
+    out << sam_header_line() << "\n";
+    for (size_t ix = 0; ix < num_references; ix++) {
+        out << sam_reference_line(ix, ref_length) << "\n";
     }
-
 }
 
+//
+// Main test generation
+//
 
-void __run_tests(
+void generate_test_data(
     const MPI::Manager& mpi,
-    size_t references,
-    size_t queries,
-    size_t length,
-    Params params,
-    std::string out_sam,
-    std::string out_fasta,
-    std::string out_h5
+    size_t num_references,
+    size_t reads_per_reference,
+    size_t reference_length,
+    const Params& params,
+    const std::string& sam_path,
+    const std::string& fasta_path,
+    const std::string& hdf5_path
 ) {
+    Random rng;
 
-    std::mt19937 gen = _init_gen();
-    size_t _chunksize = 128;
-    size_t chunksize = std::min(_chunksize, references);
-    size_t nchunks = (references + chunksize - 1) / chunksize;
+    // Determine chunking for HDF5 output
+    size_t chunk_size = std::min(DEFAULT_CHUNK_SIZE, num_references);
+    size_t num_chunks = (num_references + chunk_size - 1) / chunk_size;
 
-    std::optional<HDF5::File> _hdf5;
+    // Initialize HDF5 output file
+    std::optional<HDF5::File> hdf5_opt;
     try {
-        _hdf5.emplace(out_h5, HDF5::RWC, mpi, chunksize, 3);
+        hdf5_opt.emplace(hdf5_path, HDF5::RWC, mpi, chunk_size, 3);
     } catch (const std::exception& e) {
-        mpi.err() << "Error: " << e.what() << "\n";
+        mpi.err() << "Error creating HDF5 file: " << e.what() << "\n";
+        return;
     }
-    HDF5::File hdf5 = std::move(_hdf5.value());
+    HDF5::File hdf5 = std::move(hdf5_opt.value());
 
-    std::ofstream sam(out_sam);
-    _write_header(references, length, sam);
+    // Initialize SAM output file
+    std::ofstream sam(sam_path);
+    write_sam_header(num_references, reference_length, sam);
 
-    FASTA fasta(out_fasta);
+    // Initialize FASTA output file
+    FASTA fasta(fasta_path);
 
-    std::vector<size_t> dims = {references, static_cast<size_t>(length), 4, 6};
-    HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(out_sam));
-    std::vector<Record<float>> records;
+    // Create HDF5 memspace for expected values
+    std::vector<size_t> dims = {
+        num_references,
+        reference_length,
+        BASES,
+        6  // A, C, G, U, DEL, INS
+    };
+    HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path));
 
-    for (size_t ix = 0; ix < nchunks; ix++) {
-        for (size_t jx = 0; jx < chunksize && ix * chunksize + jx < references; jx++) {
+    // Generate test data for each reference
+    for (size_t chunk_ix = 0; chunk_ix < num_chunks; chunk_ix++) {
+        for (size_t ref_in_chunk = 0; ref_in_chunk < chunk_size; ref_in_chunk++) {
+            size_t ref_ix = chunk_ix * chunk_size + ref_in_chunk;
+            if (ref_ix >= num_references) break;
 
-            seq_t reference = _random_sequence(length, gen);
-            std::string name = "ref" + std::to_string(ix * chunksize + jx);
-            fasta.write(name, HTS::str(reference));
+            // Generate random reference sequence
+            seq_t reference = random_sequence(static_cast<int32_t>(reference_length), rng);
+            std::string ref_name = "ref" + std::to_string(ref_ix);
 
-            view_t<float, 4> arr = memspace.view(jx);
-            std::vector<Record<float>> records = _random_records<float>(reference, params, arr, queries, gen);
+            // Write reference to FASTA
+            fasta.write(ref_name, HTS::str(reference));
 
-            for (const auto& record : records) {
-                sam << record.str(name) << "\n";
+            // Get view into expected output array for this reference
+            view_t<float, 4> expected = memspace.view(ref_in_chunk);
+
+            // Generate alignments for this reference
+            for (size_t read_ix = 0; read_ix < reads_per_reference; read_ix++) {
+                AlignmentGenerator alignment(reference, params, expected, rng);
+                SamRecord record(ref_name, alignment);
+                sam << record.str() << "\n";
             }
-
         }
 
-        memspace.safe_write(ix * chunksize);
+        // Write chunk to HDF5
+        memspace.safe_write(chunk_ix * chunk_size);
         memspace.clear();
-
     }
-
-
 }
+
+} // namespace TestGen
+
+//
+// Program entry point
+//
 
 int main(int argc, char** argv) {
-
-    // Initialize MPI processes
+    // Initialize MPI
     MPI::Manager mpi(argc, argv);
+
     // Initialize HDF5 manager
-    HDF5::Manager _hdf5_manager;
-    // Disable native HTS logging as it does not work well in the
-    // multi-threaded environment
+    HDF5::Manager hdf5_manager;
+
+    // Disable native HTS logging (doesn't work well with multithreading)
     HTS::_disable_logging();
 
     // Parse command line arguments
@@ -534,7 +498,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    Params params = {
+    // Build parameters struct from command line options
+    TestGen::Params params = {
         opt.min_mapq,
         opt.min_phred,
         opt.min_length,
@@ -547,13 +512,22 @@ int main(int argc, char** argv) {
         !opt.no_deletion
     };
 
+    // Generate test data
     try {
-        __run_tests(mpi, opt.references, opt.queries, opt.length, params, opt.out_sam, opt.out_fasta, opt.out_h5);
+        TestGen::generate_test_data(
+            mpi,
+            opt.references,
+            opt.queries,
+            opt.length,
+            params,
+            opt.out_sam,
+            opt.out_fasta,
+            opt.out_h5
+        );
     } catch (const std::exception& err) {
         mpi.err() << "Error: " << err.what() << "\n";
         return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
-
 }
