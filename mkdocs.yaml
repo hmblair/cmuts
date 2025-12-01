@@ -34,12 +34,15 @@ nav:
     - Installation: installation/installation.md
     - Organization-Specific Notes: installation/org-notes.md
   - Usage:
-    - cmuts: usage/cmuts.md
+    - Overview: usage/cmuts.md
+    - Pipeline: usage/pipeline.md
     - cmuts align: usage/cmuts-align.md
     - cmuts core: usage/cmuts-core.md
     - cmuts normalize: usage/cmuts-normalize.md
     - cmuts plot: usage/cmuts-plot.md
     - cmuts visualize: usage/cmuts-visualize.md
+    - cmuts generate: usage/cmuts-generate.md
+    - cmuts test: usage/cmuts-test.md
     - Examples: usage/examples.md
 
 plugins:

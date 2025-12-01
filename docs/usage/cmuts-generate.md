@@ -66,6 +66,8 @@ cmuts core \
 
 **`--references`** : The number of references to generate. (required)
 
+**`--seed`** : Random seed for reproducibility. If not provided, uses time-based seed. (default: -1)
+
 
 ### Output files
 

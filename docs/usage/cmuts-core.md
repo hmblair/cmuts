@@ -104,6 +104,8 @@ will create an HDF5 file `$OUTPUT` with the structure
 
 **`--print-every`** : How often (in seconds) to print statistics. (default: 0.01)
 
+**`-v, --verbose`** : Enable verbose (debug) logging to .cmuts.log file.
+
 
 ### Mode
 

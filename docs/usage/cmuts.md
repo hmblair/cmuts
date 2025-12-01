@@ -17,3 +17,7 @@ The main `cmuts` pipeline comprises the three subprograms
 See [Examples](/cmuts/usage/examples) for detailed usage instructures.
 
 [`cmuts visualize`](/cmuts/usage/cmuts-visualize) may be used for overlaying generated reactivities on tertiary structures.
+
+[`cmuts plot`](/cmuts/usage/cmuts-plot) may be used for plotting reactivity profiles.
+
+[`cmuts test`](/cmuts/usage/cmuts-test) runs the integration test suite to verify installation.
