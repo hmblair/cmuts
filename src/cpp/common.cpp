@@ -532,6 +532,7 @@ DataStream::DataStream(std::span<const uint8_t> data)
 
 uint8_t DataStream::byte() {
 
+    CMUTS_CHECK_BOUNDS(_pos, _data.size(), "DataStream::byte() read past end of data");
     uint8_t value = _data[_pos];
     _pos++;
     _remaining--;
@@ -701,6 +702,7 @@ uint8_t ZlibStream::byte() {
 
     if (_buffer_pos >= _buffer_end) { fill(); }
 
+    CMUTS_DEBUG_CHECK_BOUNDS(_buffer_pos, _buffer.size(), "ZlibStream::byte() buffer overflow");
     uint8_t value = _buffer[_buffer_pos];
 
     _remaining--;

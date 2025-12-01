@@ -1473,6 +1473,11 @@ Alignment CramIterator::next() {
     // The QS field tells us the PHRED scores of the read
 
     std::vector<uint8_t> scores = at(ExtData_t::QS)->array(length);
+    CMUTS_THROW_IF(
+        static_cast<int32_t>(scores.size()) != length,
+        "CRAM quality scores size (" + std::to_string(scores.size()) +
+        ") does not match read length (" + std::to_string(length) + ")"
+    );
     PHRED phred(scores);
 
     // TODO: get this value from the file
