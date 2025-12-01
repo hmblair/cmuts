@@ -7,6 +7,7 @@ private:
 
     std::vector<dtype> _data;
     int32_t _ix = -1;
+    static constexpr size_t MAX_STACK_SIZE = 1 << 24;  // 16M elements max
 
 public:
 
@@ -28,8 +29,13 @@ Stack<dtype>::Stack(int32_t max)
 template <typename dtype>
 void Stack<dtype>::push(dtype value) {
     _ix++;
-    if (_ix >= _data.size()) {
-        _data.resize(2 * _data.size());
+    if (_ix >= static_cast<int32_t>(_data.size())) {
+        size_t new_size = 2 * _data.size();
+        if (new_size > MAX_STACK_SIZE) {
+            CMUTS_THROW("Stack overflow: exceeded maximum size of " +
+                std::to_string(MAX_STACK_SIZE) + " elements");
+        }
+        _data.resize(new_size);
     }
     _data[_ix] = value;
 }
@@ -37,7 +43,7 @@ void Stack<dtype>::push(dtype value) {
 template <typename dtype>
 dtype Stack<dtype>::pop() {
     if (empty()) {
-        throw std::runtime_error("Cannot pop from empty stack.");
+        CMUTS_THROW("Cannot pop from empty stack.");
     }
     _ix--;
     return _data[_ix + 1];
@@ -55,6 +61,9 @@ std::vector<dtype> Stack<dtype>::data() const {
 
 template <typename dtype>
 dtype Stack<dtype>::top() const {
+    if (empty()) {
+        CMUTS_THROW("Cannot access top of empty stack.");
+    }
     return _data[_ix];
 }
 

@@ -71,7 +71,7 @@ namespace HTS {
 
 
 
-struct cramHeader : public Header {
+struct CramHeader : public Header {
 
     int32_t version;
 
@@ -152,7 +152,7 @@ enum class CompressionMethod : uint8_t {
 };
 
 
-enum class cramBlockType : uint8_t {
+enum class CramBlockType : uint8_t {
 
     Header,      // File header
     Compression, // Compression header
@@ -293,7 +293,7 @@ struct CodecMap {
 
 
 //
-// cramBlock
+// CramBlock
 //
 
 
@@ -312,21 +312,21 @@ public:
 };
 
 
-class cramBlock {
+class CramBlock {
 private:
 
     bool _has_crc;
 
 public:
 
-    explicit cramBlock(BGZF* file, bool crc);
-    explicit cramBlock(uint8_t*& _data, bool crc);
-    ~cramBlock() = default;
+    explicit CramBlock(BGZF* file, bool crc);
+    explicit CramBlock(uint8_t*& _data, bool crc);
+    ~CramBlock() = default;
 
     // The block header as per the specification
 
     CompressionMethod method;
-    cramBlockType type;
+    CramBlockType type;
     int32_t content;
     int32_t size;
     int32_t raw;
@@ -359,13 +359,13 @@ public:
 };
 
 
-class cramSlice {
+class CramSlice {
 public:
 
     // Load just the header, or the header and all blocks
 
-    explicit cramSlice(uint8_t*& data, bool crc);
-    cramSlice(uint8_t*& data, CodecMap codecs, bool crc);
+    explicit CramSlice(uint8_t*& data, bool crc);
+    CramSlice(uint8_t*& data, CodecMap codecs, bool crc);
 
     int32_t reference;
     int32_t start;
@@ -420,14 +420,14 @@ public:
 
 
 //
-// cramContainerBase; cramContainer; cramHeaderContainer
+// CramContainerBase; CramContainer; CramHeaderContainer
 //
 
 
 
 
 
-class cramContainerBase {
+class CramContainerBase {
 protected:
 
     BGZF* _file   = nullptr;
@@ -435,8 +435,8 @@ protected:
 
 public:
 
-    cramContainerBase() = default;
-    explicit cramContainerBase(BGZF* file, int32_t version);
+    CramContainerBase() = default;
+    explicit CramContainerBase(BGZF* file, int32_t version);
 
     // The location of the container in the file
     int64_t ptr = 0;
@@ -465,7 +465,7 @@ public:
 };
 
 
-class cramContainer : public cramContainerBase {
+class CramContainer : public CramContainerBase {
 private:
 
     // The compression header; only present if !eof()
@@ -474,8 +474,8 @@ private:
 
 public:
 
-    cramContainer() = default;
-    explicit cramContainer(BGZF* file, int32_t version);
+    CramContainer() = default;
+    explicit CramContainer(BGZF* file, int32_t version);
 
     // The raw data of the container
 
@@ -483,8 +483,8 @@ public:
 
     // The slices in the container
 
-    std::vector<cramSlice> slices;
-    cramSlice slice(int32_t ix);
+    std::vector<CramSlice> slices;
+    CramSlice slice(int32_t ix);
 
     // The number of aligned reads in the container
 
@@ -505,12 +505,12 @@ public:
 };
 
 
-class cramHeaderContainer : public cramContainerBase {
+class CramHeaderContainer : public CramContainerBase {
 private:
 
 public:
 
-    explicit cramHeaderContainer(BGZF* file, int32_t version);
+    explicit CramHeaderContainer(BGZF* file, int32_t version);
 
     void skip();
 
@@ -527,7 +527,7 @@ public:
 
 
 
-class cramIterator : public Iterator {
+class CramIterator : public Iterator {
 private:
 
     // The BGZF file and version
@@ -537,7 +537,7 @@ private:
 
     // Reference to the blocks in the slice
 
-    cramContainer _container;
+    CramContainer _container;
 
     // Load the next slice, which may be in the next container
 
@@ -565,9 +565,9 @@ private:
 
 public:
 
-    explicit cramIterator(BGZF* file, int32_t reads, int32_t version);
-    cramIterator(cramIterator&&) = delete;
-    cramIterator& operator=(cramIterator&&) = delete;
+    explicit CramIterator(BGZF* file, int32_t reads, int32_t version);
+    CramIterator(CramIterator&&) = delete;
+    CramIterator& operator=(CramIterator&&) = delete;
 
     std::shared_ptr<Codec> at(ExtData_t type);
     std::vector<base_t> sub(base_t code);
@@ -583,23 +583,23 @@ public:
 
 
 //
-// cramFile
+// CramFile
 //
 
 
 
 
 
-class cramFile : public File {
+class CramFile : public File {
 private:
 
     int32_t _version = 0;
-    std::shared_ptr<cramIterator> _iterator;
+    std::shared_ptr<CramIterator> _iterator;
 
 public:
 
-    explicit cramFile(const std::string& name);
-    ~cramFile() override = default;
+    explicit CramFile(const std::string& name);
+    ~CramFile() override = default;
 
     std::shared_ptr<Iterator> get(int32_t ix, bool seek) override;
 
@@ -617,8 +617,8 @@ public:
 
 
 
-std::ostream& operator<<(std::ostream& os, const cramBlock& block);
-std::ostream& operator<<(std::ostream& os, const cramContainer& container);
+std::ostream& operator<<(std::ostream& os, const CramBlock& block);
+std::ostream& operator<<(std::ostream& os, const CramContainer& container);
 
 
 

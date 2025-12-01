@@ -485,11 +485,11 @@ static inline PHRED _bam_phred(bam1_t* _hts_aln) {
 }
 
 
-bamIterator::bamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads)
+BamIterator::BamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads)
     : Iterator(reads), _hts_bgzf(_hts_bgzf), _hts_aln(_hts_aln) {}
 
 
-bamIterator::bamIterator(bamIterator&& other) noexcept
+BamIterator::BamIterator(BamIterator&& other) noexcept
     : Iterator(other._reads),
       _hts_bgzf(other._hts_bgzf),
       _hts_aln(other._hts_aln) {
@@ -500,7 +500,7 @@ bamIterator::bamIterator(bamIterator&& other) noexcept
 }
 
 
-bamIterator& bamIterator::operator=(bamIterator&& other) noexcept {
+BamIterator& BamIterator::operator=(BamIterator&& other) noexcept {
 
     if (this != &other) {
         _hts_bgzf = other._hts_bgzf;
@@ -516,7 +516,7 @@ bamIterator& bamIterator::operator=(bamIterator&& other) noexcept {
 }
 
 
-Alignment bamIterator::next() {
+Alignment BamIterator::next() {
 
     _read_bam(_hts_bgzf, _hts_aln);
     _curr++;
@@ -541,7 +541,7 @@ Alignment bamIterator::next() {
 
 
 //
-// bamFile
+// BamFile
 //
 
 
@@ -556,7 +556,7 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
     }
 
     auto length = _read_bgzf_single<int32_t>(_bgzf_file);
-    std::unique_ptr<ByteStream> stream = std::make_unique<bgzfFileStream>(_bgzf_file, length);
+    std::unique_ptr<ByteStream> stream = std::make_unique<BgzfFileStream>(_bgzf_file, length);
 
     // Skip the initial, uncompressed SAM header
 
@@ -655,7 +655,7 @@ static inline void _build_bam_index(
 }
 
 
-bamFile::bamFile(const std::string& name)
+BamFile::BamFile(const std::string& name)
     : File(name, FileType::BAM), _hts_aln(_open_aln()) {
 
     Header header = _read_bam_header(_hts_bgzf);
@@ -677,18 +677,18 @@ bamFile::bamFile(const std::string& name)
 }
 
 
-bamFile::~bamFile() {
+BamFile::~BamFile() {
 
     _close_aln(_hts_aln);
 
 }
 
 
-std::shared_ptr<Iterator> bamFile::get(int32_t ix, bool seek) {
+std::shared_ptr<Iterator> BamFile::get(int32_t ix, bool seek) {
 
     IndexBlock block = _index.read(ix);
     if (seek) { _seek_bgzf(_hts_bgzf, block.ptr); }
-    return std::make_shared<bamIterator>(_hts_bgzf, _hts_aln, block.reads);
+    return std::make_shared<BamIterator>(_hts_bgzf, _hts_aln, block.reads);
 
 }
 
@@ -706,14 +706,14 @@ std::shared_ptr<Iterator> bamFile::get(int32_t ix, bool seek) {
 
 std::unique_ptr<File> _get_sam(const std::string& name) {
 
-    return std::make_unique<bamFile>(name);
+    return std::make_unique<BamFile>(name);
 
 }
 
 
 std::unique_ptr<File> _get_bam(const std::string& name) {
 
-    return std::make_unique<bamFile>(name);
+    return std::make_unique<BamFile>(name);
 
 }
 

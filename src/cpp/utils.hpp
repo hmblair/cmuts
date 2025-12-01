@@ -22,6 +22,19 @@ struct GroupTag {};
 void __log(const std::string& filename, const std::string& message);
 void __init_log(const std::string& filename);
 [[noreturn]] void __throw_and_log(const std::string& filename, const std::string& err);
+[[noreturn]] void __throw_and_log(
+    const std::string& filename,
+    const char* file,
+    int line,
+    const std::string& err
+);
+
+// Convenience macro for throwing errors with location information
+#define CMUTS_THROW(msg) __throw_and_log(_LOG_FILE, __FILE__, __LINE__, msg)
+
+// Convenience macro for conditional throws
+#define CMUTS_THROW_IF(cond, msg) \
+    do { if (cond) { CMUTS_THROW(msg); } } while (0)
 
 template <typename T>
 class Arg {

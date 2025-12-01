@@ -74,6 +74,26 @@ void __init_log(const std::string& filename) {
 
 }
 
+[[noreturn]] void __throw_and_log(
+    const std::string& filename,
+    const char* source_file,
+    int line,
+    const std::string& err
+) {
+    std::ofstream file(filename, std::ios::app);
+
+    if (!file) {
+        std::cerr << "Error opening the log file \"" << filename << "\".\n";
+    } else {
+        file << "ERROR [" << source_file << ":" << line << "]: " << err << std::endl;
+        __log_trace(file);
+    }
+
+    // Include location in the exception message for easier debugging
+    std::string full_msg = err + " [" + source_file + ":" + std::to_string(line) + "]";
+    throw std::runtime_error(full_msg);
+}
+
 template <typename T>
 static inline void _add_arg(
     Parser& parser,

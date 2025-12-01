@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmuts"
+dynamic = ["version"]
+description = "Chemical mutation profiling for RNA structure analysis"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Hamish M. Blair", email = "hmblair@stanford.edu"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+keywords = ["RNA", "DNA", "mutation", "probing", "MaP-seq", "bioinformatics"]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "h5py",
+    "dask",
+    "biopython",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocs-glightbox",
+    "mkdocstrings[python]>=0.24.0",
+    "pymdown-extensions",
+]
+
+[project.urls]
+Homepage = "https://github.com/hmblair/cmuts"
+Documentation = "https://hmblair.github.io/cmuts"
+Repository = "https://github.com/hmblair/cmuts"
+
+[project.scripts]
+cmuts-normalize = "cmuts.normalize.__main__:main"
+cmuts-plot = "cmuts.visualize.plotting:main"
+cmuts-visualize = "cmuts.visualize.vis:main"
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["src/python"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+files = ["src/python/cmuts"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+src = ["src/python"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cmuts"]

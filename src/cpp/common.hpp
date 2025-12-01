@@ -245,7 +245,7 @@ public:
 
 
 
-class dataStream : public ByteStream {
+class DataStream : public ByteStream {
 private:
 
     std::span<const uint8_t> _data;
@@ -253,7 +253,7 @@ private:
 
 public:
 
-    explicit dataStream(std::span<const uint8_t> data);
+    explicit DataStream(std::span<const uint8_t> data);
 
     uint8_t byte() override;
     std::vector<uint8_t> bytes(int32_t length) override;
@@ -264,20 +264,20 @@ public:
 };
 
 
-class ransStream : public dataStream {
+class RansStream : public DataStream {
 private:
 
     std::vector<uint8_t> _rans_data;
-    explicit ransStream(std::vector<uint8_t> data);
+    explicit RansStream(std::vector<uint8_t> data);
 
 public:
 
-    explicit ransStream(std::span<const uint8_t> data, int32_t raw);
+    explicit RansStream(std::span<const uint8_t> data, int32_t raw);
 
 };
 
 
-class zlibStream : public ByteStream {
+class ZlibStream : public ByteStream {
 protected:
 
     z_stream _stream;
@@ -289,8 +289,8 @@ protected:
 
 public:
 
-    zlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer);
-    ~zlibStream() override;
+    ZlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer);
+    ~ZlibStream() override;
 
     virtual void fill();
 
@@ -316,14 +316,14 @@ public:
 
 
 
-class bgzfFileStream : public ByteStream {
+class BgzfFileStream : public ByteStream {
 private:
 
     BGZF* _file;
 
 public:
 
-    bgzfFileStream(BGZF* file, int32_t size);
+    BgzfFileStream(BGZF* file, int32_t size);
 
     void skip(int32_t length) override;
     uint8_t byte() override;
@@ -334,10 +334,10 @@ public:
 };
 
 
-class zlibFileStream : public zlibStream {
+class ZlibFileStream : public ZlibStream {
 private:
 
-    bgzfFileStream _bgzf;
+    BgzfFileStream _bgzf;
     std::vector<uint8_t> _bgzf_buffer;
     std::span<const uint8_t> _buffer_span;
 
@@ -346,8 +346,8 @@ private:
 
 public:
 
-    zlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer);
-    zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer);
+    ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer);
+    ZlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer);
 
     void fill() override;
 
