@@ -7,10 +7,14 @@ command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's
 command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
 __time() {
-    if [[ $(uname) == Darwin ]]; then
+    # Use GNU time (gtime on macOS via homebrew, time on Linux)
+    if command -v gtime &>/dev/null; then
         gtime --format "%e %M" "$@" 2>&1 > /dev/null
+    elif command -v time &>/dev/null; then
+        command time --format "%e %M" "$@" 2>&1 > /dev/null
     else
-        /usr/bin/time --format "%e %M" "$@" 2>&1 > /dev/null
+        echo "Error: GNU time not found. Install with 'brew install gnu-time' (macOS) or ensure 'time' is installed (Linux)." >&2
+        exit 1
     fi
 }
 
