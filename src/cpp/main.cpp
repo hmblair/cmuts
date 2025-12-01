@@ -111,6 +111,7 @@ int main(int argc, char** argv) {
 
     _print_title(mpi);
     __init_log(_LOG_FILE);
+    set_log_level_from_verbose(opt.verbose);
 
     // Delete the exiting output file if specified
 

@@ -1477,7 +1477,17 @@ Alignment CramIterator::next() {
 
     // TODO: get this value from the file
     bool primary = true;
-    return {aligned, primary, reversed, mapq, length, _offset, reference, _cigar, phred};
+    return Alignment::create(
+        aligned,
+        primary,
+        reversed,
+        mapq,
+        length,
+        _offset,
+        reference,
+        std::move(_cigar),
+        std::move(phred)
+    );
 
 }
 

@@ -60,6 +60,13 @@
           "long": "--print-every",
           "help": "How often (in seconds) to print statistics.",
           "default": 0.01
+        },
+        {
+          "name": "verbose",
+          "type": "bool",
+          "short": "-v",
+          "long": "--verbose",
+          "help": "Enable verbose (debug) logging to .cmuts.log file."
         }
       ]
     },

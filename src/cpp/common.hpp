@@ -640,6 +640,35 @@ public:
     CIGAR cigar;
     PHRED phred;
 
+    /// Default constructor for empty/unaligned alignments
+    Alignment() = default;
+
+    /// Named factory method - makes field order explicit and prevents
+    /// aggregate initialization bugs (field order is self-documenting)
+    static Alignment create(
+        bool aligned,
+        bool primary,
+        bool reversed,
+        qual_t mapq,
+        int32_t length,
+        int32_t offset,
+        int32_t reference,
+        CIGAR cigar,
+        PHRED phred
+    ) {
+        Alignment aln;
+        aln.aligned   = aligned;
+        aln.primary   = primary;
+        aln.reversed  = reversed;
+        aln.mapq      = mapq;
+        aln.length    = length;
+        aln.offset    = offset;
+        aln.reference = reference;
+        aln.cigar     = std::move(cigar);
+        aln.phred     = std::move(phred);
+        return aln;
+    }
+
 };
 
 

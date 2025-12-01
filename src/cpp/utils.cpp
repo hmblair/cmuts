@@ -94,6 +94,44 @@ void __init_log(const std::string& filename) {
     throw std::runtime_error(full_msg);
 }
 
+//
+// Structured logging
+//
+
+LogLevel g_log_level = LogLevel::INFO;
+
+static const char* _level_names[] = {"DEBUG", "INFO", "WARN", "ERROR"};
+
+void __log_level(
+    const std::string& log_file,
+    LogLevel level,
+    const char* file,
+    int line,
+    const std::string& msg
+) {
+    std::ofstream log(log_file, std::ios::app);
+    if (log) {
+        log << "[" << _level_names[static_cast<int>(level)] << "] "
+            << file << ":" << line << " - " << msg;
+
+        #ifdef MPI_BUILD
+            int rank = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            log << " (process " << rank << ")";
+        #endif
+
+        log << "\n";
+    }
+}
+
+void set_log_level(LogLevel level) {
+    g_log_level = level;
+}
+
+void set_log_level_from_verbose(bool verbose) {
+    g_log_level = verbose ? LogLevel::DEBUG : LogLevel::INFO;
+}
+
 template <typename T>
 static inline void _add_arg(
     Parser& parser,
