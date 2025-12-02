@@ -142,7 +142,7 @@ def _remove_if_exists(
             os.remove(path)
 
 
-if __name__ == '__main__':
+def main():
 
     args = parser.parse_args()
 
@@ -182,3 +182,7 @@ if __name__ == '__main__':
     # Plot figures
 
     cmuts.plotting.generate(combined, args.group)
+
+
+if __name__ == '__main__':
+    main()
