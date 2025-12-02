@@ -190,11 +190,11 @@ def _plot_profile(
     _save_and_close(name, figtype)
 
 
-def _plot_profiles(
+def plot_profiles(
     reactivities: list[np.ndarray],
     names: list[str],
 ) -> None:
-
+    """Plot multiple reactivity profiles overlaid."""
     for ix in range(len(names)):
         _line_plot(reactivities[ix], cmap=CMAPS[ix], label=names[ix])
 
@@ -341,11 +341,14 @@ def _plot_mi(
     _save_and_close(name, figtype, dir)
 
 
-def all(
+def plot_all(
     data: ProbingData,
     name: str,
     dir: str = FIGURES,
 ) -> None:
+    """Generate all standard plots for probing data."""
+    if not isinstance(data, ProbingData):
+        raise TypeError(f"Expected ProbingData, got {type(data).__name__}")
 
     os.makedirs(dir, exist_ok=True)
 
@@ -365,3 +368,31 @@ def all(
     if data.covariance is not None:
         for ix in range(data.size()):
             _plot_correlation(data.covariance[ix], name, dir)
+
+
+def main():
+    """CLI entry point for cmuts-plot."""
+    import argparse
+    import h5py
+
+    parser = argparse.ArgumentParser(
+        prog="cmuts-plot",
+        description="Generate plots from reactivity data"
+    )
+    parser.add_argument("file", help="HDF5 file with reactivity data")
+    parser.add_argument("--group", default="", help="Group name in HDF5 file")
+    parser.add_argument("-o", "--out", default=FIGURES, help="Output directory")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.file):
+        raise FileNotFoundError(f"File not found: {args.file}")
+
+    with h5py.File(args.file, 'r') as f:
+        data = ProbingData.load(args.group, f)
+
+    plot_all(data, args.group, args.out)
+    print(f"Plots saved to {args.out}/")
+
+
+if __name__ == "__main__":
+    main()

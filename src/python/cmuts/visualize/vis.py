@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import subprocess
@@ -269,7 +270,7 @@ def _color_atoms_by_value(
     _color_by_defattr(bin, cif, defattr, color)
 
 
-def visualize(
+def visualize_structure(
     reactivity: np.ndarray,
     seq: str,
     cif: str,
@@ -277,6 +278,13 @@ def visualize(
     chain: Union[str, None] = None,
     bin: str = "ChimeraX",
 ) -> None:
+    """Visualize reactivity data on a 3D molecular structure."""
+    if not os.path.exists(cif):
+        raise FileNotFoundError(f"Structure file not found: {cif}")
+    if len(reactivity) != len(seq):
+        raise ValueError(
+            f"Reactivity length ({len(reactivity)}) must match sequence length ({len(seq)})"
+        )
 
     cif_seq = _seq_from_cif(cif, chain)
     aln1, aln2 = _seq_align(seq, cif_seq)
@@ -285,7 +293,7 @@ def visualize(
     _color_by_reactivity(bin, cif, aln_data, chain, color)
 
 
-def visualize_atom(
+def visualize_structure_atoms(
     reactivity: np.ndarray,
     atoms: list[str],
     sizes: np.ndarray,
@@ -295,9 +303,59 @@ def visualize_atom(
     chain: Union[str, None] = None,
     bin: str = "ChimeraX",
 ) -> None:
+    """Visualize reactivity data on specific atoms of a 3D structure."""
+    if not os.path.exists(cif):
+        raise FileNotFoundError(f"Structure file not found: {cif}")
 
     cif_seq = _seq_from_cif(cif)
     aln1, aln2 = _seq_align(seq, cif_seq)
     sizes = _data_aln(sizes, aln1, aln2)
 
     _color_atoms_by_value(bin, cif, reactivity, atoms, sizes, chain, color)
+
+
+def main():
+    """CLI entry point for cmuts-visualize."""
+    import argparse
+    import h5py
+    from cmuts.internal import ProbingData, Datasets
+
+    parser = argparse.ArgumentParser(
+        prog="cmuts-visualize",
+        description="Visualize reactivity on a 3D structure"
+    )
+    parser.add_argument("file", help="HDF5 file with reactivity data")
+    parser.add_argument("cif", help="CIF/PDB structure file")
+    parser.add_argument("--group", default="", help="Group name in HDF5 file")
+    parser.add_argument("--index", type=int, default=0, help="Sequence index to visualize")
+    parser.add_argument("--chain", help="Chain ID (default: A)")
+    parser.add_argument("--color", default="indianred", help="Color for high reactivity")
+    parser.add_argument("--chimerax", default="ChimeraX", help="Path to ChimeraX executable")
+    args = parser.parse_args()
+
+    if not os.path.exists(args.file):
+        raise FileNotFoundError(f"File not found: {args.file}")
+
+    with h5py.File(args.file, 'r') as f:
+        data = ProbingData.load(args.group, f)
+
+    # Get reactivity for specified index
+    if data.reactivity.ndim > 1:
+        reactivity = data.reactivity[args.index]
+    else:
+        reactivity = data.reactivity
+
+    # Get sequence if available
+    if data.sequences is not None and len(data.sequences) > args.index:
+        # Decode sequence tokens (A=0, C=1, G=2, U=3)
+        token_map = {0: 'A', 1: 'C', 2: 'G', 3: 'U'}
+        seq = ''.join(token_map.get(int(t), 'N') for t in data.sequences[args.index])
+    else:
+        # Use placeholder sequence matching reactivity length
+        seq = 'N' * len(reactivity)
+
+    visualize_structure(reactivity, seq, args.cif, args.color, args.chain, args.chimerax)
+
+
+if __name__ == "__main__":
+    main()

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 from scipy.stats import t as student
 from typing import Union
+import os
 
 
 # ANSI escape codes (for printing)
@@ -674,6 +675,51 @@ class ProbingData:
 
         da.to_hdf5(file, data)
 
+    @classmethod
+    def load(
+        cls,
+        group: str,
+        file: h5py.File,
+    ) -> 'ProbingData':
+        """Load ProbingData from an HDF5 file."""
+
+        def get(name: str) -> np.ndarray:
+            key = f"{group}/{name}" if group else name
+            return np.array(file[key]) if key in file else None
+
+        sequences = np.array(file[Datasets.SEQUENCE]) if Datasets.SEQUENCE in file else None
+        reactivity = get(Datasets.REACTIVITY)
+        reads = get(Datasets.READS)
+        error = get(Datasets.ERROR)
+        snr = get(Datasets.SNR)
+        heatmap = get(Datasets.HEATMAP)
+        mi = get(Datasets.MI)
+        covariance = get(Datasets.COV)
+        norm = get(Datasets.NORM)
+
+        # Create minimal ProbingData with required fields
+        # Fields not saved are set to empty arrays or None
+        n = reactivity.shape[0] if reactivity is not None else 0
+        length = reactivity.shape[1] if reactivity is not None and reactivity.ndim > 1 else 0
+
+        data = cls(
+            sequences=sequences,
+            reactivity=reactivity,
+            reads=reads,
+            error=error,
+            snr=snr,
+            mask=np.ones_like(reactivity, dtype=bool) if reactivity is not None else None,
+            heatmap=heatmap,
+            coverage=np.sum(~np.isnan(reactivity), axis=0) if reactivity is not None else None,
+            terminations=np.zeros((n, length)) if reactivity is not None else None,
+            pairs=None,
+            probability=None,
+            covariance=covariance,
+            mi=mi,
+        )
+        data.norm = norm
+        return data
+
 
 def _sequences_from_counts(
     file: h5py.File,
@@ -867,11 +913,27 @@ def _lengths_from_fasta(
     return da.array(lengths)
 
 
-def normalize(
+def compute_reactivity(
     file: h5py.File,
     fasta: str,
     opts: Opts,
 ) -> tuple[ProbingData, Union[ProbingData, None], ProbingData]:
+    """
+    Compute reactivity profiles from mutation count data.
+
+    Args:
+        file: Open HDF5 file containing count data
+        fasta: Path to FASTA file with reference sequences
+        opts: Processing options
+
+    Returns:
+        Tuple of (modified, unmodified, combined) ProbingData objects
+
+    Raises:
+        FileNotFoundError: If FASTA file does not exist
+    """
+    if not os.path.exists(fasta):
+        raise FileNotFoundError(f"FASTA file not found: {fasta}")
 
     # Get reactivity and associated values
 
