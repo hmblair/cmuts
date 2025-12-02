@@ -34,6 +34,30 @@ The following should install all (save for `python` and its packages) on a perso
     brew install openmpi hdf5-mpi
     ```
 
+=== "Linux (Ubuntu/Debian)"
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y cmake autoconf pkg-config
+    sudo apt-get install -y samtools libhts-dev
+    sudo apt-get install -y libhdf5-dev
+    sudo apt-get install -y libomp-dev
+    # For MPI builds only:
+    sudo apt-get install -y libopenmpi-dev openmpi-bin
+    sudo apt-get install -y libhdf5-openmpi-dev
+    ```
+
+=== "Linux (Fedora/RHEL)"
+    ```bash
+    sudo dnf install -y cmake autoconf pkg-config
+    sudo dnf install -y samtools htslib-devel
+    sudo dnf install -y hdf5-devel
+    sudo dnf install -y libomp-devel
+    # For MPI builds only:
+    sudo dnf install -y openmpi-devel hdf5-openmpi-devel
+    # Load MPI module (may be required):
+    module load mpi/openmpi-x86_64
+    ```
+
 !!! tip "Verify Dependencies"
     Run these commands to verify the dependencies are successfully installed:
     ```bash
@@ -74,3 +98,9 @@ export HDF5_DIR=/path/to/hdf5/installation
 ```
 
 If installed via brew, the command `brew info hdf5` may be helpful for finding the desired path.
+
+On Linux, HDF5 is typically installed to `/usr/lib/x86_64-linux-gnu/hdf5` (Debian/Ubuntu) or `/usr/lib64` (Fedora/RHEL). You can find it with:
+
+```bash
+pkg-config --variable=libdir hdf5
+```

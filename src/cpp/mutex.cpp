@@ -3,60 +3,59 @@
 namespace cmuts::mutex {
 
 Mutex::~Mutex() {
-
     if (fd != -1) {
         close(fd);
-        unlink(file.c_str());
     }
-
 }
 
-
-Mutex lock(const std::string& file) {
+Mutex lock(const std::string& name) {
 
     Mutex mutex;
-    mutex.file = file + ".lock";
+    mutex.name = name;
 
-    mutex.fd = open(mutex.file.c_str(), O_CREAT | O_EXCL | O_WRONLY, 0644);
+    mutex.fd = open(name.c_str(), O_RDWR);
     if (mutex.fd == -1) {
-        throw std::runtime_error("Another process is already processing " + file);
+        throw std::runtime_error("Failed to open " + name + " for locking");
     }
 
     if (flock(mutex.fd, LOCK_EX | LOCK_NB) == -1) {
         close(mutex.fd);
-        unlink(mutex.file.c_str());
         mutex.fd = -1;
-        throw std::runtime_error("Failed to acquire lock for " + file);
+        throw std::runtime_error("Another process is already processing " + name);
     }
 
     return mutex;
 
 }
 
+bool check(const std::string& name) {
 
-bool check(const std::string& file) {
-
-    std::string lock = file + ".lock";
-
-    int fd = open(lock.c_str(), O_RDONLY);
+    int fd = open(name.c_str(), O_RDONLY);
     if (fd == -1) return false;
 
     bool locked = (flock(fd, LOCK_EX | LOCK_NB) == -1);
+    if (!locked) {
+        flock(fd, LOCK_UN);
+    }
     close(fd);
 
     return locked;
 
 }
 
+bool wait(const std::string& name) {
 
-bool wait(const std::string& file) {
+    int fd = open(name.c_str(), O_RDONLY);
+    if (fd == -1) return false;
 
-    bool locked = false;
-    while (check(file)) {
-        locked = true;
-        usleep(100000);
+    // Block until we can acquire the lock, then release immediately
+    bool was_locked = (flock(fd, LOCK_EX) == 0);
+    if (was_locked) {
+        flock(fd, LOCK_UN);
     }
-    return locked;
+    close(fd);
+
+    return was_locked;
 
 }
 

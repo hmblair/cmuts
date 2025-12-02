@@ -90,6 +90,14 @@ echo
 echo " -- cmuts built successfully --"
 echo
 
+# Generate documentation from JSON config
+python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
+  ${SCRIPT_DIR}/config/cmuts_args.json \
+  ${SCRIPT_DIR}/docs/usage/cmuts-core.md
+python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
+  ${SCRIPT_DIR}/config/tests_args.json \
+  ${SCRIPT_DIR}/docs/usage/cmuts-generate.md
+
 pip3 install .
 
 echo

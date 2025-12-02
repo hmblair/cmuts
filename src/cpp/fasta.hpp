@@ -39,7 +39,7 @@ const size_t FASTA_DATASET_SIZE = 2;
 struct Offset {
 
     int32_t length = 0;
-    int32_t offset = 0;
+    int64_t offset = 0;
 
 };
 
@@ -61,7 +61,7 @@ class Header{
 private:
 
     std::vector<HeaderBlock> _blocks;
-    int32_t _offset = 0;
+    int64_t _offset = 0;
 
 public:
 

@@ -102,9 +102,11 @@ private:
 
 public:
 
+    bool skip = false;
+
     // view_t<dtype, _ndims(mode)> arr;
 
-    DataView<dtype, mode>(HDF5::Memspace<dtype, _ndims(mode)> memspace);
+    DataView(HDF5::Memspace<dtype, _ndims(mode)> memspace);
     view_t<dtype, _ndims(mode)> view();
     void update(int32_t offset);
     void write(int32_t offset);
@@ -117,7 +119,7 @@ template <typename dtype>
 class Data {
 public:
 
-    Data<dtype>(
+    Data(
         BinaryFASTA& fasta,
         HDF5::File& hdf5,
         const std::string& name,
@@ -238,13 +240,13 @@ public:
     bool deletions;
     bool forward;
     bool reverse;
+    bool secondary;
     int32_t downsample;
     bool no_filter_matches;
     bool no_filter_insertions;
     bool no_filter_deletions;
     std::vector<bool> bases;
     bool ambiguous;
-    int32_t gap;
 
 };
 

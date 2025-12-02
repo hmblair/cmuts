@@ -51,7 +51,7 @@ void __init_log(const std::string& filename) {
         if (rank == 0) {
     #endif
 
-    file << "--------------- " << std::ctime(&now);
+    file << "--------------- " << ("cmuts v" + std::string(VERSION) + " - ") << std::ctime(&now);
 
     #ifdef MPI_BUILD
         }
@@ -72,6 +72,64 @@ void __init_log(const std::string& filename) {
 
     throw std::runtime_error(err);
 
+}
+
+[[noreturn]] void __throw_and_log(
+    const std::string& filename,
+    const char* source_file,
+    int line,
+    const std::string& err
+) {
+    std::ofstream file(filename, std::ios::app);
+
+    if (!file) {
+        std::cerr << "Error opening the log file \"" << filename << "\".\n";
+    } else {
+        file << "ERROR [" << source_file << ":" << line << "]: " << err << std::endl;
+        __log_trace(file);
+    }
+
+    // Include location in the exception message for easier debugging
+    std::string full_msg = err + " [" + source_file + ":" + std::to_string(line) + "]";
+    throw std::runtime_error(full_msg);
+}
+
+//
+// Structured logging
+//
+
+LogLevel g_log_level = LogLevel::INFO;
+
+static const char* _level_names[] = {"DEBUG", "INFO", "WARN", "ERROR"};
+
+void __log_level(
+    const std::string& log_file,
+    LogLevel level,
+    const char* file,
+    int line,
+    const std::string& msg
+) {
+    std::ofstream log(log_file, std::ios::app);
+    if (log) {
+        log << "[" << _level_names[static_cast<int>(level)] << "] "
+            << file << ":" << line << " - " << msg;
+
+        #ifdef MPI_BUILD
+            int rank = 0;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            log << " (process " << rank << ")";
+        #endif
+
+        log << "\n";
+    }
+}
+
+void set_log_level(LogLevel level) {
+    g_log_level = level;
+}
+
+void set_log_level_from_verbose(bool verbose) {
+    g_log_level = verbose ? LogLevel::DEBUG : LogLevel::INFO;
 }
 
 template <typename T>
@@ -231,6 +289,19 @@ Arg<T>::Arg (
     const std::string& long_name,
     const std::string& help
 ) : _parser(parser), _name(long_name) {
+    _add_arg<T>(parser, short_name, long_name, help);
+}
+
+template <typename T>
+Arg<T>::Arg (
+    Parser& parser,
+    const std::string& short_name,
+    const std::string& long_name,
+    const std::string& help,
+    GroupTag,
+    const std::string& group
+) : _parser(parser), _name(long_name) {
+    if (!group.empty()) { parser.add_group(group); }
     _add_arg<T>(parser, short_name, long_name, help);
 }
 

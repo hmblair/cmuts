@@ -7,136 +7,262 @@
 #include "utils.hpp"
 #include "hdf5.hpp"
 #include "mpi.hpp"
+#include "generated/tests_args.hpp"
 
-class Params {
-public:
+#include <random>
+#include <chrono>
 
-    int64_t min_mapq;
-    int64_t min_phred;
-    int64_t min_length;
-    int64_t max_length;
-    int64_t max_indel_length;
-    int64_t quality_window;
-    int64_t collapse;
-    bool mismatches;
-    bool insertions;
-    bool deletions;
+namespace TestGen {
 
+//
+// Constants
+//
+
+/// Probability that a read is unaligned (for testing unaligned read handling)
+constexpr float UNALIGNED_PROBABILITY = 0.1f;
+
+/// Default HDF5 chunk size for writing test data
+constexpr size_t DEFAULT_CHUNK_SIZE = 128;
+
+//
+// Parameters for test generation
+//
+
+/// Parameters controlling test data generation.
+/// These mirror the filtering parameters used by cmuts-core.
+struct Params {
+    int64_t min_mapq;           ///< Minimum mapping quality threshold
+    int64_t min_phred;          ///< Minimum PHRED quality score
+    int64_t min_length;         ///< Minimum read length
+    int64_t max_length;         ///< Maximum read length
+    int64_t max_indel_length;   ///< Maximum indel length to count
+    int64_t quality_window;     ///< Window size for quality averaging
+    int64_t collapse;           ///< Minimum distance between modifications
+    bool mismatches;            ///< Whether to count mismatches
+    bool insertions;            ///< Whether to count insertions
+    bool deletions;             ///< Whether to count deletions
 };
 
-const std::string PROGRAM = "cmuts generate";
+//
+// Random number generation utilities
+//
+
+/// Encapsulates random number generation for test data.
+/// Provides typed random value generation with clear semantics.
+class Random {
+private:
+    std::mt19937 _gen;
+
+public:
+    /// Initialize with time-based seed
+    Random();
+
+    /// Initialize with specific seed for reproducibility
+    explicit Random(unsigned seed);
+
+    /// Generate random integer in [low, high] inclusive
+    int integer(int low, int high);
+
+    /// Generate random integer in [low, high] excluding a specific value
+    int integer_excluding(int low, int high, int exclude);
+
+    /// Generate random float in [0, 1)
+    float uniform();
+
+    /// Generate random boolean with given probability of true
+    bool bernoulli(float probability);
+
+    /// Generate random base index (0-3 for A, C, G, T/U)
+    base_t base();
+
+    /// Generate random base excluding a specific base
+    base_t base_excluding(base_t exclude);
+
+    /// Generate random MAPQ value in valid range
+    qual_t mapq();
+
+    /// Generate random PHRED quality score
+    qual_t phred();
+
+    /// Sample random element from vector
+    template <typename T>
+    T sample(const std::vector<T>& values);
+
+    /// Get reference to underlying generator (for compatibility)
+    std::mt19937& generator();
+};
+
+//
+// Sequence generation
+//
+
+/// Generate a random nucleotide sequence of given length
+seq_t random_sequence(int32_t length, Random& rng);
+
+/// Generate random PHRED quality scores for a read
+HTS::PHRED random_qualities(int32_t length, Random& rng);
+
+//
+// Alignment generation
+//
+
+/// Generates a random alignment and tracks expected output values.
+///
+/// Alignments are built from 3' to 5' (backwards) to match how cmuts
+/// processes alignments internally. The CIGAR string and query sequence
+/// are reversed before output.
+class AlignmentGenerator {
+private:
+    // Generation state
+    int32_t _match_remaining;    ///< Remaining match/mismatch bases to generate
+    int32_t _ins_remaining;      ///< Remaining insertion bases to generate
+    int32_t _del_remaining;      ///< Remaining deletion bases to generate
+    int32_t _rpos;               ///< Current reference position (decreasing)
+    int32_t _qpos;               ///< Current query position (decreasing)
+    int32_t _last_mod_pos;       ///< Position of last modification (for collapse)
+
+    // Configuration
+    Random& _rng;
+    const Params& _params;
+    const seq_t& _reference;
+
+    // Alignment properties
+    bool _is_aligned;
+    bool _passes_mapq;
+    int32_t _start_pos;
+    qual_t _mapq;
+
+    // Output tracking
+    view_t<float, 4>& _expected;
+    seq_t _query;
+    HTS::CIGAR _cigar;
+    HTS::PHRED _phred;
+
+    /// Calculate mask value for current position based on quality filters
+    float mask_value(int32_t qpos) const;
+
+    /// Extend alignment with a random CIGAR operation
+    void extend_alignment();
+
+    /// Add a match operation
+    void add_match();
+
+    /// Add a mismatch operation
+    void add_mismatch(bool count_modification);
+
+    /// Add an insertion operation
+    void add_insertion(bool count_modification);
+
+    /// Add a deletion operation
+    void add_deletion(bool count_modification);
+
+    /// Select next CIGAR operation type based on remaining counts
+    HTS::CIGAR_op select_next_operation();
+
+public:
+    /// Generate a random alignment against the reference sequence.
+    /// Updates the expected output array with counted modifications.
+    AlignmentGenerator(
+        const seq_t& reference,
+        const Params& params,
+        view_t<float, 4>& expected_output,
+        Random& rng
+    );
+
+    /// Get the generated query sequence
+    const seq_t& query() const;
+
+    /// Get the generated CIGAR string
+    const HTS::CIGAR& cigar() const;
+
+    /// Get the generated PHRED scores
+    const HTS::PHRED& phred() const;
+
+    /// Get the alignment start position (0-based)
+    int32_t position() const;
+
+    /// Get the mapping quality
+    qual_t mapq() const;
+
+    /// Check if the read is aligned
+    bool is_aligned() const;
+};
+
+//
+// SAM output formatting
+//
+
+/// Formats alignment data as a SAM record string.
+class SamRecord {
+private:
+    std::string _read_name;
+    int _flag;
+    std::string _ref_name;
+    int32_t _pos;           ///< 1-based position for SAM
+    qual_t _mapq;
+    std::string _cigar;
+    std::string _rnext;
+    int _pnext;
+    int _tlen;
+    std::string _seq;
+    std::string _qual;
+
+public:
+    /// Construct SAM record from alignment data
+    SamRecord(
+        const std::string& ref_name,
+        const AlignmentGenerator& alignment
+    );
+
+    /// Format as SAM record string
+    std::string str() const;
+};
+
+//
+// SAM file header generation
+//
+
+/// Generate SAM header line
+std::string sam_header_line();
+
+/// Generate SAM reference sequence line
+std::string sam_reference_line(size_t index, size_t length);
+
+/// Write complete SAM header to stream
+void write_sam_header(size_t num_references, size_t ref_length, std::ostream& out);
+
+//
+// Main test generation
+//
+
+/// Generate test data files (SAM, FASTA, HDF5 with expected values)
+/// @param seed Random seed for reproducibility. Use -1 for time-based seed.
+void generate_test_data(
+    const MPI::Manager& mpi,
+    size_t num_references,
+    size_t reads_per_reference,
+    size_t reference_length,
+    const Params& params,
+    const std::string& sam_path,
+    const std::string& fasta_path,
+    const std::string& hdf5_path,
+    int seed = -1
+);
+
+} // namespace TestGen
+
+//
+// Program entry point
+//
 
 class testsProgram : public Program {
 public:
+    TESTSPROGRAM_ARG_MEMBERS
 
-    Arg<int> length;
-    Arg<int> queries;
-    Arg<int> references;
-    Arg<std::string> out_fasta;
-    Arg<std::string> out_sam;
-    Arg<std::string> out_h5;
-    Arg<int> min_mapq;
-    Arg<int> min_phred;
-    Arg<int> min_length;
-    Arg<int> max_length;
-    Arg<int> max_indel_length;
-    Arg<int> collapse;
-    Arg<int> quality_window;
-    Arg<bool> no_mismatch;
-    Arg<bool> no_insertion;
-    Arg<bool> no_deletion;
-
-    testsProgram();
-
+    testsProgram()
+        : Program(TESTSPROGRAM_PROGRAM_NAME, TESTSPROGRAM_PROGRAM_VERSION),
+          TESTSPROGRAM_ARG_INIT
+    {}
 };
-
-const std::string LENGTH_SHORT_NAME = "";
-const std::string LENGTH_LONG_NAME = "--length";
-const std::string LENGTH_HELP = "The length of the reference sequences.";
-
-const std::string MIN_LENGTH_SHORT_NAME = "";
-const std::string MIN_LENGTH_LONG_NAME = "--min-length";
-const std::string MIN_LENGTH_HELP = "The smallest query sequences to consider when counting modifications.";
-const int MIN_LENGTH_DEFAULT = 2;
-
-const std::string MAX_LENGTH_SHORT_NAME = "";
-const std::string MAX_LENGTH_LONG_NAME = "--max-length";
-const std::string MAX_LENGTH_HELP = "The longest query sequences to consider when counting modifications.";
-
-const std::string QUERIES_SHORT_NAME = "";
-const std::string QUERIES_LONG_NAME = "--queries";
-const std::string QUERIES_HELP = "The number of queries to generate per reference.";
-
-const std::string REFERENCES_SHORT_NAME = "";
-const std::string REFERENCES_LONG_NAME = "--references";
-const std::string REFERENCES_HELP = "The number of references to generate.";
-
-const std::string OUT_FASTA_SHORT_NAME = "";
-const std::string OUT_FASTA_LONG_NAME = "--out-fasta";
-const std::string OUT_FASTA_HELP = "The file to store the references in.";
-
-const std::string OUT_SAM_SHORT_NAME = "";
-const std::string OUT_SAM_LONG_NAME = "--out-sam";
-const std::string OUT_SAM_HELP = "The file to store the queries in.";
-
-const std::string OUT_H5_SHORT_NAME = "";
-const std::string OUT_H5_LONG_NAME = "--out-h5";
-const std::string OUT_H5_HELP = "The file to store the expected modifications in.";
-
-const std::string MIN_MAPQ_SHORT_NAME = "";
-const std::string MIN_MAPQ_LONG_NAME = "--min-mapq";
-const std::string MIN_MAPQ_HELP = "The minimum quality to consider a read.";
-
-const std::string MIN_PHRED_SHORT_NAME = "";
-const std::string MIN_PHRED_LONG_NAME = "--min-phred";
-const std::string MIN_PHRED_HELP = "The minimum quality to consider a base.";
-
-
-const std::string MAX_INDEL_SHORT_NAME = "";
-const std::string MAX_INDEL_LONG_NAME = "--max-indel-length";
-const std::string MAX_INDEL_HELP = "Skip indels longer than this.";
-
-const std::string WINDOW_SHORT_NAME = "";
-const std::string WINDOW_LONG_NAME = "--quality-window";
-const std::string WINDOW_HELP = "The number of neighbouring bases to consider when calculating PHRED scores.";
-
-const std::string COLLAPSE_SHORT_NAME = "";
-const std::string COLLAPSE_LONG_NAME = "--collapse";
-const std::string COLLAPSE_HELP = "The minimum number of bases between modifications to consider them consecutive.";
-const int COLLAPSE_DEFAULT = 2;
-
-const std::string NO_DEL_SHORT_NAME = "";
-const std::string NO_DEL_LONG_NAME = "--no-deletions";
-const std::string NO_DEL_HELP = "Do not count deletions as modifications.";
-
-const std::string NO_INS_SHORT_NAME = "";
-const std::string NO_INS_LONG_NAME = "--no-insertions";
-const std::string NO_INS_HELP = "Do not count insertions as modifications.";
-
-const std::string NO_MIS_SHORT_NAME = "";
-const std::string NO_MIS_LONG_NAME = "--no-mismatches";
-const std::string NO_MIS_HELP = "Do not count mismatches as modifications.";
-
-
-
-
-testsProgram::testsProgram()
-    : Program(PROGRAM, VERSION),
-      length(_parser, LENGTH_SHORT_NAME, LENGTH_LONG_NAME, LENGTH_HELP),
-      queries(_parser, QUERIES_SHORT_NAME, QUERIES_LONG_NAME, QUERIES_HELP),
-      references(_parser, REFERENCES_SHORT_NAME, REFERENCES_LONG_NAME, REFERENCES_HELP),
-      out_fasta(_parser, OUT_FASTA_SHORT_NAME, OUT_FASTA_LONG_NAME, OUT_FASTA_HELP),
-      out_sam(_parser, OUT_SAM_SHORT_NAME, OUT_SAM_LONG_NAME, OUT_SAM_HELP),
-      out_h5(_parser, OUT_H5_SHORT_NAME, OUT_H5_LONG_NAME, OUT_H5_HELP),
-      min_mapq(_parser, MIN_MAPQ_SHORT_NAME, MIN_MAPQ_LONG_NAME, MIN_MAPQ_HELP),
-      min_phred(_parser, MIN_PHRED_SHORT_NAME, MIN_PHRED_LONG_NAME, MIN_PHRED_HELP),
-      min_length(_parser, MIN_LENGTH_SHORT_NAME, MIN_LENGTH_LONG_NAME, MIN_LENGTH_HELP, MIN_LENGTH_DEFAULT),
-      max_length(_parser, MAX_LENGTH_SHORT_NAME, MAX_LENGTH_LONG_NAME, MAX_LENGTH_HELP),
-      max_indel_length(_parser, MAX_INDEL_SHORT_NAME, MAX_INDEL_LONG_NAME, MAX_INDEL_HELP),
-      collapse(_parser, COLLAPSE_SHORT_NAME, COLLAPSE_LONG_NAME, COLLAPSE_HELP, COLLAPSE_DEFAULT),
-      quality_window(_parser, WINDOW_SHORT_NAME, WINDOW_LONG_NAME, WINDOW_HELP),
-      no_mismatch(_parser, NO_MIS_SHORT_NAME, NO_MIS_LONG_NAME, NO_MIS_HELP),
-      no_insertion(_parser, NO_INS_SHORT_NAME, NO_INS_LONG_NAME, NO_INS_HELP),
-      no_deletion(_parser, NO_DEL_SHORT_NAME, NO_DEL_LONG_NAME, NO_DEL_HELP) {}
 
 #endif

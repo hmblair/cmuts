@@ -3,8 +3,16 @@
 set -eou pipefail
 
 print-usage() {
-  echo "Usage: $(basename $0) [--log LOGFILE] {align|core|normalize|plot|visualize|test}"
+  echo "Usage: $(basename "$0") [--log LOGFILE] {align|core|generate|normalize|plot|visualize|test}"
+  echo ""
+  echo "Test options:"
+  echo "  test              Run pytest integration tests"
+  echo "  test --quick      Run quick tests only (skip slow/stress tests)"
+  echo "  test --cram       Run CRAM-specific tests only"
 }
+
+export _CMUTS_DIR="$(dirname "$(dirname "$(which cmuts)")")"
+export _CMUTS_VERSION="$(cat "$_CMUTS_DIR/VERSION")"
 
 # Parse --log argument
 LOG=""
@@ -32,9 +40,7 @@ case "${args[0]:-}" in
     exit 0
     ;;
   -v|--version)
-    DIR=$(dirname $(which cmuts))
-    VERSION=$(cat "$DIR/VERSION")
-    echo "cmuts version $VERSION"
+    echo "cmuts v$_CMUTS_VERSION"
     exit 0
     ;;
   align)
@@ -56,14 +62,18 @@ case "${args[0]:-}" in
     done
     # Run with mpirun if threads specified, otherwise run normally
     if [ -n "$threads" ]; then
-      if ! cmuts core --version 2>/dev/null | grep -q "MPI"; then
-        if [[ $threads == 1 ]]; then
+      if ! cmuts-core --version 2>/dev/null | grep -q "MPI"; then
+        if [[ "$threads" == 1 ]]; then
           cmuts-core "${new_args[@]}"
         else
-          echo "cmuts not built with MPI, --threads > 1 cannot be used"
+          echo "Error: cmuts was not built with MPI support, --threads > 1 cannot be used" >&2
           exit 1
         fi
       else
+        if ! command -v mpirun &>/dev/null; then
+          echo "Error: mpirun not found, but cmuts was built with MPI support" >&2
+          exit 1
+        fi
         mpirun -np "$threads" cmuts-core "${new_args[@]}"
       fi
     else
@@ -80,7 +90,26 @@ case "${args[0]:-}" in
     cmuts-visualize "${args[@]:1}"
     ;;
   test)
-    cmuts-test "${args[@]:1}"
+    # Run pytest tests
+    pytest_args=("-v" "--tb=short")
+    # Pass through any additional args (e.g., -k, --quick)
+    for arg in "${args[@]:1}"; do
+      case "$arg" in
+        --quick)
+          pytest_args+=("-m" "not slow")
+          ;;
+        --cram)
+          pytest_args+=("-k" "cram")
+          ;;
+        *)
+          pytest_args+=("$arg")
+          ;;
+      esac
+    done
+    python3 -m pytest "$_CMUTS_DIR/tests/python" "${pytest_args[@]}"
+    ;;
+  generate)
+    cmuts-generate-tests "${args[@]:1}"
     ;;
   *)
     print-usage

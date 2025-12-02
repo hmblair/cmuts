@@ -70,6 +70,42 @@ FetchContent_MakeAvailable_If_Not_Already_Present(xtensor)
 
 
 #
+# Generate argument parsing headers from JSON
+#
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/cpp/generated)
+file(MAKE_DIRECTORY ${GENERATED_DIR})
+
+add_custom_command(
+    OUTPUT ${GENERATED_DIR}/cmuts_args.hpp
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/cmuts_args.json
+            ${GENERATED_DIR}/cmuts_args.hpp
+            cmutsProgram
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/cmuts_args.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+    COMMENT "Generating cmuts argument header"
+)
+
+add_custom_command(
+    OUTPUT ${GENERATED_DIR}/tests_args.hpp
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/config/tests_args.json
+            ${GENERATED_DIR}/tests_args.hpp
+            testsProgram
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/config/tests_args.json
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_args.py
+    COMMENT "Generating tests argument header"
+)
+
+add_custom_target(generate_args
+    DEPENDS ${GENERATED_DIR}/cmuts_args.hpp ${GENERATED_DIR}/tests_args.hpp
+)
+
+
+#
 # Shared static library
 #
 
@@ -193,6 +229,82 @@ add_executable(${TESTS}
 setup_target(${CORE})
 setup_target(${TESTS})
 
+add_dependencies(${CORE} generate_args)
+add_dependencies(${TESTS} generate_args)
+
 install(TARGETS ${CORE} ${TESTS}
     RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin
 )
+
+
+#
+# Testing (CTest integration)
+#
+
+
+option(BUILD_TESTING "Build tests" ON)
+
+if(BUILD_TESTING)
+    enable_testing()
+
+    # Python integration tests via pytest
+    find_program(PYTEST_EXECUTABLE pytest)
+    if(PYTEST_EXECUTABLE)
+        # Quick tests (edge cases only, ~30 seconds)
+        add_test(
+            NAME python_integration_quick
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py::TestEdgeCases
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Standard tests (edge cases + BAM fuzzing)
+        add_test(
+            NAME python_integration
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py
+                -v --tb=short
+                -m "not slow"
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # CRAM-specific tests
+        add_test(
+            NAME python_integration_cram
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python/test_core.py::TestCramFormat
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Full tests including stress tests (slow)
+        add_test(
+            NAME python_integration_full
+            COMMAND ${PYTEST_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/python
+                -v --tb=short
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+
+        # Set test properties
+        set_tests_properties(python_integration_quick PROPERTIES
+            LABELS "quick;python"
+            TIMEOUT 120
+        )
+        set_tests_properties(python_integration PROPERTIES
+            LABELS "python"
+            TIMEOUT 600
+        )
+        set_tests_properties(python_integration_cram PROPERTIES
+            LABELS "cram;python"
+            TIMEOUT 300
+        )
+        set_tests_properties(python_integration_full PROPERTIES
+            LABELS "slow;python"
+            TIMEOUT 1800
+        )
+    else()
+        message(WARNING "pytest not found, Python integration tests disabled")
+    endif()
+endif()

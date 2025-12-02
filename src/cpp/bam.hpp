@@ -66,7 +66,7 @@ public:
 
 
 
-class bamIterator : public Iterator {
+class BamIterator : public Iterator {
 private:
 
     BGZF* _hts_bgzf  = nullptr;
@@ -74,12 +74,12 @@ private:
 
 public:
 
-    bamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads);
-    bamIterator(bamIterator&& other) noexcept;
-    bamIterator& operator=(bamIterator&& other) noexcept;
-    bamIterator(bamIterator& other) = delete;
-    bamIterator operator=(bamIterator& other) = delete;
-    ~bamIterator() override = default;
+    BamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads);
+    BamIterator(BamIterator&& other) noexcept;
+    BamIterator& operator=(BamIterator&& other) noexcept;
+    BamIterator(BamIterator& other) = delete;
+    BamIterator operator=(BamIterator& other) = delete;
+    ~BamIterator() override = default;
 
     Alignment next() override;
 
@@ -90,21 +90,21 @@ public:
 
 
 //
-// bamFile
+// BamFile
 //
 
 
 
 
-class bamFile : public File {
+class BamFile : public File {
 private:
 
     bam1_t* _hts_aln = nullptr;
 
 public:
 
-    explicit bamFile(const std::string& name);
-    ~bamFile() override;
+    explicit BamFile(const std::string& name);
+    ~BamFile() override;
 
     std::shared_ptr<Iterator> get(int32_t ix, bool seek) override;
 

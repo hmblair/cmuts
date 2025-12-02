@@ -11,6 +11,7 @@ TRIM3=""
 LOCAL=""
 OVERWRITE=false
 REBUILD=false
+VERBOSE=false
 FILES=()
 PAIRS=()
 
@@ -22,7 +23,6 @@ Optional arguments:
     --barcodes BARCODES
     --trim-5 5' ADAPTER
     --trim-3 3' ADAPTER
-    --log
     --pairs PAIRS ..."
 }
 
@@ -33,8 +33,11 @@ while [[ "$#" -gt 0 ]]; do
       exit 0
       ;;
     -v|--version)
-      echo "cmuts align"
+      echo "cmuts align v$_CMUTS_VERSION"
       exit 0
+      ;;
+    --verbose)
+      VERBOSE=true
       ;;
     --fasta)
       shift
@@ -119,19 +122,11 @@ TMPDIR=".tmp"
 
 mkdir -p "$TMPDIR" "$OUTPUT"
 
-[[ "$OVERWRITE" == "true" ]] && rm -rf "$OUTPUT"
-
-# Convert to DNA before processing
-
-TEMP_FASTA="${TMPDIR}/$(basename "${FASTA%.*}")-T.${FASTA##*.}"
-sed '/^>/!s/U/T/g' "$FASTA" > "$TEMP_FASTA"
-FASTA="$TEMP_FASTA"
-
 # Trim if a sequence is provided
 
 if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
 
-  mkdir -p trimmed
+  mkdir -p "$TRDIR"
 
   for FILE in "${FILES[@]}"; do
 
@@ -142,19 +137,50 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
     echo " -- Trimming $FILE --"
     echo
 
-    FARGS=()
-    if [[ ! -z "$TRIM5"  ]]; then
-      FARGS+=("-g" "$TRIM5")
-    fi
-    if [[ ! -z "$TRIM3"  ]]; then
-      FARGS+=("-a" "$TRIM3")
-    fi
+    # Check if both adapters are provided
+    if [[ ! -z "$TRIM5" ]] && [[ ! -z "$TRIM3" ]]; then
+        # Two-pass approach: both adapters required
+        echo "Both adapters provided - requiring both to be trimmed"
+        
+        # Pass 1: Trim 5' adapter, discard if not found
+        cutadapt \
+          --cores "$THREADS" \
+          --action=retain \
+          --discard-untrimmed \
+          -g "$TRIM5" \
+          -o "$TRDIR/${BASENAME}_temp.fastq" \
+          "$FILE"
+        
+        # Pass 2: Trim 3' adapter, discard if not found
+        cutadapt \
+          --cores "$THREADS" \
+          --action=retain \
+          --discard-untrimmed \
+          -a "$TRIM3" \
+          -o "$TRDIR/$NAME" \
+          "$TRDIR/${BASENAME}_temp.fastq"
+        
+        # Clean up temporary file
+        rm "$TRDIR/${BASENAME}_temp.fastq"
+        
+    else
+        # Original single-pass approach for when only one adapter is provided
+        FARGS=()
+        if [[ ! -z "$TRIM5"  ]]; then
+          FARGS+=("-g" "$TRIM5")
+        fi
+        if [[ ! -z "$TRIM3"  ]]; then
+          FARGS+=("-a" "$TRIM3")
+        fi
 
-    cutadapt \
-      --cores "$THREADS" \
-      -o "$TRDIR/$NAME" \
-      "${FARGS[@]}" \
-      "$FILE"
+        cutadapt \
+          --cores "$THREADS" \
+          --action=retain \
+          --discard-untrimmed \
+          -o "$TRDIR/$NAME" \
+          "${FARGS[@]}" \
+          "$FILE"
+    fi
 
   done
 
@@ -227,15 +253,27 @@ fi
 
 INDEX="$IXDIR/index"
 if [[ ! -e "$IXDIR" ]]; then
+
   echo
   echo " -- Building bowtie2 index --"
   echo
-  mkdir index
-  bowtie2-build \
-    --quiet \
-    --threads "$THREADS" \
-    "$FASTA" \
+
+  # Convert to DNA before processing
+
+  TEMP_FASTA="${TMPDIR}/$(basename "${FASTA%.*}")-T.${FASTA##*.}"
+  sed '/^>/!s/U/T/g' "$FASTA" > "$TEMP_FASTA"
+  FASTA="$TEMP_FASTA"
+
+  mkdir "$IXDIR"
+  cmd=(bowtie2-build)
+  [[ "$VERBOSE" != "true" ]] && cmd+=(--quiet)
+  cmd+=(
+    --threads "$THREADS"
+    "$FASTA"
     "$INDEX"
+  )
+  "${cmd[@]}"
+
 fi
 
 # Align all files
@@ -270,14 +308,11 @@ for IX in "${!FILES[@]}"; do
   bowtie2 \
     "${FARGS[@]}" \
     --threads "$THREADS" \
+    --norc \
     -x "$INDEX" \
     --dpad 30 \
     --maxins=1024 \
-    --ignore-quals \
-    "$LOCAL" \
-    --mp 3,1 \
-    --rdg 5,1 \
-    --rfg 5,1 | \
+    "$LOCAL" | \
   awk 'BEGIN{FS=OFS="\t"} {
     if($0 ~ /^@/) print $0
     else {

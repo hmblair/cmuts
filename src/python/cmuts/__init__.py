@@ -1,16 +1,29 @@
-from importlib.metadata import version
+from importlib.metadata import version as _get_version
+
+# Core data types
 from .internal import (
-    title,
     DataGroups,
     Opts,
     NormScheme,
     ProbingData,
-    normalize,
-    stats,
 )
+
+# Core functions
+from .internal import compute_reactivity, stats, title
+
+# Visualization submodule
 from . import visualize
 
-__version__ = version("cmuts")
+__version__ = _get_version("cmuts")
 
-normalize = internal.normalize
-stats = internal.stats
+__all__ = [
+    "__version__",
+    "DataGroups",
+    "Opts",
+    "NormScheme",
+    "ProbingData",
+    "compute_reactivity",
+    "stats",
+    "title",
+    "visualize",
+]

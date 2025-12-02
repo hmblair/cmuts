@@ -142,12 +142,12 @@ def _remove_if_exists(
             os.remove(path)
 
 
-if __name__ == '__main__':
+def main():
 
     args = parser.parse_args()
 
     print()
-    print(cmuts.title(NAME, cmuts.version))
+    print(cmuts.title(NAME, cmuts.__version__))
     print(_subtitle(args.group))
 
     _remove_if_exists(args.out, args.overwrite)
@@ -161,7 +161,8 @@ if __name__ == '__main__':
         args.blank_cutoff,
         not args.no_insertions,
         not args.no_deletions,
-        cmuts.NormScheme.UBR,
+        args.raw,
+        args.norm_outlier,
         blank,
         clip,
         args.sig,
@@ -169,7 +170,7 @@ if __name__ == '__main__':
 
     with h5py.File(args.file, 'r') as f:
 
-        mod, nomod, combined = cmuts.normalize(f, args.fasta, opts)
+        mod, nomod, combined = cmuts.compute_reactivity(f, args.fasta, opts)
 
     # Save to file
 
@@ -181,4 +182,8 @@ if __name__ == '__main__':
 
     # Plot figures
 
-    cmuts.plotting.generate(combined, args.group)
+    cmuts.visualize.plot_all(combined, args.group)
+
+
+if __name__ == '__main__':
+    main()

@@ -66,13 +66,13 @@ static inline cmuts::Params _construct_params(
         !opt.no_deletion,
         !opt.only_reverse,
         !opt.no_reverse,
+        opt.secondary,
         opt.downsample,
         opt.no_filter_matches,
         opt.no_filter_insertions,
         opt.no_filter_deletions,
         cmuts::_ignore_str_to_bool(opt.ignore_bases),
-        !opt.disable_ambiguous,
-        opt.deletion_gap
+        !opt.disable_ambiguous
     };
 
 }
@@ -111,6 +111,7 @@ int main(int argc, char** argv) {
 
     _print_title(mpi);
     __init_log(_LOG_FILE);
+    set_log_level_from_verbose(opt.verbose);
 
     // Delete the exiting output file if specified
 

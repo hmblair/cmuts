@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.2.3] - 2025-12-01
+
+### Added
+
+- Pytest integration test suite (`cmuts test`) with edge case, CRAM, fuzzing, and stress tests
+- `--verbose` flag to `cmuts core` for debug logging
+- Structured logging with levels (DEBUG, INFO, WARN, ERROR) to `.cmuts.log`
+- `Alignment::create()` factory method to prevent field order initialization bugs
+- Validation macros (`CMUTS_CHECK_BOUNDS`, `CMUTS_CHECK_NOT_NULL`, etc.)
+- Linux installation instructions (Ubuntu/Debian, Fedora/RHEL) to documentation
+- `cmuts test` documentation page
+
+### Fixed
+
+- **Critical**: CRAM field order bug where `primary` and `reversed` fields were swapped, causing all CRAM reads to be filtered as non-primary
+- Linux compatibility in profile script (portable GNU time detection)
+
+### Changed
+
+- `cmuts test` now runs pytest tests by default (use `--quick` for fast tests, `--cram` for CRAM-only)
+- Documentation: fixed outdated `cmuts pairwise` reference in pipeline.md
+
+### Removed
+
+- Legacy bash-based test script (`cmuts-test`, `cmuts-test-compare`)
+
+## [1.2.2] - 2025-11-19
+
+### Added
+
+- Fast-path for processing sparse alignments (reads << references)
+- `--secondary` flag for processing secondary alignments
+- JSON-based argument file for `cmuts core` and `cmuts generate`
+
+### Changed
+
+#### Non-Breaking
+
+- Minor bugfixes
+- Reads with missing mapping qualities are skipped, unless `--min-mapq` is set to `0`
+- Seek BAM/CRAM only on MPI builds for slightly faster processing
+- Replaced file-based mutex with semaphores
+
 ## [1.2.1] - 2025-11-14
 
 ### Added

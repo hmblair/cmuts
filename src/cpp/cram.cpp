@@ -177,22 +177,22 @@ static inline LTF8 _decode_LTF8(const uint8_t* buffer, int32_t remaining) {
 }
 
 
-static inline std::shared_ptr<ByteStream> _get_stream(const cramBlock& block) {
+static inline std::shared_ptr<ByteStream> _get_stream(const CramBlock& block) {
 
     std::span data(block.data.begin(), block.data.end());
 
     switch (block.method) {
 
         case CompressionMethod::None:    {
-            return std::make_shared<dataStream>(data);
+            return std::make_shared<DataStream>(data);
         }
 
         case CompressionMethod::gzip:    {
-            return std::make_shared<zlibStream>(data, block.raw, BGZF_BUFFER);
+            return std::make_shared<ZlibStream>(data, block.raw, BGZF_BUFFER);
         }
 
         case CompressionMethod::rans4x8: {
-            return std::make_shared<ransStream>(data, block.raw);
+            return std::make_shared<RansStream>(data, block.raw);
         }
 
         default: {
@@ -204,16 +204,16 @@ static inline std::shared_ptr<ByteStream> _get_stream(const cramBlock& block) {
 }
 
 
-static inline std::unique_ptr<ByteStream> _get_file_stream(const cramBlock& block) {
+static inline std::unique_ptr<ByteStream> _get_file_stream(const CramBlock& block) {
 
     switch (block.method) {
 
         case CompressionMethod::None:    {
-            return std::make_unique<bgzfFileStream>(block.file, block.size);
+            return std::make_unique<BgzfFileStream>(block.file, block.size);
         }
 
         case CompressionMethod::gzip:    {
-            return std::make_unique<zlibFileStream>(block.file, block.size, block.raw, BGZF_BUFFER);
+            return std::make_unique<ZlibFileStream>(block.file, block.size, block.raw, BGZF_BUFFER);
         }
 
         default: {
@@ -293,7 +293,7 @@ static inline CompressionMethod _get_compression(uint8_t value) {
 }
 
 
-int64_t cramContainer::aligned() {
+int64_t CramContainer::aligned() {
 
     int64_t reads = 0;
     for (auto& slice: slices) {
@@ -304,7 +304,7 @@ int64_t cramContainer::aligned() {
 }
 
 
-int64_t cramContainer::unaligned() {
+int64_t CramContainer::unaligned() {
 
     int64_t reads = 0;
     for (auto& slice: slices) {
@@ -314,7 +314,7 @@ int64_t cramContainer::unaligned() {
 
 }
 
-cramSlice cramContainer::slice(int32_t ix) {
+CramSlice CramContainer::slice(int32_t ix) {
 
     if (ix >= slices.size()) {
         __throw_and_log(_LOG_FILE, "The CRAM slice index (" + std::to_string(ix) + ") is out of bounds.");
@@ -571,29 +571,29 @@ int32_t SubExpCodec::integer() {
 
 
 //
-// cramBlock
+// CramBlock
 //
 
 
 
 
 
-cramBlock::cramBlock(BGZF* file, bool crc)
+CramBlock::CramBlock(BGZF* file, bool crc)
     : _has_crc(crc),
       method  (_get_compression(_read_bgzf_single<uint8_t>(file))),
-      type    (static_cast<cramBlockType>(_read_bgzf_single<uint8_t>(file))),
+      type    (static_cast<CramBlockType>(_read_bgzf_single<uint8_t>(file))),
       content (_read_ITF8(file)),
       size    (_read_ITF8(file)),
       raw     (_read_ITF8(file)),
       file    (file) {}
 
 
-cramBlock::cramBlock(uint8_t*& _data, bool crc) : _has_crc(crc) {
+CramBlock::CramBlock(uint8_t*& _data, bool crc) : _has_crc(crc) {
 
     // The compression method and block type
 
     method = _get_compression(*_data);           _data++;
-    type   = static_cast<cramBlockType>(*_data); _data++;
+    type   = static_cast<CramBlockType>(*_data); _data++;
 
     // The external content identifier, compressed data size, and
     // uncompressed data size
@@ -616,7 +616,7 @@ cramBlock::cramBlock(uint8_t*& _data, bool crc) : _has_crc(crc) {
 }
 
 
-void cramBlock::memcpy(uint8_t* dest, int32_t size) {
+void CramBlock::memcpy(uint8_t* dest, int32_t size) {
 
     std::memcpy(dest, data.data(), size);
     data = data.subspan(size);
@@ -624,7 +624,7 @@ void cramBlock::memcpy(uint8_t* dest, int32_t size) {
 }
 
 
-uint8_t cramBlock::byte() {
+uint8_t CramBlock::byte() {
 
     uint8_t out = data[0];
     data = data.subspan(1);
@@ -633,7 +633,7 @@ uint8_t cramBlock::byte() {
 }
 
 
-std::vector<uint8_t> cramBlock::bytes(int32_t n) {
+std::vector<uint8_t> CramBlock::bytes(int32_t n) {
 
     std::vector<uint8_t> bytes(data.begin(), data.begin() + n);
     data = data.subspan(n);
@@ -643,7 +643,7 @@ std::vector<uint8_t> cramBlock::bytes(int32_t n) {
 
 
 template <typename dtype>
-std::vector<dtype> cramBlock::array() {
+std::vector<dtype> CramBlock::array() {
 
     int32_t size = itf8();
     std::vector<uint8_t> _bytes = bytes(size * sizeof(dtype));
@@ -656,7 +656,7 @@ std::vector<dtype> cramBlock::array() {
 }
 
 
-int32_t cramBlock::itf8() { 
+int32_t CramBlock::itf8() { 
 
     ITF8 _itf8 = _decode_ITF8(data.data(), data.size());
     data = data.subspan(_itf8.read);
@@ -665,7 +665,7 @@ int32_t cramBlock::itf8() {
 }
 
 
-int64_t cramBlock::ltf8() {
+int64_t CramBlock::ltf8() {
 
     LTF8 _ltf8 = _decode_LTF8(data.data(), data.size());
     data = data.subspan(_ltf8.read);
@@ -674,7 +674,7 @@ int64_t cramBlock::ltf8() {
 }
 
 
-std::vector<int32_t> cramBlock::itf8_arr() {
+std::vector<int32_t> CramBlock::itf8_arr() {
 
     // The first ITF8 value is the array size
 
@@ -690,7 +690,7 @@ std::vector<int32_t> cramBlock::itf8_arr() {
 }
 
 
-std::vector<int64_t> cramBlock::ltf8_arr() {
+std::vector<int64_t> CramBlock::ltf8_arr() {
 
     // The first ITF8 value is the array size
 
@@ -706,7 +706,7 @@ std::vector<int64_t> cramBlock::ltf8_arr() {
 }
 
 
-std::string cramBlock::str(int32_t length) {
+std::string CramBlock::str(int32_t length) {
 
     std::string result(data.begin(), data.begin() + length);
     data = data.subspan(length);
@@ -755,7 +755,7 @@ SubstitutionMatrix::SubstitutionMatrix(uint8_t* matrix)
 std::vector<base_t> SubstitutionMatrix::parse(base_t code) { return _decoder[code]; }
 
 
-static inline PreservationMap _get_preservation_map(cramBlock& block) {
+static inline PreservationMap _get_preservation_map(CramBlock& block) {
 
     PreservationMap map;
 
@@ -813,7 +813,7 @@ static inline ExtData_t _fc_to_enum(uint8_t value) {
 
 
 
-static inline std::shared_ptr<Codec> _get_codec(cramBlock& block) {
+static inline std::shared_ptr<Codec> _get_codec(CramBlock& block) {
 
     Codec_t codec = _codec_from_cram(block.itf8());
     int32_t size  = block.itf8();
@@ -871,7 +871,7 @@ static inline std::shared_ptr<Codec> _get_codec(cramBlock& block) {
 }
 
 
-static inline CodecMap _read_data_series(cramBlock& block) {
+static inline CodecMap _read_data_series(CramBlock& block) {
 
     int32_t size = block.itf8();
     int32_t keys = block.itf8();
@@ -900,7 +900,7 @@ static inline CodecMap _read_data_series(cramBlock& block) {
 }
 
 
-static inline void _read_tag_dictionary(cramBlock& block) {
+static inline void _read_tag_dictionary(CramBlock& block) {
 
     int32_t size = block.itf8();
     int32_t keys = block.itf8();
@@ -918,12 +918,12 @@ static inline void _read_tag_dictionary(cramBlock& block) {
 }
 
 
-cramSlice::cramSlice(uint8_t*& data, bool crc) {
+CramSlice::CramSlice(uint8_t*& data, bool crc) {
 
     // The slice header, which is contained in its own block 
 
-    cramBlock block(data, crc);
-    if (block.type != cramBlockType::Slice) {
+    CramBlock block(data, crc);
+    if (block.type != CramBlockType::Slice) {
         auto _type = static_cast<int32_t>(block.type);
         __throw_and_log(_LOG_FILE, "Invalid slice header block type \"" + std::to_string(_type) + "\".");
     }
@@ -946,18 +946,18 @@ cramSlice::cramSlice(uint8_t*& data, bool crc) {
 }
 
 
-cramSlice::cramSlice(uint8_t*& data, CodecMap _codecs, bool crc) 
-    : cramSlice(data, crc) {
+CramSlice::CramSlice(uint8_t*& data, CodecMap _codecs, bool crc) 
+    : CramSlice(data, crc) {
 
     codecs = _codecs;
 
     for (int32_t ix = 0; ix < nblocks; ix++ ) {
 
-        cramBlock block(data, crc);
+        CramBlock block(data, crc);
 
         // Attach core blocks to all codecs with an ID of -1
 
-        if (block.type == cramBlockType::Core) {
+        if (block.type == CramBlockType::Core) {
 
             std::shared_ptr<ByteStream> stream = _get_stream(block);
             for (auto& codec : codecs.map) {
@@ -994,7 +994,7 @@ cramSlice::cramSlice(uint8_t*& data, CodecMap _codecs, bool crc)
 }
 
 
-int32_t cramSlice::index() {
+int32_t CramSlice::index() {
 
     if (multi()) {
         return codecs.map.at(ExtData_t::RI)->integer();
@@ -1005,14 +1005,14 @@ int32_t cramSlice::index() {
 }
 
 
-bool cramSlice::multi() const {
+bool CramSlice::multi() const {
 
     return reference == -2;
 
 }
 
 
-int64_t cramSlice::aligned() {
+int64_t CramSlice::aligned() {
 
     if (reference == UNALIGNED) { return 0; }
 
@@ -1033,7 +1033,7 @@ int64_t cramSlice::aligned() {
 }
 
 
-int64_t cramSlice::unaligned() {
+int64_t CramSlice::unaligned() {
 
     if (reference >= 0) { return 0; }
 
@@ -1056,8 +1056,8 @@ int64_t cramSlice::unaligned() {
 
 CompressionHeader::CompressionHeader(uint8_t*& data, bool crc) {
 
-    cramBlock block(data, crc);
-    if (block.type != cramBlockType::Compression) {
+    CramBlock block(data, crc);
+    if (block.type != CramBlockType::Compression) {
         __throw_and_log(_LOG_FILE, "Invalid compression header block type \"" + std::to_string(static_cast<int32_t>(block.type)) + "\".");
     }
 
@@ -1085,14 +1085,14 @@ bool CompressionHeader::delta() const { return _map.AP; }
 
 
 //
-// cramContainerBase; cramContainer; cramHeaderContainer
+// CramContainerBase; CramContainer; CramHeaderContainer
 //
 
 
 
 
 
-cramContainerBase::cramContainerBase(BGZF* file, int32_t version)
+CramContainerBase::CramContainerBase(BGZF* file, int32_t version)
     : _file     (file),
       _has_crc  (version >= 30),
       ptr       (bgzf_tell(file)),
@@ -1113,7 +1113,7 @@ cramContainerBase::cramContainerBase(BGZF* file, int32_t version)
 }
 
 
-bool cramContainerBase::eof() const { 
+bool CramContainerBase::eof() const { 
 
     return (
         (offset    == CRAM_EOF_POS ) &&
@@ -1123,15 +1123,15 @@ bool cramContainerBase::eof() const {
 }
 
 
-bool cramContainerBase::multi() const {
+bool CramContainerBase::multi() const {
 
     return reference == CRAM_MULTI;
 
 }
 
 
-cramContainer::cramContainer(BGZF* file, int32_t version)
-    : cramContainerBase(file, version) {
+CramContainer::CramContainer(BGZF* file, int32_t version)
+    : CramContainerBase(file, version) {
 
     if (eof()) { return; }
 
@@ -1159,12 +1159,12 @@ cramContainer::cramContainer(BGZF* file, int32_t version)
 }
 
 
-cramHeaderContainer::cramHeaderContainer(BGZF* file, int32_t version)
-    : cramContainerBase(file, version) {
+CramHeaderContainer::CramHeaderContainer(BGZF* file, int32_t version)
+    : CramContainerBase(file, version) {
 
-    cramBlock block(file, _has_crc);
+    CramBlock block(file, _has_crc);
 
-    if (block.type != cramBlockType::Header) {
+    if (block.type != CramBlockType::Header) {
         __throw_and_log(_LOG_FILE, "Invalid file header block type \"" + std::to_string(static_cast<int32_t>(block.type)) + "\".");
     }
 
@@ -1173,7 +1173,7 @@ cramHeaderContainer::cramHeaderContainer(BGZF* file, int32_t version)
 }
 
 
-void cramHeaderContainer::skip() {
+void CramHeaderContainer::skip() {
 
     if (_has_crc) {
         (void)_read_bgzf(_file, CRC_SIZE);
@@ -1181,7 +1181,7 @@ void cramHeaderContainer::skip() {
 
     for (int32_t ix = 1; ix < blocks; ix++) {
 
-        cramBlock block(_file, _has_crc);
+        CramBlock block(_file, _has_crc);
         (void)_read_bgzf(_file, block.size);
         if (_has_crc) {
             (void)_read_bgzf(_file, CRC_SIZE);
@@ -1192,18 +1192,18 @@ void cramHeaderContainer::skip() {
 }
 
 
-CodecMap cramContainer::codecs() const { return _comp.codecs(); }
+CodecMap CramContainer::codecs() const { return _comp.codecs(); }
 
 
-SubstitutionMatrix cramContainer::substitution() const { return _comp.substitution(); }
+SubstitutionMatrix CramContainer::substitution() const { return _comp.substitution(); }
 
 
-bool cramContainer::delta() const { return _comp.delta(); }
+bool CramContainer::delta() const { return _comp.delta(); }
 
 
-static inline cramHeader _read_cram_header(BGZF* file) {
+static inline CramHeader _read_cram_header(BGZF* file) {
 
-    cramHeader header;
+    CramHeader header;
 
     // The header begins with the file type and version
 
@@ -1224,7 +1224,7 @@ static inline cramHeader _read_cram_header(BGZF* file) {
 
     // The file header is in its own special container
 
-    cramHeaderContainer container(file, version);
+    CramHeaderContainer container(file, version);
 
     // Read the raw SAM header.
 
@@ -1246,7 +1246,7 @@ static inline cramHeader _read_cram_header(BGZF* file) {
 }
 
 
-static inline CIGAR_op _op_from_fc_enum(ExtData_t type, cramIterator& iter) {
+static inline CIGAR_op _op_from_fc_enum(ExtData_t type, CramIterator& iter) {
 
     switch (type) {
 
@@ -1300,7 +1300,7 @@ static inline CIGAR_op _op_from_fc_enum(ExtData_t type, cramIterator& iter) {
 }
 
 
-cramIterator::cramIterator(BGZF* file, int32_t reads, int32_t version)
+CramIterator::CramIterator(BGZF* file, int32_t reads, int32_t version)
     : Iterator(reads),
     _file(file),
     _version(version),
@@ -1313,10 +1313,10 @@ cramIterator::cramIterator(BGZF* file, int32_t reads, int32_t version)
 }
 
 
-bool cramIterator::empty() const { return _remaining_in_slice <= 0; }
+bool CramIterator::empty() const { return _remaining_in_slice <= 0; }
 
 
-void cramIterator::set(int64_t reads) {
+void CramIterator::set(int64_t reads) {
 
     _curr  = 0;
     _reads = static_cast<int32_t>(reads);
@@ -1324,19 +1324,19 @@ void cramIterator::set(int64_t reads) {
 }
 
 
-std::shared_ptr<Codec> cramIterator::at(ExtData_t type) {
+std::shared_ptr<Codec> CramIterator::at(ExtData_t type) {
 
     return _container.slice(_slice).codecs.map.at(type);
 
 }
 
 
-void cramIterator::_next_slice() {
+void CramIterator::_next_slice() {
 
     _slice++;
 
     if (_slice >= _container.slices.size()) {
-        _container = cramContainer(_file, _version);
+        _container = CramContainer(_file, _version);
         _slice = 0;
     }
 
@@ -1348,7 +1348,7 @@ void cramIterator::_next_slice() {
 }
 
 
-void cramIterator::_next_op() {
+void CramIterator::_next_op() {
 
     // The FP file tells us the delta in the query position of the
     // feature, relative to the previous feature. It uses one-based indexing
@@ -1387,7 +1387,7 @@ void cramIterator::_next_op() {
 }
 
 
-void cramIterator::to(int32_t reference) {
+void CramIterator::to(int32_t reference) {
 
     if (_reads == 0 || !_container.multi()) { return; }
 
@@ -1398,14 +1398,14 @@ void cramIterator::to(int32_t reference) {
 }
 
 
-std::vector<base_t> cramIterator::sub(base_t code) {
+std::vector<base_t> CramIterator::sub(base_t code) {
 
     return _container.substitution().parse(code);
 
 }
 
 
-Alignment cramIterator::next() {
+Alignment CramIterator::next() {
 
     if (_use_tmp) { _use_tmp = false; return _tmp; }
 
@@ -1473,9 +1473,26 @@ Alignment cramIterator::next() {
     // The QS field tells us the PHRED scores of the read
 
     std::vector<uint8_t> scores = at(ExtData_t::QS)->array(length);
+    CMUTS_THROW_IF(
+        static_cast<int32_t>(scores.size()) != length,
+        "CRAM quality scores size (" + std::to_string(scores.size()) +
+        ") does not match read length (" + std::to_string(length) + ")"
+    );
     PHRED phred(scores);
 
-    return {aligned, reversed, mapq, length, _offset, reference, _cigar, phred};
+    // TODO: get this value from the file
+    bool primary = true;
+    return Alignment::create(
+        aligned,
+        primary,
+        reversed,
+        mapq,
+        length,
+        _offset,
+        reference,
+        std::move(_cigar),
+        std::move(phred)
+    );
 
 }
 
@@ -1484,7 +1501,7 @@ Alignment cramIterator::next() {
 
 
 //
-// cramFile
+// CramFile
 //
 
 
@@ -1502,7 +1519,7 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
     block.tell(file);
     block.write_ptr(out);
 
-    cramContainer container(file, version);
+    CramContainer container(file, version);
 
     int32_t tid  = 0;
     int32_t curr = 0;
@@ -1571,7 +1588,7 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
         }
 
         block.tell(file);
-        container = cramContainer(file, version);
+        container = CramContainer(file, version);
 
     }
 
@@ -1591,10 +1608,10 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
 }
 
 
-cramFile::cramFile(const std::string& name) 
+CramFile::CramFile(const std::string& name) 
     : File(name, FileType::CRAM) {
 
-    cramHeader _data = _read_cram_header(_hts_bgzf);
+    CramHeader _data = _read_cram_header(_hts_bgzf);
     _sorted     = _data.sorted;
     _references = _data.references;
     _version    = _data.version;
@@ -1615,7 +1632,7 @@ cramFile::cramFile(const std::string& name)
 }
 
 
-std::shared_ptr<Iterator> cramFile::get(int32_t ix, bool seek) {
+std::shared_ptr<Iterator> CramFile::get(int32_t ix, bool seek) {
 
     IndexBlock block = _index.read(ix);
 
@@ -1631,7 +1648,7 @@ std::shared_ptr<Iterator> cramFile::get(int32_t ix, bool seek) {
 
         _seek_bgzf(_hts_bgzf, block.ptr);
 
-        _iterator = std::make_shared<cramIterator>(_hts_bgzf, block.reads, _version);
+        _iterator = std::make_shared<CramIterator>(_hts_bgzf, block.reads, _version);
         _iterator->to(ix);
 
     } 
@@ -1663,7 +1680,7 @@ std::shared_ptr<Iterator> cramFile::get(int32_t ix, bool seek) {
 
 std::unique_ptr<File> _get_cram(const std::string& name) {
 
-    return std::make_unique<cramFile>(name);
+    return std::make_unique<CramFile>(name);
 
 }
 

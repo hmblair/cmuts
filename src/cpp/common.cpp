@@ -519,19 +519,20 @@ int64_t ByteStream::ltf8() {
 
 
 //
-// dataStream
+// DataStream
 //
 
 
 
 
 
-dataStream::dataStream(std::span<const uint8_t> data)
+DataStream::DataStream(std::span<const uint8_t> data)
     : ByteStream(static_cast<int32_t>(data.size())), _data(data) {}
 
 
-uint8_t dataStream::byte() {
+uint8_t DataStream::byte() {
 
+    CMUTS_CHECK_BOUNDS(_pos, _data.size(), "DataStream::byte() read past end of data");
     uint8_t value = _data[_pos];
     _pos++;
     _remaining--;
@@ -540,10 +541,10 @@ uint8_t dataStream::byte() {
 }
 
 
-std::vector<uint8_t> dataStream::bytes(int32_t length) {
+std::vector<uint8_t> DataStream::bytes(int32_t length) {
 
     if (length <= 0 || length + _pos > _data.size()) {
-        __throw_and_log(_LOG_FILE, "Failed to get " + std::to_string(length) + " bytes from the dataStream.");
+        __throw_and_log(_LOG_FILE, "Failed to get " + std::to_string(length) + " bytes from the DataStream.");
     }
 
     std::vector<uint8_t> values(length);
@@ -557,7 +558,7 @@ std::vector<uint8_t> dataStream::bytes(int32_t length) {
 }
 
 
-std::vector<uint8_t> dataStream::line(uint8_t delimiter) {
+std::vector<uint8_t> DataStream::line(uint8_t delimiter) {
 
     std::vector<uint8_t> line;
     line.reserve(LINE_RESERVE);
@@ -567,20 +568,25 @@ std::vector<uint8_t> dataStream::line(uint8_t delimiter) {
     );
 
     if (pos == -1) {
+        // Delimiter not found: consume all remaining data
         line.insert(line.end(), _data.begin() + _pos, _data.end());
-    } else if (pos > 0) {
-        line.insert(line.end(), _data.begin() + _pos, _data.begin() + _pos + pos);
+        int32_t consumed = static_cast<int32_t>(_data.size()) - _pos;
+        _pos = static_cast<int32_t>(_data.size());
+        _remaining -= consumed;
+    } else {
+        if (pos > 0) {
+            line.insert(line.end(), _data.begin() + _pos, _data.begin() + _pos + pos);
+        }
+        _pos += (pos + 1);
+        _remaining -= (pos + 1);
     }
-
-    _pos += (pos + 1);
-    _remaining  -= (pos + 1);
 
     return line;
 
 }
 
 
-std::string dataStream::str(uint8_t delimiter) {
+std::string DataStream::str(uint8_t delimiter) {
 
     std::string line;
     line.reserve(LINE_RESERVE);
@@ -590,13 +596,18 @@ std::string dataStream::str(uint8_t delimiter) {
     );
 
     if (pos == -1) {
+        // Delimiter not found: consume all remaining data
         line.insert(line.end(), _data.begin() + _pos, _data.end());
-    } else if (pos > 0) {
-        line.insert(line.end(), _data.begin() + _pos, _data.begin() + _pos + pos);
+        int32_t consumed = static_cast<int32_t>(_data.size()) - _pos;
+        _pos = static_cast<int32_t>(_data.size());
+        _remaining -= consumed;
+    } else {
+        if (pos > 0) {
+            line.insert(line.end(), _data.begin() + _pos, _data.begin() + _pos + pos);
+        }
+        _pos += (pos + 1);
+        _remaining -= (pos + 1);
     }
-
-    _pos += (pos + 1);
-    _remaining  -= (pos + 1);
 
     return line;
 
@@ -607,7 +618,7 @@ std::string dataStream::str(uint8_t delimiter) {
 
 
 //
-// ransStream
+// RansStream
 //
 
 
@@ -630,12 +641,12 @@ static inline std::vector<uint8_t> _decompress_rans4x8(std::span<const uint8_t> 
 }
 
 
-ransStream::ransStream(std::vector<uint8_t> data)
-    : dataStream(data), _rans_data(std::move(data)) {}
+RansStream::RansStream(std::vector<uint8_t> data)
+    : DataStream(data), _rans_data(std::move(data)) {}
 
 
-ransStream::ransStream(std::span<const uint8_t> data, int32_t raw)
-    : ransStream(_decompress_rans4x8(data)) {
+RansStream::RansStream(std::span<const uint8_t> data, int32_t raw)
+    : RansStream(_decompress_rans4x8(data)) {
 
     if (_rans_data.size() != raw) {
         __throw_and_log(_LOG_FILE, "RANS4x8 decompresssion failed.");
@@ -648,14 +659,14 @@ ransStream::ransStream(std::span<const uint8_t> data, int32_t raw)
 
 
 //
-// zlibStream
+// ZlibStream
 //
 
 
 
 
 
-zlibStream::zlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer)
+ZlibStream::ZlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer)
     : ByteStream(raw),
     _stream(_open_z_stream(data)),
     _buffer(buffer),
@@ -664,7 +675,7 @@ zlibStream::zlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffe
     _open(true) {}
 
 
-zlibStream::~zlibStream() {
+ZlibStream::~ZlibStream() {
 
     if (_open) {
         _close_z_stream(_stream);
@@ -674,7 +685,7 @@ zlibStream::~zlibStream() {
 }
 
 
-void zlibStream::fill() {
+void ZlibStream::fill() {
 
     if (!_open) {
         __throw_and_log(_LOG_FILE, "The zlib stream is not open.");
@@ -687,10 +698,11 @@ void zlibStream::fill() {
 }
 
 
-uint8_t zlibStream::byte() {
+uint8_t ZlibStream::byte() {
 
     if (_buffer_pos >= _buffer_end) { fill(); }
 
+    CMUTS_DEBUG_CHECK_BOUNDS(_buffer_pos, _buffer.size(), "ZlibStream::byte() buffer overflow");
     uint8_t value = _buffer[_buffer_pos];
 
     _remaining--;
@@ -701,7 +713,7 @@ uint8_t zlibStream::byte() {
 }
 
 
-std::vector<uint8_t> zlibStream::bytes(int32_t length) {
+std::vector<uint8_t> ZlibStream::bytes(int32_t length) {
 
     std::vector<uint8_t> values(length);
     int32_t read = 0;
@@ -712,7 +724,7 @@ std::vector<uint8_t> zlibStream::bytes(int32_t length) {
 
         int32_t _to_read = std::min(length - read, static_cast<int32_t>(_buffer_end - _buffer_pos));
         if (_to_read <= 0) {
-            __throw_and_log(_LOG_FILE, "Invalid number of bytes (" + std::to_string(_to_read) + ") in zlibStream.");
+            __throw_and_log(_LOG_FILE, "Invalid number of bytes (" + std::to_string(_to_read) + ") in ZlibStream.");
         }
 
         std::memcpy(values.data() + read, _buffer.data() + _buffer_pos, _to_read);
@@ -729,7 +741,7 @@ std::vector<uint8_t> zlibStream::bytes(int32_t length) {
 }
 
 
-std::vector<uint8_t> zlibStream::line(uint8_t delimiter) {
+std::vector<uint8_t> ZlibStream::line(uint8_t delimiter) {
 
     if (_buffer_pos >= _buffer_end) { fill(); }
 
@@ -778,7 +790,7 @@ std::vector<uint8_t> zlibStream::line(uint8_t delimiter) {
 }
 
 
-std::string zlibStream::str(uint8_t delimiter) {
+std::string ZlibStream::str(uint8_t delimiter) {
 
     if (_buffer_pos >= _buffer_end) { fill(); }
 
@@ -827,7 +839,7 @@ std::string zlibStream::str(uint8_t delimiter) {
 }
 
 
-void zlibStream::update(std::span<const uint8_t> data) {
+void ZlibStream::update(std::span<const uint8_t> data) {
 
     _stream.next_in  = const_cast<uint8_t*>(data.data());
     _stream.avail_in = data.size();
@@ -839,18 +851,18 @@ void zlibStream::update(std::span<const uint8_t> data) {
 
 
 //
-// bgzfFileStream
+// BgzfFileStream
 //
 
 
 
 
 
-bgzfFileStream::bgzfFileStream(BGZF* file, int32_t size)
+BgzfFileStream::BgzfFileStream(BGZF* file, int32_t size)
     : ByteStream(size), _file(file) {}
 
 
-void bgzfFileStream::skip(int32_t length) {
+void BgzfFileStream::skip(int32_t length) {
 
     char buffer[BGZF_BUFFER];
     int32_t left = length;
@@ -866,7 +878,7 @@ void bgzfFileStream::skip(int32_t length) {
 }
 
 
-uint8_t bgzfFileStream::byte() {
+uint8_t BgzfFileStream::byte() {
 
     _remaining--;
     return _read_bgzf_single<uint8_t>(_file);
@@ -874,7 +886,7 @@ uint8_t bgzfFileStream::byte() {
 }
 
 
-std::vector<uint8_t> bgzfFileStream::bytes(int32_t length) {
+std::vector<uint8_t> BgzfFileStream::bytes(int32_t length) {
 
     _remaining -= length;
     return _read_bgzf(_file, length);
@@ -882,7 +894,7 @@ std::vector<uint8_t> bgzfFileStream::bytes(int32_t length) {
 }
 
 
-std::vector<uint8_t> bgzfFileStream::line(uint8_t delimiter) {
+std::vector<uint8_t> BgzfFileStream::line(uint8_t delimiter) {
 
     auto line = _read_bgzf_line<std::vector<uint8_t>>(_file, delimiter);
     _remaining -= static_cast<int32_t>(line.size());
@@ -891,7 +903,7 @@ std::vector<uint8_t> bgzfFileStream::line(uint8_t delimiter) {
 }
 
 
-std::string bgzfFileStream::str(uint8_t delimiter) {
+std::string BgzfFileStream::str(uint8_t delimiter) {
 
     auto line = _read_bgzf_line<std::string>(_file, delimiter);
     _remaining -= static_cast<int32_t>(line.size());
@@ -903,15 +915,15 @@ std::string bgzfFileStream::str(uint8_t delimiter) {
 
 
 //
-// zlibFileStream
+// ZlibFileStream
 //
 
 
 
 
 
-zlibFileStream::zlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer)
-    : zlibStream(data, raw, buffer),
+ZlibFileStream::ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer)
+    : ZlibStream(data, raw, buffer),
       _bgzf(file, size),
       _bgzf_buffer(buffer),
       _buffer_span(data),
@@ -919,11 +931,11 @@ zlibFileStream::zlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_
       _in_remaining(size) {}
 
 
-zlibFileStream::zlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
-    : zlibFileStream(file, std::span<const uint8_t>(), size, raw, buffer) {}
+ZlibFileStream::ZlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
+    : ZlibFileStream(file, std::span<const uint8_t>(), size, raw, buffer) {}
 
 
-void zlibFileStream::fill() {
+void ZlibFileStream::fill() {
 
     if (_bgzf_buffer_pos >= _bgzf_buffer.size()) {
 
@@ -937,7 +949,7 @@ void zlibFileStream::fill() {
 
     }
 
-    zlibStream::fill();
+    ZlibStream::fill();
     _bgzf_buffer_pos += static_cast<int32_t>(_stream.total_in);
 
 }
