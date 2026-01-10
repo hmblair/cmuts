@@ -1222,33 +1222,6 @@ Spread spread(bool uniform, bool none) {
 }
 
 
-template void run<float>(
-    HTS::File& file,
-    BinaryFASTA& fasta,
-    HDF5::File& hdf5,
-    const MPI::Manager& mpi,
-    const Params& params,
-    Stats& stats,
-    const std::string& name
-);
-
-
-Spread spread(bool uniform, bool none) {
-
-    if (uniform && none) {
-        __throw_and_log(
-            _LOG_FILE,
-            "--uniform-spread and --no-spread are mutually exclusive."
-        );
-    }
-
-    if (uniform) { return Spread::Uniform;          }
-    if (none)    { return Spread::None;             }
-    else         { return Spread::MutationInformed; }
-
-}
-
-
 
 
 
@@ -1321,14 +1294,6 @@ Stats::Stats(
     _files(files),
     _print_every(print_every),
     _mpi(mpi) {}
-
-
-void Stats::update_bases(int64_t skipped, int64_t total) {
-
-    _bases_skipped   += skipped;
-    _bases_processed += total;
-
-}
 
 
 void Stats::update_bases(int64_t skipped, int64_t total) {
