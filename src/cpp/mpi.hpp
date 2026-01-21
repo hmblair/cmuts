@@ -76,6 +76,8 @@ public:
 
     int64_t reduce(const int64_t& value) const;
     int64_t broadcast(int64_t& value) const;
+    bool any(bool value) const;
+    bool all(bool value) const;
     bool root() const;
     bool null() const;
     void barrier(bool debug = false) const;
