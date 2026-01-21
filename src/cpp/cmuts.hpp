@@ -173,6 +173,8 @@ private:
     double _last_print  = 0;
     double _print_every = 0;
 
+    bool _done = false;
+
     const MPI::Manager& _mpi;
 
     Utils::Line _print_files     = Utils::Line("File");
@@ -204,9 +206,10 @@ public:
     void aggregate();
     void header() const;
     double elapsed() const;
+    void mark_done();
 
     void body();
-    void print();
+    bool print();
 
 };
 

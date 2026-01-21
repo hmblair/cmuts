@@ -1192,6 +1192,9 @@ void run(
 
     }
 
+    stats.mark_done();
+    while (!stats.print());
+
 }
 
 
@@ -1383,12 +1386,22 @@ double Stats::elapsed() const {
 
 }
 
-void Stats::print() {
+void Stats::mark_done() {
+    _done = true;
+}
 
-    if (elapsed() > _print_every) {
+bool Stats::print() {
+
+    bool all_done = _mpi.all(_done);
+    bool should_print = elapsed() > _print_every || all_done;
+    should_print = _mpi.any(should_print);
+
+    if (should_print) {
         aggregate();
         body();
     }
+
+    return all_done;
 
 }
 

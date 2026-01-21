@@ -159,6 +159,44 @@ int64_t Manager::reduce(const int64_t& value) const {
 
 }
 
+bool Manager::any(bool value) const {
+
+    #ifdef MPI_BUILD
+
+    int local = value ? 1 : 0;
+    int result = 0;
+    if (!null()) {
+        MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LOR, _comm);
+    }
+    return result != 0;
+
+    #else
+
+    return value;
+
+    #endif
+
+}
+
+bool Manager::all(bool value) const {
+
+    #ifdef MPI_BUILD
+
+    int local = value ? 1 : 0;
+    int result = 0;
+    if (!null()) {
+        MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LAND, _comm);
+    }
+    return result != 0;
+
+    #else
+
+    return value;
+
+    #endif
+
+}
+
 bool Manager::root() const { return _rank == 0; }
 
 bool Manager::null() const {
