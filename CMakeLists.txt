@@ -118,6 +118,7 @@ add_library(libcmuts STATIC
     src/cpp/io/hdf5.cpp
     src/cpp/common.cpp
     src/cpp/core/cmuts.cpp
+    src/cpp/infra/logging.cpp
     src/cpp/infra/mpi.cpp
     src/cpp/infra/utils.cpp
     src/cpp/infra/mutex.cpp

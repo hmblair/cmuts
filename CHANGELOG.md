@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2] - 2025-01-22
+
+### Changed
+
+- **C++ logging extraction**: Extracted logging code from `utils.hpp/cpp` into dedicated `infra/logging.hpp/cpp` module
+  - Logging constants, macros, and functions now in separate header
+  - `utils.hpp` includes `logging.hpp` for backward compatibility
+
 ## [1.3.1] - 2025-01-22
 
 ### Changed
