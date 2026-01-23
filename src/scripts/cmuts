@@ -12,7 +12,7 @@ print-usage() {
 }
 
 export _CMUTS_DIR="$(dirname "$(dirname "$(which cmuts)")")"
-export _CMUTS_VERSION="$(cat "$_CMUTS_DIR/VERSION")"
+export _CMUTS_VERSION="$(git -C "$_CMUTS_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "unknown")"
 
 # Parse --log argument
 LOG=""
