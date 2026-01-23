@@ -6,6 +6,7 @@
 
 - Configurable logging system via `CMUTS_LOG_LEVEL` and `CMUTS_LOG_STDERR` environment variables
 - `TRACE` log level for detailed MPI debugging
+- Pairwise SNR calculation for joint probability P(i=1, j=1) in `cmuts normalize --pairwise`
 
 ### Fixed
 

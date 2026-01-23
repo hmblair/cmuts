@@ -72,6 +72,7 @@ class Datasets:
     READS = "reads"
     ERROR = "error"
     SNR = "SNR"
+    PAIRWISE_SNR = "pairwise-snr"
     NORM = "norm"
     ROI = "roi-mask"
     HEATMAP = "heatmap"
@@ -379,6 +380,48 @@ def _mutual_information(prob: da.Array, norm: bool = True) -> da.Array:
         return mi
 
 
+def _pairwise_snr(
+    prob: da.Array,
+    pairs: da.Array,
+) -> da.Array:
+    """Compute SNR for pairwise joint probability P(i=1, j=1).
+
+    SNR = P(1,1) / SE(P(1,1))
+    where SE = sqrt(p * (1-p) / n) for Bernoulli proportion.
+
+    Returns mean SNR across all position pairs for each reference.
+    """
+    p11 = prob[..., 1, 1]
+    n = pairs.sum((-1, -2))
+
+    # Standard error of Bernoulli proportion
+    se = da.sqrt(
+        da.divide(
+            p11 * (1 - p11),
+            n,
+            where=(n > 0),
+            out=da.ones_like(p11),
+        )
+    )
+
+    # SNR = signal / noise
+    snr = da.divide(
+        p11,
+        se,
+        where=(se > 0),
+        out=da.zeros_like(p11),
+    )
+
+    # Return mean SNR across position pairs (excluding diagonal)
+    # Mask out diagonal (i == j)
+    L = snr.shape[-1]
+    diag_mask = da.eye(L, dtype=bool)
+    snr_masked = da.where(diag_mask, 0, snr)
+    n_pairs = L * (L - 1)
+
+    return snr_masked.sum(axis=(-1, -2)) / n_pairs
+
+
 #
 # Main normalization function
 #
@@ -461,6 +504,9 @@ def _data_from_counts(
 
         mask_2d = _pairwise_mask(mask)
 
+        # Compute pairwise SNR before summing pairs
+        pairwise_snr = _pairwise_snr(prob, pairs)
+
         pairs = pairs.sum((-2, -1))
         covariance = _correlation(prob, pairs, opts.sig)
         mi = _mutual_information(prob)
@@ -472,6 +518,7 @@ def _data_from_counts(
         prob = None
         covariance = None
         mi = None
+        pairwise_snr = None
 
     return (
         reactivity,
@@ -486,6 +533,7 @@ def _data_from_counts(
         prob,
         covariance,
         mi,
+        pairwise_snr,
     )
 
 
@@ -530,12 +578,19 @@ def _print_stats_single(
         out += format_f("Dropout fraction", dropout, 10)
         out += format_f("Mean SNR", msnr, 10)
         out += format_f("SNR > 1", fsnr, 10)
+        if data.pairwise_snr is not None:
+            mpsnr = np.mean(data.pairwise_snr)
+            fpsnr = np.mean(data.pairwise_snr > CUTOFF)
+            out += format_f("Mean pairwise SNR", mpsnr, 10)
+            out += format_f("Pairwise SNR > 1", fpsnr, 10)
     else:
         out += format_i("Reads", mr, 10)
         out += format_f("Mean reactivity", mrr, 10, prec=3)
         out += format_f("Mean error", me, 10, prec=3)
         out += format_f("Deletion rate", del_r, 10, prec=3)
         out += format_f("SNR", msnr, 10)
+        if data.pairwise_snr is not None:
+            out += format_f("Pairwise SNR", np.mean(data.pairwise_snr), 10)
 
     return out
 
@@ -557,6 +612,7 @@ class ProbingData:
         probability: Union[ProbingDatum, None],
         covariance: Union[ProbingDatum, None],
         mi: Union[ProbingDatum, None],
+        pairwise_snr: Union[ProbingDatum, None] = None,
     ) -> None:
 
         self.sequences = sequences
@@ -579,6 +635,7 @@ class ProbingData:
         self.probability = probability
         self.covariance = covariance
         self.mi = mi
+        self.pairwise_snr = pairwise_snr
 
     def size(
         self: ProbingData,
@@ -602,23 +659,23 @@ class ProbingData:
         self: ProbingData,
     ) -> ProbingData:
 
-        return ProbingData(
-            *da.compute(
-                self.sequences,
-                self.reactivity,
-                self.reads,
-                self.error,
-                self.snr,
-                self.mask,
-                self.heatmap,
-                self.coverage,
-                self.terminations,
-                self.pairs,
-                self.probability,
-                self.covariance,
-                self.mi,
-            )
+        computed = da.compute(
+            self.sequences,
+            self.reactivity,
+            self.reads,
+            self.error,
+            self.snr,
+            self.mask,
+            self.heatmap,
+            self.coverage,
+            self.terminations,
+            self.pairs,
+            self.probability,
+            self.covariance,
+            self.mi,
+            self.pairwise_snr,
         )
+        return ProbingData(*computed)
 
     def clip(
         self: ProbingData,
@@ -670,6 +727,9 @@ class ProbingData:
         if self.covariance is not None:
             data[group + '/' + Datasets.COV] = da.from_array(self.covariance)
 
+        if self.pairwise_snr is not None:
+            data[group + '/' + Datasets.PAIRWISE_SNR] = da.from_array(self.pairwise_snr)
+
         if self.sequences is not None:
             data[Datasets.SEQUENCE] = da.from_array(self.sequences)
 
@@ -696,6 +756,7 @@ class ProbingData:
         mi = get(Datasets.MI)
         covariance = get(Datasets.COV)
         norm = get(Datasets.NORM)
+        pairwise_snr = get(Datasets.PAIRWISE_SNR)
 
         # Create minimal ProbingData with required fields
         # Fields not saved are set to empty arrays or None
@@ -716,6 +777,7 @@ class ProbingData:
             probability=None,
             covariance=covariance,
             mi=mi,
+            pairwise_snr=pairwise_snr,
         )
         data.norm = norm
         return data
@@ -783,6 +845,7 @@ def _merge_conditions(
     probability = mod.probability
     mi = mod.mi
     covariance = mod.covariance
+    pairwise_snr = mod.pairwise_snr
 
     return ProbingData(
         sequences,
@@ -798,6 +861,7 @@ def _merge_conditions(
         probability,
         covariance,
         mi,
+        pairwise_snr,
     )
 
 
