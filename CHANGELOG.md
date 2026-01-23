@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0] - 2025-01-23
+
+### Changed
+
+- **Breaking**: Consolidated normalization CLI flags into single `--norm {ubr,raw,outlier}` argument
+  - Replaces `--raw` and `--norm-outlier` flags
+  - Default is `ubr` (90th percentile normalization)
+- **Breaking**: `Opts` dataclass now uses `norm: str` instead of `raw: bool` and `outlier: bool`
+
 ## [1.3.3] - 2025-01-23
 
 ### Changed

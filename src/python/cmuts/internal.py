@@ -66,8 +66,7 @@ class Opts:
     cutoff: int
     ins: bool
     dels: bool
-    raw: bool
-    outlier: bool
+    norm: str  # "ubr", "raw", or "outlier"
     blank: tuple[int, int]
     clip: tuple[bool, bool]
     sig: float

@@ -33,17 +33,17 @@ class NormScheme(Enum):
     OUTLIER = 2
 
 
-def _get_norm_scheme(raw: bool, outlier: bool) -> NormScheme:
-    """Determine normalization scheme from flags."""
-    if raw and outlier:
-        raise ValueError("The --raw and --norm-outlier flags are mutually exclusive.")
-
-    if raw:
+def _get_norm_scheme(norm: str) -> NormScheme:
+    """Determine normalization scheme from string."""
+    norm_lower = norm.lower()
+    if norm_lower == "raw":
         return NormScheme.RAW
-    if outlier:
-        return NormScheme.OUTLIER
-    else:
+    if norm_lower == "ubr":
         return NormScheme.UBR
+    if norm_lower == "outlier":
+        return NormScheme.OUTLIER
+
+    raise ValueError(f"Unknown normalization scheme: {norm}. Use 'ubr', 'raw', or 'outlier'.")
 
 
 def _get_norm_raw(
@@ -118,7 +118,7 @@ def get_norm(
     Returns:
         Normalization factor(s) as numpy array
     """
-    scheme = _get_norm_scheme(opts.raw, opts.outlier)
+    scheme = _get_norm_scheme(opts.norm)
 
     if scheme == NormScheme.RAW:
         return _get_norm_raw(data, opts)

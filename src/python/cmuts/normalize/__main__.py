@@ -80,14 +80,10 @@ parser.add_argument(
     action="store_true",
 )
 parser.add_argument(
-    "--raw",
-    help="Do not normalize the reactivity values.",
-    action="store_true",
-)
-parser.add_argument(
-    "--norm-outlier",
-    help="Use the 2-8 outlier-based normalization method.",
-    action="store_true",
+    "--norm",
+    help="Normalization method: ubr (90th percentile), raw (none), outlier (2-8%%).",
+    choices=["ubr", "raw", "outlier"],
+    default="ubr",
 )
 parser.add_argument(
     "--norm-cutoff",
@@ -143,8 +139,7 @@ def main():
         args.blank_cutoff,
         not args.no_insertions,
         not args.no_deletions,
-        args.raw,
-        args.norm_outlier,
+        args.norm,
         blank,
         clip,
         args.sig,
