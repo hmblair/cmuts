@@ -86,7 +86,7 @@ def subtitle(name: str) -> str:
 
 
 def _print_stats_single(
-    data: "ProbingData",
+    data: ProbingData,
 ) -> str:
     """Format statistics for a single ProbingData object."""
     multi = data.reactivity.shape[0] > 1
@@ -144,9 +144,9 @@ def _print_stats_single(
 
 
 def stats(
-    mod: "ProbingData",
-    nomod: Union["ProbingData", None],
-    combined: "ProbingData",
+    mod: ProbingData,
+    nomod: Union[ProbingData, None],
+    combined: ProbingData,
 ) -> None:
     """Print statistics for modified, unmodified, and combined probing data."""
     multi = combined.reactivity.shape[0] > 1
