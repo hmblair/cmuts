@@ -1,4 +1,5 @@
 #include "mpi.hpp"
+#include "utils.hpp"
 
 namespace MPI {
 
@@ -145,10 +146,12 @@ int64_t Manager::reduce(const int64_t& value) const {
 
     #ifdef MPI_BUILD
 
+    CMUTS_TRACE("MPI_Reduce: entering, value=" + std::to_string(value));
     int64_t _value = 0;
     if (!null()) {
         MPI_Reduce(&value, &_value, 1, MPI_INT, MPI_SUM, 0, _comm);
     }
+    CMUTS_TRACE("MPI_Reduce: done, result=" + std::to_string(_value));
     return _value;
 
     #else
@@ -163,11 +166,13 @@ bool Manager::any(bool value) const {
 
     #ifdef MPI_BUILD
 
+    if (null()) { return value; }
+
+    CMUTS_TRACE("MPI_Allreduce(any): entering, local=" + std::to_string(value));
     int local = value ? 1 : 0;
     int result = 0;
-    if (!null()) {
-        MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LOR, _comm);
-    }
+    MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LOR, _comm);
+    CMUTS_TRACE("MPI_Allreduce(any): done, result=" + std::to_string(result != 0));
     return result != 0;
 
     #else
@@ -182,11 +187,13 @@ bool Manager::all(bool value) const {
 
     #ifdef MPI_BUILD
 
+    if (null()) { return value; }
+
+    CMUTS_TRACE("MPI_Allreduce(all): entering, local=" + std::to_string(value));
     int local = value ? 1 : 0;
     int result = 0;
-    if (!null()) {
-        MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LAND, _comm);
-    }
+    MPI_Allreduce(&local, &result, 1, MPI_INT, MPI_LAND, _comm);
+    CMUTS_TRACE("MPI_Allreduce(all): done, result=" + std::to_string(result != 0));
     return result != 0;
 
     #else
@@ -217,18 +224,16 @@ void Manager::barrier(bool debug) const {
 
     #ifdef MPI_BUILD
 
-    if (debug) {
-        std::cout << "Thread " << _rank << " waiting.\n";
-    }
-
+    CMUTS_TRACE("MPI_Barrier: entering");
     if (!null()) { MPI_Barrier(_comm); }
+    CMUTS_TRACE("MPI_Barrier: done");
 
-    if (debug) {
-        std::cout << "Thread " << _rank << " done.\n";
-    }
+    // Legacy debug output (deprecated, use CMUTS_LOG_STDERR=1 instead)
+    (void)debug;
 
     #else
 
+    (void)debug;
     return;
 
     #endif

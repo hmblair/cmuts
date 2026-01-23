@@ -80,13 +80,20 @@ static inline cmuts::Params _construct_params(
 
 int main(int argc, char** argv) {
 
+    // Initialize logging from environment before anything else
+    init_logging_from_env();
+
     // Initialize MPI processes
 
     MPI::Manager mpi(argc, argv);
 
+    CMUTS_TRACE("MPI initialized, rank=" + std::to_string(mpi.rank()) +
+                ", size=" + std::to_string(mpi.size()));
+
     // Initialize HDF5 manager
 
     HDF5::Manager _hdf5_manager;
+    CMUTS_TRACE("HDF5 manager initialized");
 
     // Disable native HTS logging as it does not work well in the
     // multi-threaded environment
@@ -124,17 +131,22 @@ int main(int argc, char** argv) {
 
     // Open the reference FASTA
 
+    CMUTS_TRACE("Opening FASTA: " + std::string(opt.fasta));
     std::optional<BinaryFASTA> _fasta;
     try {
 
         if (mpi.root()) {
             _fasta.emplace(opt.fasta, opt.rebuild);
         }
+        CMUTS_TRACE("Before FASTA barrier 1");
         mpi.barrier();
+        CMUTS_TRACE("After FASTA barrier 1");
         if (!mpi.root()) {
             _fasta.emplace(opt.fasta);
         }
+        CMUTS_TRACE("Before FASTA barrier 2");
         mpi.barrier();
+        CMUTS_TRACE("After FASTA barrier 2");
 
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
@@ -172,17 +184,22 @@ int main(int argc, char** argv) {
 
     // Open the HTS files, whose constructors are not thread-safe
 
+    CMUTS_TRACE("Opening HTS files");
     std::optional<HTS::FileGroup> _files;
     try {
 
         if (mpi.root()) {
             _files.emplace(opt.files);
         }
+        CMUTS_TRACE("Before HTS barrier 1");
         mpi.barrier();
+        CMUTS_TRACE("After HTS barrier 1");
         if (!mpi.root()) {
             _files.emplace(opt.files);
         }
+        CMUTS_TRACE("Before HTS barrier 2");
         mpi.barrier();
+        CMUTS_TRACE("After HTS barrier 2");
 
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
@@ -190,7 +207,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
     HTS::FileGroup files = std::move(_files.value());
+    CMUTS_TRACE("Before HTS barrier 3");
     mpi.barrier();
+    CMUTS_TRACE("After HTS barrier 3");
 
     // Get the desired operation modes
 
@@ -229,13 +248,17 @@ int main(int argc, char** argv) {
 
     size_t processed = 0;
 
+    CMUTS_TRACE("Starting file loop, total=" + std::to_string(files.size()));
     for (auto& input : files) {
 
         std::string name = _path(input->name());;
 
         try {
+            CMUTS_TRACE("Processing file: " + name);
             stats.file();
+            CMUTS_TRACE("Before run()");
             cmuts::run<float>(*input, fasta, hdf5, mpi, params, stats, name);
+            CMUTS_TRACE("After run()");
             stats.body();
             processed++;
         } catch (const std::exception& e) {
@@ -244,6 +267,7 @@ int main(int argc, char** argv) {
         }
 
     }
+    CMUTS_TRACE("Finished file loop, processed=" + std::to_string(processed));
 
     if (processed == 0) {
         __cleanup(mpi, opt);

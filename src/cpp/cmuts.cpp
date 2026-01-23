@@ -193,13 +193,20 @@ void DataView<dtype, mode>::update(int32_t offset) {
 }
 
 template <typename dtype, Mode mode>
-void DataView<dtype, mode>::write(int32_t offset) {
+void DataView<dtype, mode>::write(int32_t offset, bool has_data, const MPI::Manager& mpi) {
 
-    if (!skip) {
+    // Use MPI to check if ANY process has data - avoids expensive collective
+    // HDF5 write when all processes have empty data for this chunk
+    bool any_has_data = mpi.any(has_data);
+
+    if (any_has_data) {
+        CMUTS_TRACE("DataView::write: calling safe_write at offset=" + std::to_string(offset));
         _memspace.safe_write(offset);
-        _memspace.clear();
-        skip = true;
+        CMUTS_TRACE("DataView::write: safe_write done");
+    } else {
+        CMUTS_TRACE("DataView::write: skipping (no process has data)");
     }
+    _memspace.clear();
 
 }
 
@@ -239,10 +246,15 @@ void Data<dtype>::update(int32_t offset) {
 
 
 template <typename dtype>
-void Data<dtype>::write(int32_t offset) {
+void Data<dtype>::write(int32_t offset, bool has_data, const MPI::Manager& mpi) {
 
-    mods.write(offset);
-    if (pairs) { pairs->write(offset); }
+    CMUTS_TRACE("Data::write: offset=" + std::to_string(offset) + " has_data=" + std::to_string(has_data));
+    mods.write(offset, has_data, mpi);
+    CMUTS_TRACE("Data::write: mods done");
+    if (pairs) {
+        pairs->write(offset, has_data, mpi);
+        CMUTS_TRACE("Data::write: pairs done");
+    }
 
 }
 
@@ -1102,9 +1114,6 @@ static inline void __count_reference(
         stats.print();
         count++;
 
-        data.mods.skip = false;
-        if (params.pairwise) { data.pairs->skip = false; }
-
     }
 
 }
@@ -1126,6 +1135,7 @@ static inline void __process(
     HTS::File& file,
     BinaryFASTA& fasta,
     HDF5::File& hdf5,
+    const MPI::Manager& mpi,
     const Params& params,
     Stats& stats,
     Data<dtype>& data,
@@ -1137,6 +1147,10 @@ static inline void __process(
         file.size()
     );
 
+    // Track whether this process has any data to write
+    bool has_data = false;
+
+    CMUTS_TRACE("__process: min=" + std::to_string(min) + " max=" + std::to_string(max));
     for (int32_t ix = min; ix < max; ix++) {
 
         // Reads are processed sequentially if built in serial mode, so
@@ -1154,10 +1168,13 @@ static inline void __process(
         seq_t reference = fasta.sequence(ix);
         data.update(ix - min);
         __count_reference<dtype>(*iter, reference, data, params, stats);
+        has_data = true;
 
     }
 
-    data.write(min);
+    CMUTS_TRACE("__process: Before data.write() has_data=" + std::to_string(has_data));
+    data.write(min, has_data, mpi);
+    CMUTS_TRACE("__process: After data.write()");
 
 }
 
@@ -1173,27 +1190,36 @@ void run(
     const std::string& name
 ) {
 
+    CMUTS_TRACE("run: entered");
     stats.body();
+    CMUTS_TRACE("run: after stats.body()");
     MPI::Chunk chunk = mpi.chunk(hdf5.chunk_size(), file.size());
+    CMUTS_TRACE("run: chunk low=" + std::to_string(chunk.low) +
+                " high=" + std::to_string(chunk.high) +
+                " step=" + std::to_string(chunk.step));
 
     Data<dtype> data(fasta, hdf5, name, params.pairwise);
 
+    int iterations = 0;
     for (int32_t min = chunk.low; min < chunk.high; min += chunk.step) {
-
+        CMUTS_TRACE("run: processing chunk min=" + std::to_string(min));
         __process<dtype>(
             file,
             fasta,
             hdf5,
+            mpi,
             params,
             stats,
             data,
             min
         );
-
+        iterations++;
     }
+    CMUTS_TRACE("run: loop done, iterations=" + std::to_string(iterations));
 
-    stats.mark_done();
-    while (!stats.print());
+    CMUTS_TRACE("run: before final barrier");
+    mpi.barrier();
+    CMUTS_TRACE("run: after final barrier");
 
 }
 
@@ -1336,11 +1362,13 @@ void Stats::file() {
 
 void Stats::aggregate() {
 
+    CMUTS_TRACE("Stats::aggregate: entering");
     _processed = _mpi.reduce(_processed);
     _skipped   = _mpi.reduce(_skipped);
 
     _bases_processed = _mpi.reduce(_bases_processed);
     _bases_skipped   = _mpi.reduce(_bases_skipped);
+    CMUTS_TRACE("Stats::aggregate: done");
 
 }
 
@@ -1386,22 +1414,11 @@ double Stats::elapsed() const {
 
 }
 
-void Stats::mark_done() {
-    _done = true;
-}
+void Stats::print() {
 
-bool Stats::print() {
-
-    bool all_done = _mpi.all(_done);
-    bool should_print = elapsed() > _print_every || all_done;
-    should_print = _mpi.any(should_print);
-
-    if (should_print) {
-        aggregate();
+    if (elapsed() > _print_every) {
         body();
     }
-
-    return all_done;
 
 }
 

@@ -102,14 +102,12 @@ private:
 
 public:
 
-    bool skip = false;
-
     // view_t<dtype, _ndims(mode)> arr;
 
     DataView(HDF5::Memspace<dtype, _ndims(mode)> memspace);
     view_t<dtype, _ndims(mode)> view();
     void update(int32_t offset);
-    void write(int32_t offset);
+    void write(int32_t offset, bool has_data, const MPI::Manager& mpi);
     int32_t size() const;
 
 };
@@ -135,7 +133,7 @@ public:
     int32_t min = 0;
 
     void update(int32_t offset);
-    void write(int32_t offset);
+    void write(int32_t offset, bool has_data, const MPI::Manager& mpi);
     void size() const;
 
 };
@@ -173,8 +171,6 @@ private:
     double _last_print  = 0;
     double _print_every = 0;
 
-    bool _done = false;
-
     const MPI::Manager& _mpi;
 
     Utils::Line _print_files     = Utils::Line("File");
@@ -206,10 +202,9 @@ public:
     void aggregate();
     void header() const;
     double elapsed() const;
-    void mark_done();
 
     void body();
-    bool print();
+    void print();
 
 };
 

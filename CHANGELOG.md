@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.4] - 2025-01-22
+
+### Added
+
+- Configurable logging system via `CMUTS_LOG_LEVEL` and `CMUTS_LOG_STDERR` environment variables
+- `TRACE` log level for detailed MPI debugging
+
+### Fixed
+
+- **Critical**: MPI deadlock in HDF5 collective I/O when processes had asymmetric workloads
+- Root cause: `skip` flag was reset after each read, causing processes to participate in different numbers of collective writes
+
+### Changed
+
+- Version now derived from git tags (configure generates VERSION file)
+
 ## [1.2.3] - 2025-12-01
 
 ### Added

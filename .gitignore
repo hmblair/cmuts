@@ -1,6 +1,7 @@
 .*
 CLAUDE.md
 !/.gitignore
+VERSION
 bin/
 build/
 src/cpp/generated/

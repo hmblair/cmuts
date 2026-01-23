@@ -1,7 +1,8 @@
 #!/bin/bash
 
-VFILE="VERSION"
-VERSION=$(cat "$VFILE")
+# Version from git tag (strips leading 'v', falls back to 0.0.0)
+VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
+echo "$VERSION" > VERSION
 
 set -eo pipefail
 

@@ -39,11 +39,18 @@ void __init_log(const std::string& filename);
 //
 // Structured logging with levels
 //
+// Configure via environment variables:
+//   CMUTS_LOG_LEVEL: TRACE, DEBUG, INFO, WARN, ERROR (default: INFO)
+//   CMUTS_LOG_STDERR: 1 to enable real-time stderr output (default: off)
+//
 
-enum class LogLevel { DEBUG = 0, INFO = 1, WARN = 2, ERROR = 3 };
+enum class LogLevel { TRACE = 0, DEBUG = 1, INFO = 2, WARN = 3, ERROR = 4 };
 
-// Global log level (default INFO, set via --verbose for DEBUG)
+// Global log level (default INFO, configurable via env or --verbose)
 extern LogLevel g_log_level;
+
+// Whether to also output to stderr (for real-time debugging)
+extern bool g_log_stderr;
 
 // Log function with level, file, and line context
 void __log_level(
@@ -58,11 +65,16 @@ void __log_level(
 void set_log_level(LogLevel level);
 void set_log_level_from_verbose(bool verbose);
 
+// Initialize logging from environment variables
+// Call early in main(), before other logging calls
+void init_logging_from_env();
+
 // Logging macros with file/line context
 #define CMUTS_LOG(level, msg) \
     do { if (static_cast<int>(level) >= static_cast<int>(g_log_level)) \
         __log_level(_LOG_FILE, level, __FILE__, __LINE__, msg); } while(0)
 
+#define CMUTS_TRACE(msg) CMUTS_LOG(LogLevel::TRACE, msg)
 #define CMUTS_DEBUG(msg) CMUTS_LOG(LogLevel::DEBUG, msg)
 #define CMUTS_INFO(msg)  CMUTS_LOG(LogLevel::INFO, msg)
 #define CMUTS_WARN(msg)  CMUTS_LOG(LogLevel::WARN, msg)
