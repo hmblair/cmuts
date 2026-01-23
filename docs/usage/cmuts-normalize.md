@@ -49,7 +49,11 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 ### Normalization Control
 
-**`--raw`** : Do not normalize the reactivity values
+**`--norm {ubr,raw,outlier}`** : Normalization method (default: ubr)
+
+- `ubr`: 90th percentile normalization (default)
+- `raw`: No normalization
+- `outlier`: 2-8% outlier-based normalization
 
 **`--clip-low`** : Clip negative reactivity values
 
