@@ -77,7 +77,9 @@ jobs:
             pkg-config \
             autoconf \
             automake \
-            libtool
+            libtool \
+            libbz2-dev \
+            liblzma-dev
 
       - name: Build htscodecs
         run: |
@@ -132,7 +134,9 @@ jobs:
             pkg-config \
             autoconf \
             automake \
-            libtool
+            libtool \
+            libbz2-dev \
+            liblzma-dev
 
       - name: Build htscodecs
         run: |
