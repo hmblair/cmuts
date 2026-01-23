@@ -9,7 +9,7 @@
 #include <execinfo.h>
 #include <argparse/argparse.hpp>
 
-#include "mpi.hpp"
+#include "infra/mpi.hpp"
 
 const std::string _LOG_FILE = ".cmuts.log";
 constexpr int32_t MAX_TRACE = 256;

@@ -2,9 +2,9 @@
 #define _CMUTS_FASTA_HEADER
 
 #include "common.hpp"
-#include "hdf5.hpp"
-#include "mpi.hpp"
-#include "mutex.hpp"
+#include "io/hdf5.hpp"
+#include "infra/mpi.hpp"
+#include "infra/mutex.hpp"
 
 // Indices of the bases in binary sequences
 

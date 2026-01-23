@@ -1,12 +1,12 @@
 #ifndef _CMUTS_MAIN_HEADER_
 #define _CMUTS_MAIN_HEADER_
 
-#include "fasta.hpp"
+#include "io/fasta.hpp"
 #include "common.hpp"
-#include "cmuts.hpp"
-#include "hdf5.hpp"
-#include "mpi.hpp"
-#include "utils.hpp"
+#include "core/cmuts.hpp"
+#include "io/hdf5.hpp"
+#include "infra/mpi.hpp"
+#include "infra/utils.hpp"
 #include "generated/cmuts_args.hpp"
 
 static inline bool __mpi_build() {

@@ -112,15 +112,15 @@ add_custom_target(generate_args
 
 
 add_library(libcmuts STATIC
-    src/cpp/fasta.cpp
+    src/cpp/io/fasta.cpp
+    src/cpp/io/bam.cpp
+    src/cpp/io/cram.cpp
+    src/cpp/io/hdf5.cpp
     src/cpp/common.cpp
-    src/cpp/cmuts.cpp
-    src/cpp/bam.cpp
-    src/cpp/cram.cpp
-    src/cpp/mpi.cpp
-    src/cpp/hdf5.cpp
-    src/cpp/utils.cpp
-    src/cpp/mutex.cpp
+    src/cpp/core/cmuts.cpp
+    src/cpp/infra/mpi.cpp
+    src/cpp/infra/utils.cpp
+    src/cpp/infra/mutex.cpp
 )
 
 set_target_properties(libcmuts PROPERTIES PREFIX "")
@@ -130,6 +130,8 @@ target_include_directories(libcmuts PRIVATE
     ${HDF5_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/deps/highfive/include
     ${PROJECT_SOURCE_DIR}/htscodecs/htscodecs
+    ${PROJECT_SOURCE_DIR}/src/cpp
+    ${PROJECT_SOURCE_DIR}/src/cpp/compat
 )
 
 target_link_directories(libcmuts PRIVATE
@@ -177,6 +179,8 @@ function(setup_target _target)
         ${HDF5_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/deps/highfive/include
         ${PROJECT_SOURCE_DIR}/htscodecs/htscodecs
+        ${PROJECT_SOURCE_DIR}/src/cpp
+        ${PROJECT_SOURCE_DIR}/src/cpp/compat
     )
 
     target_link_directories(${_target} PRIVATE
@@ -220,11 +224,11 @@ function(setup_target _target)
 endfunction()
 
 add_executable(${CORE}
-    src/cpp/main.cpp
+    src/cpp/app/main.cpp
 )
 
 add_executable(${TESTS}
-    src/cpp/tests.cpp
+    src/cpp/app/tests.cpp
 )
 
 setup_target(${CORE})

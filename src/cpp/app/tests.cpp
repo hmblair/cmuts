@@ -1,4 +1,4 @@
-#include "tests.hpp"
+#include "app/tests.hpp"
 
 namespace TestGen {
 

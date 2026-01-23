@@ -62,7 +62,7 @@ Changelog = "https://github.com/hmblair/cmuts/releases"
 [project.scripts]
 cmuts-normalize = "cmuts.normalize.__main__:main"
 cmuts-plot = "cmuts.visualize.plotting:main"
-cmuts-visualize = "cmuts.visualize.vis:main"
+cmuts-visualize = "cmuts.visualize.structure:main"
 
 [tool.setuptools_scm]
 

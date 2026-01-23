@@ -1,5 +1,5 @@
-#include "mpi.hpp"
-#include "utils.hpp"
+#include "infra/mpi.hpp"
+#include "infra/utils.hpp"
 
 namespace MPI {
 

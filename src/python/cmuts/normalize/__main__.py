@@ -119,20 +119,6 @@ parser.add_argument(
 )
 
 
-# ANSI escape codes (for printing)
-
-
-BOLD = "\033[1m"
-RESET = "\033[0m"
-
-
-def _subtitle(name: str) -> str:
-    if name:
-        return " " * 8 + f"{BOLD}Statistics for {name}:{RESET}"
-    else:
-        return " " * 8 + f"{BOLD}Statistics:{RESET}"
-
-
 def _remove_if_exists(path: str, overwrite: bool = False) -> None:
     if os.path.exists(path):
         if overwrite:
@@ -144,7 +130,7 @@ def main():
 
     print()
     print(cmuts.title(NAME, cmuts.__version__))
-    print(_subtitle(args.group))
+    print(cmuts.subtitle(args.group))
 
     _remove_if_exists(args.out, args.overwrite)
 

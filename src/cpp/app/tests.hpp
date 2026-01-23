@@ -1,12 +1,12 @@
 #ifndef TESTS_HEADER
 #define TESTS_HEADER
 
-#include "cmuts.hpp"
-#include "fasta.hpp"
+#include "core/cmuts.hpp"
+#include "io/fasta.hpp"
 #include "common.hpp"
-#include "utils.hpp"
-#include "hdf5.hpp"
-#include "mpi.hpp"
+#include "infra/utils.hpp"
+#include "io/hdf5.hpp"
+#include "infra/mpi.hpp"
 #include "generated/tests_args.hpp"
 
 #include <random>

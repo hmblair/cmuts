@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.3.1] - 2025-01-22
+
+### Changed
+
+- **Codebase reorganization** for improved maintainability:
+  - Python: Extracted formatting/display code into new `cmuts.output` module
+  - Python: Renamed `visualize/vis.py` to `visualize/structure.py` for clarity
+  - C++: Reorganized into `io/`, `core/`, `infra/`, `app/` subdirectories
+  - C++: Split large `common.hpp` into modular headers (`io/common/types.hpp`, `stream.hpp`, `alignment.hpp`, `file.hpp`)
+  - Added backward compatibility headers in `compat/`
+
+### Added
+
+- `cmuts.output` module with `stats()`, `title()`, `subtitle()` functions
+- `cmuts.subtitle()` function for statistics headers
+
+## [1.3.0] - 2025-01-22
+
+### Added
+
+- CI/CD infrastructure with GitHub Actions workflow
+- Automated testing (pytest) and coverage reporting
+- Documentation generation in CI pipeline
+
+### Fixed
+
+- CI: Install C++ binaries and fix coverage path
+- CI: Add libbz2-dev and liblzma-dev for htscodecs build
+- CI: Build htscodecs submodule before cmake
+- CI: Update xtensor to 0.27.0 and xtl to 0.8.0
+
 ## [1.2.4] - 2025-01-22
 
 ### Added

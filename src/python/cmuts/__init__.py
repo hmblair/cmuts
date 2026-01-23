@@ -32,15 +32,19 @@ from importlib.metadata import version as _get_version
 # Visualization submodule
 from . import visualize
 
-# Core data types
-# Core functions
+# Core data types and functions
 from .internal import (
     DataGroups,
     NormScheme,
     Opts,
     ProbingData,
     compute_reactivity,
+)
+
+# Output formatting
+from .output import (
     stats,
+    subtitle,
     title,
 )
 
@@ -49,11 +53,12 @@ __version__ = _get_version("cmuts")
 __all__ = [
     "__version__",
     "DataGroups",
-    "Opts",
     "NormScheme",
+    "Opts",
     "ProbingData",
     "compute_reactivity",
     "stats",
+    "subtitle",
     "title",
     "visualize",
 ]

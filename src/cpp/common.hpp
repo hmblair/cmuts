@@ -1,6 +1,13 @@
 #ifndef _CMUTS_COMMON_HEADER
 #define _CMUTS_COMMON_HEADER
 
+// This header is maintained for backward compatibility.
+// New code should use the specific headers from io/common/:
+//   - io/common/types.hpp     - Base types and constants
+//   - io/common/stream.hpp    - ByteStream hierarchy
+//   - io/common/alignment.hpp - CIGAR, PHRED, Alignment
+//   - io/common/file.hpp      - Iterator, Index, File, FileGroup
+
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
@@ -26,8 +33,8 @@ extern "C" {
     #include <rANS_static.h>
 }
 
-#include "utils.hpp"
-#include "mutex.hpp"
+#include "infra/utils.hpp"
+#include "infra/mutex.hpp"
 
 // Canonical bases
 

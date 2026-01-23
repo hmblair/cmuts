@@ -13,8 +13,8 @@
 #include <xtensor/io/xio.hpp>
 #include <xtensor/views/xview.hpp>
 
-#include "mpi.hpp"
-#include "utils.hpp"
+#include "infra/mpi.hpp"
+#include "infra/utils.hpp"
 
 // The array type used internally
 template <typename dtype, size_t N>

@@ -1,4 +1,4 @@
-#include "main.hpp"
+#include "app/main.hpp"
 
 static inline void _print_title(const MPI::Manager& mpi) {
 

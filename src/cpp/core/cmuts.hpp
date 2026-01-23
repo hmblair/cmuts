@@ -5,12 +5,12 @@
 #include <ranges>
 
 #include "common.hpp"
-#include "fasta.hpp"
-#include "bam.hpp"
-#include "cram.hpp"
-#include "hdf5.hpp"
-#include "mpi.hpp"
-#include "utils.hpp"
+#include "io/fasta.hpp"
+#include "io/bam.hpp"
+#include "io/cram.hpp"
+#include "io/hdf5.hpp"
+#include "infra/mpi.hpp"
+#include "infra/utils.hpp"
 
 const int32_t N_PAIRS    = 2;
 const int32_t N_BASES    = 4;

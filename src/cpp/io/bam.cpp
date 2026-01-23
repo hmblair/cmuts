@@ -1,4 +1,4 @@
-#include "bam.hpp"
+#include "io/bam.hpp"
 #include "common.hpp"
 #include "htslib/hts.h"
 #include <stdexcept>
