@@ -1,5 +1,6 @@
 .*
 CLAUDE.md
+VERSION
 !/.gitignore
 !/.github/
 !/.pre-commit-config.yaml
