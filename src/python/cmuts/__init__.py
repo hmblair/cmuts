@@ -35,11 +35,11 @@ from . import visualize
 # Core data types and functions
 from .internal import (
     DataGroups,
-    NormScheme,
     Opts,
     ProbingData,
     compute_reactivity,
 )
+from .normalize import NormScheme
 
 # Output formatting
 from .output import (

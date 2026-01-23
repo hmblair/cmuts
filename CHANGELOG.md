@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.3] - 2025-01-23
+
+### Changed
+
+- **Python normalization extraction**: Moved normalization code from `internal.py` into `normalize/schemes.py`
+  - `NormScheme` enum and `get_norm()` function now in `cmuts.normalize.schemes`
+  - Reduces `internal.py` from 921 to 831 lines
+
 ## [1.3.2] - 2025-01-22
 
 ### Changed
