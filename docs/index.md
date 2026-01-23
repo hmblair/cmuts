@@ -2,7 +2,7 @@
 
 Fast mutation counting and reactivity profiling for MaP-seq experiments.
 
-![cmuts overview](figures/overview.pdf)
+![cmuts overview](figures/overview.png)
 
 ## Getting Started
 
