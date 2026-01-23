@@ -57,12 +57,12 @@ FetchContent_Declare(
 FetchContent_Declare(
     xtl
     GIT_REPOSITORY https://github.com/xtensor-stack/xtl.git
-    GIT_TAG 0.7.7
+    GIT_TAG 0.8.0
 )
 FetchContent_Declare(
     xtensor
     GIT_REPOSITORY https://github.com/xtensor-stack/xtensor.git
-    GIT_TAG 0.25.0
+    GIT_TAG 0.27.0
 )
 
 FetchContent_MakeAvailable_If_Not_Already_Present(argparse)
