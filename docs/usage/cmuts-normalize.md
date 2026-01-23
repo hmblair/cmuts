@@ -105,8 +105,11 @@ In the case where 2D data was also present in the input, the output HDF5 file wi
 ```
 /
 ├── correlation
-└── mutual-information
+├── mutual-information
+└── pairwise-snr
 ```
+
+**pairwise-snr**: Signal-to-noise ratio for pairwise joint probabilities. Computed as P(i=1, j=1) / SE(P(i=1, j=1)) for each position pair, then averaged across all pairs (excluding diagonal). One value per reference. Higher values indicate more reliable pairwise correlation estimates.
 
 !!! warning
     If a value was passed to `--group`, then the above will be contained in an HDF5 group with that name.
