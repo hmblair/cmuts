@@ -1,10 +1,15 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm, SymLogNorm
-from cmuts.internal import ProbingData
-from typing import Union
+from typing import Any, Union
 
+import dask.array as da
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LogNorm, SymLogNorm
+
+from cmuts.internal import ProbingData
+
+# Type alias for arrays that can be either numpy or dask
+ArrayType = Union[np.ndarray, da.Array]
 
 # Figures directory
 
@@ -15,7 +20,7 @@ FIGURES = "figures"
 # Font and color for plotting
 
 
-plt.rcParams['font.family'] = 'Helvetica'
+plt.rcParams["font.family"] = "Helvetica"
 LABEL_SIZE = 14
 TITLE_SIZE = 15
 TICK_SIZE = 13
@@ -24,13 +29,15 @@ DPI = 400
 
 CMAP = "RdPu"
 CMAPS = [
-    plt.cm.RdPu,
-    plt.cm.PiYG,
+    plt.get_cmap("RdPu"),
+    plt.get_cmap("PiYG"),
 ]
 
 
-def _line_plot(data: np.ndarray, cmap = plt.cm.RdPu, label: str = "") -> None:
-
+def _line_plot(data: ArrayType, cmap: Any = None, label: str = "") -> None:
+    if cmap is None:
+        cmap = plt.get_cmap("RdPu")
+    data = np.asarray(data)
     fill = cmap(0.3)
     draw = cmap(0.8)
 
@@ -44,14 +51,13 @@ def _line_plot(data: np.ndarray, cmap = plt.cm.RdPu, label: str = "") -> None:
         plt.plot(data, color=draw, linewidth=1)
 
     plt.grid(axis="y", alpha=0.5)
-    plt.tick_params(axis='both', labelsize=TICK_SIZE)
+    plt.tick_params(axis="both", labelsize=TICK_SIZE)
     plt.xlim(0, n)
 
 
 def _matrix_plot(data: np.ndarray, norm, label: str, cmap: str = CMAP) -> None:
-
-    im = plt.imshow(data, cmap=cmap, norm=norm, interpolation='none')
-    plt.tick_params(axis='both', labelsize=TICK_SIZE)
+    im = plt.imshow(data, cmap=cmap, norm=norm, interpolation="none")
+    plt.tick_params(axis="both", labelsize=TICK_SIZE)
 
     cbar = plt.colorbar(im)
     cbar.set_label(label, fontsize=LABEL_SIZE)
@@ -59,12 +65,10 @@ def _matrix_plot(data: np.ndarray, norm, label: str, cmap: str = CMAP) -> None:
 
 
 def _prefix(name: str, dir: str = FIGURES) -> str:
-
     return f"{dir}/{name}-" if name else ""
 
 
 def _title(title: str, name: str) -> None:
-
     if name:
         plt.title(title + f" ({name})", fontsize=TITLE_SIZE)
     else:
@@ -80,7 +84,6 @@ def _ylabel(label: str) -> None:
 
 
 def _save_and_close(name: str, figtype: str, dir: str = FIGURES) -> None:
-
     ax = plt.gca()
     _, labels = ax.get_legend_handles_labels()
     if labels:
@@ -95,9 +98,9 @@ def _save_and_close(name: str, figtype: str, dir: str = FIGURES) -> None:
     plt.close()
 
 
-def _plot_heatmap(heatmap: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
-    im = plt.imshow(heatmap, cmap=CMAP, norm=LogNorm(vmin=1E-4, vmax=1E0), interpolation='none')
+def _plot_heatmap(heatmap: ArrayType, name: str, dir: str = FIGURES) -> None:
+    heatmap = np.asarray(heatmap)
+    im = plt.imshow(heatmap, cmap=CMAP, norm=LogNorm(vmin=1e-4, vmax=1e0), interpolation="none")
     plt.colorbar(im, label="Occurrence Probability")
 
     _title("Modification Heatmap", name)
@@ -108,17 +111,19 @@ def _plot_heatmap(heatmap: np.ndarray, name: str, dir: str = FIGURES) -> None:
     _save_and_close(name, figtype, dir)
 
 
-def _plot_read_hist(reads: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
-    with np.errstate(divide='ignore'):
+def _plot_read_hist(reads: ArrayType, name: str, dir: str = FIGURES) -> None:
+    reads = np.asarray(reads)
+    with np.errstate(divide="ignore"):
         lr = np.where(reads == 0, -1, np.log10(reads))
 
-    counts, bins, patches = plt.hist(lr, bins=100)
+    hist_result = plt.hist(lr, bins=100)
+    counts: np.ndarray = np.asarray(hist_result[0])
+    patches = hist_result[2]
     plt.grid(axis="y", alpha=0.5)
 
-    norm = plt.Normalize(counts.min(), counts.max())
-    for count, patch in zip(counts, patches):
-        patch.set_facecolor(plt.cm.RdPu(norm(count)))
+    norm = plt.Normalize(float(counts.min()), float(counts.max()))
+    for count, patch in zip(counts, patches):  # type: ignore[arg-type]
+        patch.set_facecolor(plt.get_cmap("RdPu")(norm(count)))
 
     _title("Read distribution", name)
     _xlabel("log10 Read Depth")
@@ -128,13 +133,15 @@ def _plot_read_hist(reads: np.ndarray, name: str, dir: str = FIGURES) -> None:
     _save_and_close(name, figtype, dir)
 
 
-def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100, dir: str = FIGURES) -> None:
-
+def _plot_cumulative_reads(
+    reads: ArrayType, name: str, block: int = 100, dir: str = FIGURES
+) -> None:
+    reads = np.asarray(reads)
     n = reads.shape[0] // block
-    reads = reads[:n * block]
+    reads = reads[: n * block]
     reads = reads.reshape(n, block).mean(1)
 
-    with np.errstate(divide='ignore'):
+    with np.errstate(divide="ignore"):
         lr = np.where(reads == 0, -1, np.log10(reads))
 
     _line_plot(lr)
@@ -147,8 +154,8 @@ def _plot_cumulative_reads(reads: np.ndarray, name: str, block: int = 100, dir: 
     _save_and_close(name, figtype, dir)
 
 
-def _plot_termination(term: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
+def _plot_termination(term: ArrayType, name: str, dir: str = FIGURES) -> None:
+    term = np.asarray(term)
     quot = term.sum(axis=1)[:, None]
     term = np.divide(
         term,
@@ -175,10 +182,9 @@ def _plot_profile(
     name: str = "",
     dir: str = FIGURES,
 ) -> None:
-
     if error is not None:
         _line_plot(reactivity, label="Reactivity")
-        _line_plot(-error, plt.cm.PuBu, label="Stat. Error")
+        _line_plot(-error, plt.get_cmap("PuBu"), label="Stat. Error")
     else:
         _line_plot(reactivity)
 
@@ -213,7 +219,6 @@ def _plot_error(
     name: str,
     dir: str = FIGURES,
 ) -> None:
-
     _line_plot(error)
 
     _title("Error Profile", name)
@@ -225,16 +230,15 @@ def _plot_error(
 
 
 def _plot_multiple_examples(
-    reactivity: np.ndarray, 
+    reactivity: np.ndarray,
     name: str,
     dir: str = FIGURES,
 ) -> None:
-
     masked = np.ma.masked_where(np.isnan(reactivity), reactivity)
 
-    cmap = plt.cm.RdPu.copy()
-    cmap.set_bad(color='grey')
-    im = plt.imshow(masked, cmap=cmap, vmin=0, vmax=1, interpolation='none')
+    cmap = plt.get_cmap("RdPu").copy()
+    cmap.set_bad(color="grey")
+    im = plt.imshow(masked, cmap=cmap, vmin=0, vmax=1, interpolation="none")
     plt.colorbar(im, label="Reactivity")
 
     _title("Heatmap of profiles", name)
@@ -246,22 +250,24 @@ def _plot_multiple_examples(
 
 
 def _plot_examples(
-    reactivity: np.ndarray,
-    reads: np.ndarray,
-    error: np.ndarray,
+    reactivity: ArrayType,
+    reads: ArrayType,
+    error: ArrayType,
     name: str,
     num: int = 250,
     dir: str = FIGURES,
 ) -> None:
-
+    reactivity = np.asarray(reactivity)
+    error = np.asarray(error)
     if reactivity.shape[0] == 1:
         _plot_profile(reactivity[0], error[0], name, dir)
     else:
         _plot_multiple_examples(reactivity[:num], name, dir)
 
 
-def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
+def _plot_coverage(coverage: ArrayType, reads: ArrayType, name: str, dir: str = FIGURES) -> None:
+    coverage = np.asarray(coverage)
+    reads = np.asarray(reads)
     _line_plot(coverage / reads.mean())
     plt.ylim(0, 1.05)
 
@@ -274,7 +280,6 @@ def _plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str, dir: str 
 
 
 def _plot_variance(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
     _line_plot(values)
 
     _title("Variance", name)
@@ -286,8 +291,7 @@ def _plot_variance(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
 
 def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
-    vlow = max(values.min(), 1E-4)
+    vlow = max(values.min(), 1e-4)
     vhigh = 1
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 
@@ -302,9 +306,8 @@ def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -
 
 
 def _plot_correlation(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
-
     vhigh = 1
-    norm = SymLogNorm(linthresh=1E-3*vhigh, vmin=-vhigh, vmax=vhigh)
+    norm = SymLogNorm(linthresh=1e-3 * vhigh, vmin=-vhigh, vmax=vhigh)
 
     _matrix_plot(values, norm, "Pairwise Correlation", cmap="PiYG")
 
@@ -321,13 +324,12 @@ def _plot_mi(
     name: str,
     dir: str = FIGURES,
 ) -> None:
-
     mask = ~np.isnan(values)
-    vlow = np.percentile(values[mask], 95).astype(float)
-    vhigh = np.percentile(values[mask], 99).astype(float)
+    vlow: float = float(np.percentile(values[mask], 95))
+    vhigh: float = float(np.percentile(values[mask], 99))
 
-    vlow = max(vlow, 1E-6)
-    vhigh = max(vhigh, 1E-6)
+    vlow = max(vlow, 1e-6)
+    vhigh = max(vhigh, 1e-6)
 
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 
@@ -373,11 +375,11 @@ def plot_all(
 def main():
     """CLI entry point for cmuts-plot."""
     import argparse
+
     import h5py
 
     parser = argparse.ArgumentParser(
-        prog="cmuts-plot",
-        description="Generate plots from reactivity data"
+        prog="cmuts-plot", description="Generate plots from reactivity data"
     )
     parser.add_argument("file", help="HDF5 file with reactivity data")
     parser.add_argument("--group", default="", help="Group name in HDF5 file")
@@ -387,7 +389,7 @@ def main():
     if not os.path.exists(args.file):
         raise FileNotFoundError(f"File not found: {args.file}")
 
-    with h5py.File(args.file, 'r') as f:
+    with h5py.File(args.file, "r") as f:
         data = ProbingData.load(args.group, f)
 
     plot_all(data, args.group, args.out)

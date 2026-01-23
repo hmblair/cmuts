@@ -52,16 +52,17 @@ endfunction()
 FetchContent_Declare(
     argparse
     GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+    GIT_TAG v3.0
 )
 FetchContent_Declare(
     xtl
     GIT_REPOSITORY https://github.com/xtensor-stack/xtl.git
-    GIT_TAG master
+    GIT_TAG 0.7.7
 )
 FetchContent_Declare(
     xtensor
     GIT_REPOSITORY https://github.com/xtensor-stack/xtensor.git
-    GIT_TAG master
+    GIT_TAG 0.25.0
 )
 
 FetchContent_MakeAvailable_If_Not_Already_Present(argparse)

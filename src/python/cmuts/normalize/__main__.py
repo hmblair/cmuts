@@ -1,119 +1,119 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
-import os
-import h5py
+
 import argparse
+import os
+
+import h5py
+
 import cmuts
 
-
-NAME = 'cmuts normalize'
+NAME = "cmuts normalize"
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    'file',
-    help='The HDF5 file containing the input data.',
+    "file",
+    help="The HDF5 file containing the input data.",
 )
 parser.add_argument(
-    '--mod',
+    "--mod",
     nargs="+",
-    help='The names of the datasets containing the mutation counts of the modified sequences.',
+    help="The names of the datasets containing the mutation counts of the modified sequences.",
     required=True,
 )
 parser.add_argument(
-    '--nomod',
+    "--nomod",
     nargs="+",
-    help='The names of the datasets containing the mutation counts of the non-modified sequences.',
+    help="The names of the datasets containing the mutation counts of the non-modified sequences.",
 )
 parser.add_argument(
-    '--fasta',
-    help='FASTA file of reference sequences.',
+    "--fasta",
+    help="FASTA file of reference sequences.",
     required=True,
 )
 parser.add_argument(
-    '--group',
-    help='The group in the output file to place the reads and reactivities.',
+    "--group",
+    help="The group in the output file to place the reads and reactivities.",
     default="",
 )
 parser.add_argument(
-    '-o', '--out',
-    help='The output HDF5 file to write to.',
-    default='reactivity.h5'
+    "-o", "--out", help="The output HDF5 file to write to.", default="reactivity.h5"
 )
 parser.add_argument(
-    '--overwrite',
-    help='Overwrite an existing HDF5 file (the whole file, not just the group).',
-    action='store_true',
+    "--overwrite",
+    help="Overwrite an existing HDF5 file (the whole file, not just the group).",
+    action="store_true",
 )
 parser.add_argument(
-    '--clip-low',
-    help='Clip negative reactivity values.',
-    action='store_true',
+    "--clip-low",
+    help="Clip negative reactivity values.",
+    action="store_true",
 )
 parser.add_argument(
-    '--clip-high',
-    help='Clip reactivity values above 1.',
-    action='store_true',
+    "--clip-high",
+    help="Clip reactivity values above 1.",
+    action="store_true",
 )
 parser.add_argument(
-    '--blank-5p',
-    help='NaN out this many bases on the 5\' end.',
+    "--blank-5p",
+    help="NaN out this many bases on the 5' end.",
     type=int,
     default=0,
 )
 parser.add_argument(
-    '--blank-3p',
-    help='NaN out this many bases on the 3\' end.',
+    "--blank-3p",
+    help="NaN out this many bases on the 3' end.",
     type=int,
     default=0,
 )
 parser.add_argument(
-    '--blank-cutoff',
-    help='NaN out any positions with less than this many reads.',
+    "--blank-cutoff",
+    help="NaN out any positions with less than this many reads.",
     type=int,
     default=10,
 )
 parser.add_argument(
-    '--norm-independent',
-    help='Normalize each profile separately, rather than using experiment-wide statistics.',
-    action='store_true',
+    "--norm-independent",
+    help="Normalize each profile separately, rather than using experiment-wide statistics.",
+    action="store_true",
 )
 parser.add_argument(
-    '--raw',
-    help='Do not normalize the reactivity values.',
-    action='store_true',
+    "--raw",
+    help="Do not normalize the reactivity values.",
+    action="store_true",
 )
 parser.add_argument(
-    '--norm-outlier',
-    help='Use the 2-8 outlier-based normalization method.',
-    action='store_true',
+    "--norm-outlier",
+    help="Use the 2-8 outlier-based normalization method.",
+    action="store_true",
 )
 parser.add_argument(
-    '--norm-cutoff',
-    help='References with at least this many reads are used for normalization.',
+    "--norm-cutoff",
+    help="References with at least this many reads are used for normalization.",
     type=int,
     default=500,
 )
 parser.add_argument(
-    '--norm-percentile',
-    help='The reactivity percentile to use for normalization.',
+    "--norm-percentile",
+    help="The reactivity percentile to use for normalization.",
     type=int,
     default=90,
 )
 parser.add_argument(
-    '--no-insertions',
-    help='Do not use insertions to compute the reactivity profile.',
-    action='store_true',
+    "--no-insertions",
+    help="Do not use insertions to compute the reactivity profile.",
+    action="store_true",
 )
 parser.add_argument(
-    '--no-deletions',
-    help='Do not use deletions to compute the reactivity profile.',
-    action='store_true',
+    "--no-deletions",
+    help="Do not use deletions to compute the reactivity profile.",
+    action="store_true",
 )
 parser.add_argument(
-    '--sig',
-    help='The significance level for correlation plots.',
+    "--sig",
+    help="The significance level for correlation plots.",
     type=float,
     default=0.05,
 )
@@ -122,8 +122,8 @@ parser.add_argument(
 # ANSI escape codes (for printing)
 
 
-BOLD = '\033[1m'
-RESET = '\033[0m'
+BOLD = "\033[1m"
+RESET = "\033[0m"
 
 
 def _subtitle(name: str) -> str:
@@ -133,17 +133,13 @@ def _subtitle(name: str) -> str:
         return " " * 8 + f"{BOLD}Statistics:{RESET}"
 
 
-def _remove_if_exists(
-    path: str,
-    overwrite: bool = False
-) -> None:
+def _remove_if_exists(path: str, overwrite: bool = False) -> None:
     if os.path.exists(path):
         if overwrite:
             os.remove(path)
 
 
 def main():
-
     args = parser.parse_args()
 
     print()
@@ -168,8 +164,7 @@ def main():
         args.sig,
     )
 
-    with h5py.File(args.file, 'r') as f:
-
+    with h5py.File(args.file, "r") as f:
         mod, nomod, combined = cmuts.compute_reactivity(f, args.fasta, opts)
 
     # Save to file
@@ -185,5 +180,5 @@ def main():
     cmuts.visualize.plot_all(combined, args.group)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
