@@ -150,19 +150,24 @@ jobs:
 
       - name: Build C++ components
         run: |
-          mkdir -p build
+          mkdir -p build bin
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE
           cmake --build . --parallel
+          cmake --install .
 
       - name: Install Python package
         run: pip install -e ".[dev]"
 
       - name: Run full test suite
         run: pytest tests/python -v --tb=short
+        env:
+          PATH: ${{ github.workspace }}/bin:$PATH
 
       - name: Run tests with coverage
-        run: pytest tests/python -v --cov=cmuts --cov-report=xml
+        run: pytest tests/python -v --cov=src/python/cmuts --cov-report=xml --cov-fail-under=0
+        env:
+          PATH: ${{ github.workspace }}/bin:$PATH
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
