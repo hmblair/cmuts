@@ -152,7 +152,7 @@
           "type": "string",
           "short": "",
           "long": "--ignore-bases",
-          "help": "Do not count mismatches or deletions occuring at these bases. Pass as a single string.",
+          "help": "Do not count mismatches or deletions occurring at these bases. Pass as a single string.",
           "default": ""
         }
       ]
