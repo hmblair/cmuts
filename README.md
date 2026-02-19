@@ -101,10 +101,3 @@ pre-commit install
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-## Citation
-
-If you use cmuts in your research, please cite:
-```
-Blair, H.M. (2024). cmuts: Chemical mutation profiling for RNA structure analysis.
-```
