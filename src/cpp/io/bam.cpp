@@ -375,7 +375,7 @@ static inline bam1_t* _open_aln() {
 
     bam1_t* _hts_aln = bam_init1();
     if (_hts_aln == nullptr) {
-        __throw_and_log(_LOG_FILE, "Failed to allocate memory for a sequence aligment.");
+        __throw_and_log(_LOG_FILE, "Failed to allocate memory for a sequence alignment.");
     }
 
     // Set the empty alignment to be unaligned

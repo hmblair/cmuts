@@ -650,7 +650,7 @@ RansStream::RansStream(std::span<const uint8_t> data, int32_t raw)
     : RansStream(_decompress_rans4x8(data)) {
 
     if (_rans_data.size() != raw) {
-        __throw_and_log(_LOG_FILE, "RANS4x8 decompresssion failed.");
+        __throw_and_log(_LOG_FILE, "RANS4x8 decompression failed.");
     }
 
 }

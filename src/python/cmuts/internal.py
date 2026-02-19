@@ -271,7 +271,7 @@ def _sig_test(
     t = corr * da.sqrt(inter)
     p = 2 * (1 - da.from_array(student.cdf(da.abs(t), reads)))
 
-    # Bonferonni correction
+    # Bonferroni correction
 
     n = corr.shape[-1]
     tests = n * (n - 1) // 2

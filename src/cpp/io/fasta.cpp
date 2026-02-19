@@ -294,7 +294,7 @@ int32_t Header::length(int32_t ix) const {
 
     }
 
-    throw std::runtime_error("The index " + std::to_string(ix) + " is larger than the number of seqeunces in the header.");
+    throw std::runtime_error("The index " + std::to_string(ix) + " is larger than the number of sequences in the header.");
 
 }
 

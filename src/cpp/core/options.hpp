@@ -61,7 +61,7 @@ namespace options {
     inline const OptionConfig UNIFORM_SPREAD{"", "--uniform-spread", "Uniformly spread out ambiguous deletions."};
     inline const OptionConfig NO_SPREAD{"", "--no-spread", "Do not spread ambiguous deletions."};
     inline const TypedOptionConfig<int> DELETION_GAP{"", "--deletion-gap", "The number of gaps to allow when detecting ambiguous deletions.", 0};
-    inline const OptionConfig DISABLE_AMBIGUOUS{"", "--disable-ambiguous", "Disable the ambiguous delection detection algorithm, relying on the deletion provided by the alignment."};
+    inline const OptionConfig DISABLE_AMBIGUOUS{"", "--disable-ambiguous", "Disable the ambiguous deletion detection algorithm, relying on the deletion provided by the alignment."};
 
     // Quality filtering
     inline const OptionConfig NO_FILTER_MATCHES{"", "--no-match-filter", "Do not filter matches based on their PHRED base score."};
@@ -69,7 +69,7 @@ namespace options {
     inline const OptionConfig NO_FILTER_DELETIONS{"", "--no-deletion-filter", "Do not filter deletions based on their PHRED base score."};
 
     // Base filtering
-    inline const TypedOptionConfig<std::string> IGNORE_BASES{"", "--ignore-bases", "Do not count mismatches or deletions occuring at these bases. Pass as a single string", ""};
+    inline const TypedOptionConfig<std::string> IGNORE_BASES{"", "--ignore-bases", "Do not count mismatches or deletions occurring at these bases. Pass as a single string", ""};
 
 }
 

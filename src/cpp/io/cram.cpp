@@ -25,7 +25,7 @@ static inline base_t _ascii_to_int(uint8_t base) {
 
 
 template <typename dtype>
-static inline int32_t _find_first_occurence(
+static inline int32_t _find_first_occurrence(
     const dtype* begin,
     const dtype* end,
     dtype value
@@ -357,7 +357,7 @@ static inline ExtData_t _aux_from_code(const std::string &code) {
     if (code == "BA") { return ExtData_t::BA; }
     if (code == "QS") { return ExtData_t::QS; }
 
-    __throw_and_log(_LOG_FILE, "Unknown auxilliary CRAM code " + code + ".");
+    __throw_and_log(_LOG_FILE, "Unknown auxiliary CRAM code " + code + ".");
 
 }
 
