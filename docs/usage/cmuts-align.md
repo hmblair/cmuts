@@ -7,7 +7,7 @@
 
 ### Alignment
 
-By defaut, `cmuts align` will perform alignment only, which also includes building the `bowtie2` index files and sorting the output SAM files. The syntax is
+By default, `cmuts align` will perform alignment only, which also includes building the `bowtie2` index files and sorting the output SAM files. The syntax is
 
 ```bash
 cmuts align \

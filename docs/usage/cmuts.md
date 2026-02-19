@@ -14,7 +14,7 @@ The main `cmuts` pipeline comprises the three subprograms
 !!! warning
     Some sequencing vendors (e.g. Ultima) will provide pre-aligned BAM/CRAM files. In such a case, simply ignore the `cmuts align` step.
 
-See [Examples](/cmuts/usage/examples) for detailed usage instructures.
+See [Examples](/cmuts/usage/examples) for detailed usage instructions.
 
 [`cmuts visualize`](/cmuts/usage/cmuts-visualize) may be used for overlaying generated reactivities on tertiary structures.
 

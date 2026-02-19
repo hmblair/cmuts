@@ -70,7 +70,7 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 ### Pairwise Settings
 
-**`--sig`** : The significance value to use when plotting pairwise modificaiton correlations.
+**`--sig`** : The significance value to use when plotting pairwise modification correlations.
 
 
 ## Outputs

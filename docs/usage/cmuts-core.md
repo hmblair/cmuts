@@ -130,7 +130,7 @@ will create an HDF5 file `$OUTPUT` with the structure
 
 **`--downsample`** : Limit read depths per reference.
 
-**`--ignore-bases`** : Do not count mismatches or deletions occuring at these bases. Pass as a single string.
+**`--ignore-bases`** : Do not count mismatches or deletions occurring at these bases. Pass as a single string.
 
 
 ### Processing
