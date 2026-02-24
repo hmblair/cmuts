@@ -19,6 +19,18 @@ static inline void _add_arg(
     T default_value
 );
 
+// Helper to call add_argument with or without a short name.
+// When short_name is empty, passing it to argparse causes it to be
+// stored in the names list, which breaks error messages (the empty
+// string sorts first, producing "Error: : required." instead of
+// "Error: --flag: required.").
+static inline auto& _add(Parser& parser, const std::string& short_name, const std::string& long_name) {
+    if (short_name.empty()) {
+        return parser.add_argument(long_name);
+    }
+    return parser.add_argument(short_name, long_name);
+}
+
 template<>
 void _add_arg<bool>(
     Parser& parser,
@@ -26,7 +38,7 @@ void _add_arg<bool>(
     const std::string& long_name,
     const std::string& help
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .default_value(false)
         .implicit_value(true)
         .help(help);
@@ -40,7 +52,7 @@ void _add_arg<bool>(
     const std::string& help,
     bool default_value
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .default_value(default_value)
         .implicit_value(!default_value)
         .help(help);
@@ -53,7 +65,7 @@ void _add_arg<int>(
     const std::string& long_name,
     const std::string& help
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .required()
         .scan<'d', int>()
         .help(help);
@@ -67,7 +79,7 @@ void _add_arg<int>(
     const std::string& help,
     int default_value
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .scan<'d', int>()
         .default_value(default_value)
         .help(help);
@@ -80,7 +92,7 @@ void _add_arg<float>(
     const std::string& long_name,
     const std::string& help
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .required()
         .scan<'g', float>()
         .help(help);
@@ -94,7 +106,7 @@ void _add_arg<float>(
     const std::string& help,
     float default_value
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .scan<'g', float>()
         .default_value(default_value)
         .help(help);
@@ -107,7 +119,7 @@ void _add_arg<std::string>(
     const std::string& long_name,
     const std::string& help
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .required()
         .help(help);
 }
@@ -120,7 +132,7 @@ void _add_arg<std::string>(
     const std::string& help,
     std::string default_value
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .default_value(default_value)
         .help(help);
 }
@@ -132,7 +144,7 @@ void _add_arg<std::vector<std::string>>(
     const std::string& long_name,
     const std::string& help
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .remaining()
         .required()
         .help(help);
@@ -146,7 +158,7 @@ void _add_arg<std::vector<std::string>>(
     const std::string& help,
     std::vector<std::string> default_value
 ) {
-    parser.add_argument(short_name, long_name)
+    _add(parser, short_name, long_name)
         .remaining()
         .default_value(default_value)
         .help(help);

@@ -238,8 +238,8 @@ setup_target(${TESTS})
 add_dependencies(${CORE} generate_args)
 add_dependencies(${TESTS} generate_args)
 
-install(TARGETS ${CORE} ${TESTS}
-    RUNTIME DESTINATION ${PROJECT_SOURCE_DIR}/bin
+set_target_properties(${CORE} ${TESTS} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin
 )
 
 
