@@ -182,7 +182,10 @@ profile() {
         local SM_COUNTER="${SM_DIR}/internals/bin/shapemapper_mutation_counter"
         local SM_PARSED="_sm_parsed.mut"
         local SM_COUNTS="_sm_counts.txt"
-        local SAM_FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.sam"
+        local SAM_RAW="aln_${REFERENCES}_${QUERIES}_${LENGTH}.sam"
+        local SAM_FILE="_sm_input.sam"
+
+        samtools view -h -F 4 ${SAM_RAW} > ${SAM_FILE}
 
         min_time=""
         min_mem=""
@@ -216,7 +219,7 @@ profile() {
 
         done
 
-        rm -f ${SM_PARSED} ${SM_COUNTS}
+        rm -f ${SM_PARSED} ${SM_COUNTS} ${SAM_FILE}
 
         FACTOR=" / 1024"
         min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
