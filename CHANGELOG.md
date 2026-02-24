@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.1] - 2026-02-23
+
+### Added
+
+- `--bam` and `--cram` flags to `cmuts generate` for producing sorted BAM/CRAM output directly (requires samtools). Both flags can be used together to produce both formats in one invocation.
+- Automated docs deployment to GitHub Pages
+
+### Fixed
+
+- CRAM reader now reads `primary` and `reversed` flags from the BF field instead of hardcoding them
+- CLI error messages now show the argument name (e.g., `--length: required.` instead of `: required.`), caused by empty short names being passed to argparse
+
+### Changed
+
+- **Breaking**: `--out-sam` renamed to `-o`/`--out` in `cmuts generate`, since output is no longer necessarily SAM
+- Build outputs executables directly to `bin/` instead of requiring a separate install step
+- `cmuts-generate-tests` binary renamed to `_cmuts-generate-tests` (internal); users should use `cmuts generate` instead
+- Test harness and profile script now use `cmuts generate --bam`/`--cram` instead of manual samtools post-processing
+
 ## [1.4.0] - 2025-01-23
 
 ### Changed

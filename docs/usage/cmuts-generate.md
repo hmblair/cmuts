@@ -12,19 +12,20 @@ cmuts generate \
   --references 10 \
   --queries 50 \
   --out-fasta references.fa \
-  --out-sam alignments.sam \
+  -o alignments \
   --out-h5 expected.h5 \
   --min-mapq 10 \
   --min-phred 10 \
   --max-length 100 \
   --max-indel-length 10 \
-  --quality-window 2
+  --quality-window 2 \
+  --bam
 ```
 
 This generates:
 
 1. **Reference sequences** (`--out-fasta`): Random nucleotide sequences of the specified length
-2. **Aligned reads** (`--out-sam`): Simulated alignments with random modifications
+2. **Aligned reads** (`-o`/`--out`): Simulated alignments with random modifications. Use `--bam` and/or `--cram` to produce sorted BAM/CRAM files (requires samtools). Without either flag, raw SAM is written.
 3. **Expected counts** (`--out-h5`): Ground truth modification counts for validation
 
 You can then run `cmuts core` on the generated data and compare its output to the expected counts to verify correctness.
@@ -32,25 +33,26 @@ You can then run `cmuts core` on the generated data and compare its output to th
 ## Example Workflow
 
 ```bash
-# Generate test data
+# Generate test data as sorted BAM
 cmuts generate \
   --length 200 \
   --references 5 \
   --queries 100 \
   --out-fasta test_refs.fa \
-  --out-sam test_reads.sam \
+  -o test_reads \
   --out-h5 expected_counts.h5 \
   --min-mapq 10 \
   --min-phred 10 \
   --max-length 200 \
   --max-indel-length 10 \
-  --quality-window 2
+  --quality-window 2 \
+  --bam
 
 # Run cmuts core on the generated data
 cmuts core \
   -f test_refs.fa \
   -o actual_counts.h5 \
-  test_reads.sam
+  test_reads.bam
 
 # Compare actual_counts.h5 with expected_counts.h5
 ```
@@ -73,9 +75,13 @@ cmuts core \
 
 **`--out-fasta`** : The file to store the references in. (required)
 
-**`--out-sam`** : The file to store the queries in. (required)
+**`-o`/`--out`** : The output file for alignments (SAM, BAM, or CRAM). When `--bam` or `--cram` is used, this is treated as a base name and the appropriate extension is appended. (required)
 
 **`--out-h5`** : The file to store the expected modifications in. (required)
+
+**`--bam`** : Produce a sorted BAM file with MD tags (requires samtools).
+
+**`--cram`** : Produce a sorted CRAM file (requires samtools). Both `--bam` and `--cram` can be used together.
 
 
 ### Quality thresholds

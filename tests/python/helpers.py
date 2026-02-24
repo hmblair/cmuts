@@ -69,7 +69,7 @@ class TestParams:  # noqa: pytest collection warning - not a test class
     seed: int | None = None
 
     def to_generate_args(self) -> list[str]:
-        """Convert to cmuts-generate-tests arguments."""
+        """Convert to generate arguments."""
         args = [
             "--length", str(self.length),
             "--queries", str(self.queries),
@@ -195,10 +195,6 @@ class TestRunner:
         return self.work_dir / "seq.fasta"
 
     @property
-    def sam_path(self) -> Path:
-        return self.work_dir / "aln.sam"
-
-    @property
     def alignment_path(self) -> Path:
         ext = "cram" if self.params.use_cram else "bam"
         return self.work_dir / f"aln.{ext}"
@@ -212,41 +208,18 @@ class TestRunner:
         return self.work_dir / "cmuts.h5"
 
     def generate_test_data(self) -> None:
-        """Generate synthetic test data."""
-        args = ["cmuts-generate-tests"] + self.params.to_generate_args() + [
+        """Generate synthetic test data and convert to the target format."""
+        base = self.work_dir / "aln"
+        args = ["cmuts", "generate"] + self.params.to_generate_args() + [
             "--out-fasta", str(self.fasta_path),
-            "--out-sam", str(self.sam_path),
+            "-o", str(base),
             "--out-h5", str(self.expected_h5_path),
         ]
-        subprocess.run(args, check=True, capture_output=True)
-
-    def convert_alignment(self) -> None:
-        """Convert SAM to BAM/CRAM using samtools."""
-        bam_tmp = self.work_dir / "aln_tmp.bam"
-        threads = str(self.params.threads)
-
         if self.params.use_cram:
-            # Sort then convert to CRAM
-            subprocess.run(
-                ["samtools", "sort", f"-@{threads}", "-o", str(bam_tmp), str(self.sam_path)],
-                check=True, capture_output=True
-            )
-            subprocess.run(
-                ["samtools", "view", "-T", str(self.fasta_path), "-C",
-                 "--output-fmt-option", "version=3.0", "-o", str(self.alignment_path), str(bam_tmp)],
-                check=True, capture_output=True
-            )
+            args.append("--cram")
         else:
-            # Add MD tags and sort
-            calmd_result = subprocess.run(
-                ["samtools", "calmd", "-b", f"-@{threads}", str(self.sam_path), str(self.fasta_path)],
-                check=True, capture_output=True
-            )
-            bam_tmp.write_bytes(calmd_result.stdout)
-            subprocess.run(
-                ["samtools", "sort", f"-@{threads}", "-o", str(self.alignment_path), str(bam_tmp)],
-                check=True, capture_output=True
-            )
+            args.append("--bam")
+        subprocess.run(args, check=True, capture_output=True)
 
     def run_cmuts(self) -> None:
         """Run cmuts core on the test data."""
@@ -260,7 +233,6 @@ class TestRunner:
     def run(self) -> TestResult:
         """Execute full test pipeline and return results."""
         self.generate_test_data()
-        self.convert_alignment()
         self.run_cmuts()
 
         def find_counts_dataset(f: h5py.File) -> str:

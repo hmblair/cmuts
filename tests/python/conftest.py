@@ -24,7 +24,7 @@ def cmuts_available() -> bool:
     """Check if cmuts binaries are available."""
     return (
         shutil.which("cmuts") is not None and
-        shutil.which("cmuts-generate-tests") is not None
+        shutil.which("_cmuts-generate-tests") is not None
     )
 
 

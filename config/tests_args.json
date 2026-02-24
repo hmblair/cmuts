@@ -53,9 +53,9 @@
         {
           "name": "out_sam",
           "type": "string",
-          "short": "",
-          "long": "--out-sam",
-          "help": "The file to store the queries in."
+          "short": "-o",
+          "long": "--out",
+          "help": "The output file for alignments (SAM, BAM, or CRAM)."
         },
         {
           "name": "out_h5",

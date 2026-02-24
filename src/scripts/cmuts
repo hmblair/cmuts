@@ -109,7 +109,7 @@ case "${args[0]:-}" in
     python3 -m pytest "$_CMUTS_DIR/tests/python" "${pytest_args[@]}"
     ;;
   generate)
-    cmuts-generate-tests "${args[@]:1}"
+    cmuts-generate "${args[@]:1}"
     ;;
   *)
     print-usage

@@ -15,7 +15,7 @@ endif()
 
 project(cmuts LANGUAGES C CXX)
 set(CORE "cmuts-core")
-set(TESTS "cmuts-generate-tests")
+set(TESTS "_cmuts-generate-tests")
 
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
