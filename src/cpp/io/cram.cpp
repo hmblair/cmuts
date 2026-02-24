@@ -1423,7 +1423,9 @@ Alignment CramIterator::next() {
     _curr++;
 
     bool aligned  = true;
-    bool reversed = false;
+    int32_t bf    = at(ExtData_t::BF)->integer();
+    bool primary  = !(bf & 0x100);
+    bool reversed = static_cast<bool>(bf & 0x10);
 
     // The FN field tells us the number of read features. In the case that there
     // is only one query, the FN field is not present, so we use the length of the
@@ -1480,8 +1482,6 @@ Alignment CramIterator::next() {
     );
     PHRED phred(scores);
 
-    // TODO: get this value from the file
-    bool primary = true;
     return Alignment::create(
         aligned,
         primary,
