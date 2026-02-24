@@ -102,7 +102,7 @@ def _get_norm_outlier(
 
         return m
 
-    return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)
+    return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)[:, None]
 
 
 def get_norm(

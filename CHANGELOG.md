@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.4.2] - 2026-02-24
+
+### Added
+
+- Integration tests for `cmuts normalize` CLI script
+- `--sam` flag to `cmuts generate` for explicit SAM output
+- ShapeMapper2 benchmarking to profile script
+
+### Fixed
+
+- `cmuts-normalize` script updated to match v1.4.0 Python API:
+  - `cmuts.normalize()` renamed to `cmuts.compute_reactivity()`
+  - `cmuts.visualize.all()` renamed to `cmuts.visualize.plot_all()`
+  - `--raw` and `--norm-outlier` flags replaced with `--norm {ubr,raw,outlier}`
+  - `Opts()` call updated to pass `norm` string instead of `raw` bool
+- `ProbingData.normalize()` now uses numpy instead of dask operations, fixing compatibility with older dask versions
+- Outlier normalization factor now broadcasts correctly against 2D reactivity arrays
+- Profile script: removed `--low-mem`, fixed `--cram` flag, use default `max-indel-length`
+- Skip `mpirun` for single-thread runs and validate `--threads`
+- Filter unaligned reads from SAM before ShapeMapper2 benchmark
+
+### Changed
+
+- `cmuts generate` now requires explicit format selection (`--bam`, `--cram`, or `--sam`)
+- Parallelized build in configure script
+- CI: removed unused Codecov upload step, fixed PATH expansion and integration test execution
+
 ## [1.4.1] - 2026-02-23
 
 ### Added

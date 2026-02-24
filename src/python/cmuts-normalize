@@ -80,14 +80,10 @@ parser.add_argument(
     action='store_true',
 )
 parser.add_argument(
-    '--raw',
-    help='Do not normalize the reactivity values.',
-    action='store_true',
-)
-parser.add_argument(
-    '--norm-outlier',
-    help='Use the 2-8 outlier-based normalization method.',
-    action='store_true',
+    '--norm',
+    help='Normalization method.',
+    choices=['ubr', 'raw', 'outlier'],
+    default='ubr',
 )
 parser.add_argument(
     '--norm-cutoff',
@@ -147,14 +143,15 @@ def _opts_from_args(args: argparse.Namespace) -> cmuts.Opts:
     clip = (args.clip_low, args.clip_high)
     blank = (args.blank_5p, args.blank_3p)
 
+    norm = args.norm
+
     return cmuts.Opts(
         cmuts.DataGroups(args.mod),
         cmuts.DataGroups(args.nomod),
         args.blank_cutoff,
         not args.no_insertions,
         not args.no_deletions,
-        args.raw,
-        args.norm_outlier,
+        norm,
         blank,
         clip,
         args.sig,
@@ -175,7 +172,7 @@ if __name__ == '__main__':
 
     opts = _opts_from_args(args)
     with h5py.File(args.file, 'r') as f:
-        mod, nomod, combined = cmuts.normalize(f, args.fasta, opts)
+        mod, nomod, combined = cmuts.compute_reactivity(f, args.fasta, opts)
 
     # Save to file
 
@@ -187,4 +184,4 @@ if __name__ == '__main__':
 
     # Plot figures
 
-    cmuts.visualize.all(combined, args.group)
+    cmuts.visualize.plot_all(combined, args.group)

@@ -578,14 +578,12 @@ class ProbingData:
         self: ProbingData,
         norm: ProbingDatum,
     ) -> None:
-        norm_arr = da.nan_to_num(da.asarray(norm), nan=1)
+        norm_arr = np.nan_to_num(np.asarray(norm), nan=1)
 
         if norm_arr.ndim > 0:
-            norm_arr = da.where(norm_arr <= 0, 1, norm_arr)
-        else:
-            scalar_val = float(np.asarray(norm_arr))
-            if scalar_val <= 0:
-                norm_arr = da.asarray(1)
+            norm_arr = np.where(norm_arr <= 0, 1, norm_arr)
+        elif norm_arr <= 0:
+            norm_arr = np.ones(1, dtype=norm_arr.dtype)
 
         self.reactivity /= norm_arr
         self.error /= norm_arr
