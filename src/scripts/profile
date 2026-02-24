@@ -4,7 +4,6 @@
 
 # Check if dependencies are installed
 command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
-command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it's not installed. Exiting."; exit 1; }
 
 __time() {
     # Use GNU time (gtime on macOS via homebrew, time on Linux)
@@ -74,8 +73,7 @@ profile() {
     local BAM=${10}
     local RF_DIR=${11}
     local THREADS=${12}
-    local LOWMEM=${13}
-    local USE_CRAM=${14}
+    local USE_CRAM=${13}
 
     min_time=""
     min_mem=""
@@ -89,7 +87,7 @@ profile() {
 
     for ((i=0; i<${RUNS}; i++)); do
 
-        result=$(__time mpirun -np ${THREADS} cmuts core \
+        result=$(__time cmuts core \
             --fasta ${FASTA} \
             --output ${OUTPUT} \
             --min-mapq ${MIN_MAPQ} \
@@ -98,8 +96,8 @@ profile() {
             --min-length ${MIN_LENGTH} \
             --max-length ${MAX_LENGTH} \
             --max-indel-length ${MAX_INDEL} \
+            --threads ${THREADS} \
             --overwrite \
-            ${LOWMEM} \
             ${FILE})
 
         rm -rf ${CMUTS_H5}
@@ -198,14 +196,12 @@ profile() {
                     -i ${SAM_FILE} \
                     -o ${SM_PARSED} \
                     --input_is_unpaired \
-                    -m ${MIN_MAPQ} \
-                    > /dev/null 2>&1 && \
+                    -m ${MIN_MAPQ} && \
                 ${SM_COUNTER} \
                     -i ${SM_PARSED} \
                     -c ${SM_COUNTS} \
                     -n ${LENGTH} \
-                    --warn_on_no_mapped \
-                    > /dev/null 2>&1")
+                    --warn_on_no_mapped")
 
             exec_time=$(echo $result | cut -d' ' -f1)
             mem_usage=$(echo $result | cut -d' ' -f2)
@@ -239,7 +235,6 @@ THREADS=1
 QUERIES_SET=false
 REFERENCES_SET=false
 LENGTHS_SET=false
-LOWMEM=""
 USE_CRAM=0
 SM_DIR=""
 
@@ -257,9 +252,7 @@ while [[ "$#" -gt 0 ]]; do
                       ;;
         --lengths) LENGTHS_SET=true
                    ;;
-        --low-mem) LOWMEM="--low-mem"
-                   ;;
-        --cram) USE_CRAM=true
+        --cram) USE_CRAM=1
                 ;;
         --shapemapper-dir) shift
                            SM_DIR=${1:-""}
@@ -284,7 +277,7 @@ MIN_MAPQ=20
 MIN_PHRED=20
 WINDOW=2
 MIN_LENGTH=2
-MAX_INDEL=100
+MAX_INDEL=10
 COLLAPSE=2
 
 EXP_H5="expected.h5"
@@ -324,7 +317,7 @@ if ${QUERIES_SET}; then
         FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
@@ -362,7 +355,7 @@ if ${REFERENCES_SET}; then
         FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
@@ -400,7 +393,7 @@ if ${LENGTHS_SET}; then
         MAX_LENGTH=$((2 * LENGTH))
 
         generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${LOWMEM}" "${USE_CRAM}"
+        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
 
         echo " ─────────────────────────────"
 
