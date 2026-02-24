@@ -120,54 +120,58 @@ profile() {
     echo "    Execution time:    $min_time seconds"
     echo "    Peak memory usage: $min_mem KB"
 
-    min_time=""
-    min_mem=""
+    if command -v rf-count &>/dev/null; then
 
-    for ((i=0; i<${RUNS}; i++)); do
+        min_time=""
+        min_mem=""
 
-        rm -rf ${RF_DIR}
-        mkdir ${RF_DIR}
-        cd ${RF_DIR}
+        for ((i=0; i<${RUNS}; i++)); do
 
-        result=$(__time rf-count -m \
-            -wt ${THREADS} \
-            -f ../${FASTA} \
-            --fast \
-            --eval-surrounding \
-            --no-cov-low-qual \
-            --no-discard-duplicates \
-            --right-deletion \
-            --collapse-consecutive \
-            --max-collapse-distance $((COLLAPSE - 1)) \
-            --max-edit-distance 1.0 \
-            --map-quality ${MIN_MAPQ} \
-            --min-quality ${MIN_PHRED} \
-            --discard-shorter ${MIN_LENGTH} \
-            --max-deletion-len ${MAX_INDEL} \
-            --median-quality 0 \
-            ../${FILE})
+            rm -rf ${RF_DIR}
+            mkdir ${RF_DIR}
+            cd ${RF_DIR}
 
-        cd ..
+            result=$(__time rf-count -m \
+                -wt ${THREADS} \
+                -f ../${FASTA} \
+                --fast \
+                --eval-surrounding \
+                --no-cov-low-qual \
+                --no-discard-duplicates \
+                --right-deletion \
+                --collapse-consecutive \
+                --max-collapse-distance $((COLLAPSE - 1)) \
+                --max-edit-distance 1.0 \
+                --map-quality ${MIN_MAPQ} \
+                --min-quality ${MIN_PHRED} \
+                --discard-shorter ${MIN_LENGTH} \
+                --max-deletion-len ${MAX_INDEL} \
+                --median-quality 0 \
+                ../${FILE})
 
-        exec_time=$(echo $result | cut -d' ' -f1)
-        mem_usage=$(echo $result | cut -d' ' -f2)
+            cd ..
 
-        if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-            min_time=$exec_time
-        fi
+            exec_time=$(echo $result | cut -d' ' -f1)
+            mem_usage=$(echo $result | cut -d' ' -f2)
 
-        if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-            min_mem=$mem_usage
-        fi
+            if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
+                min_time=$exec_time
+            fi
 
-    done
+            if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
+                min_mem=$mem_usage
+            fi
 
-    FACTOR=" / 1024"
-    min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
+        done
 
-    echo "   rf-count:"
-    echo "    Execution time:    $min_time seconds"
-    echo "    Peak memory usage: $min_mem KB"
+        FACTOR=" / 1024"
+        min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
+
+        echo "   rf-count:"
+        echo "    Execution time:    $min_time seconds"
+        echo "    Peak memory usage: $min_mem KB"
+
+    fi
 
     if [[ -n "$SM_DIR" ]]; then
 
