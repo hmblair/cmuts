@@ -146,15 +146,14 @@ jobs:
       - name: Install dev dependencies
         run: pip install -e ".[dev]"
 
+      - name: Add bin to PATH
+        run: echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
+
       - name: Run full test suite
-        run: pytest tests/python -v --tb=short
-        env:
-          PATH: ${{ github.workspace }}/bin:$PATH
+        run: pytest tests/python -v -rs --tb=short
 
       - name: Run tests with coverage
         run: pytest tests/python -v --cov=src/python/cmuts --cov-report=xml --cov-fail-under=0
-        env:
-          PATH: ${{ github.workspace }}/bin:$PATH
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
