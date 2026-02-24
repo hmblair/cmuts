@@ -155,12 +155,6 @@ jobs:
       - name: Run tests with coverage
         run: pytest tests/python -v --cov=src/python/cmuts --cov-report=xml --cov-fail-under=0
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-
   deploy-docs:
     runs-on: ubuntu-latest
     needs: lint
