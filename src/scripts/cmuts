@@ -60,22 +60,26 @@ case "${args[0]:-}" in
         new_args+=("$arg")
       fi
     done
-    # Run with mpirun if threads specified, otherwise run normally
+    # Validate threads value
     if [ -n "$threads" ]; then
-      if ! cmuts-core --version 2>/dev/null | grep -q "MPI"; then
-        if [[ "$threads" == 1 ]]; then
-          cmuts-core "${new_args[@]}"
-        else
-          echo "Error: cmuts was not built with MPI support, --threads > 1 cannot be used" >&2
-          exit 1
-        fi
-      else
-        if ! command -v mpirun &>/dev/null; then
-          echo "Error: mpirun not found, but cmuts was built with MPI support" >&2
-          exit 1
-        fi
-        mpirun -np "$threads" cmuts-core "${new_args[@]}"
+      if ! [[ "$threads" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: --threads must be a positive integer, got '$threads'" >&2
+        exit 1
       fi
+    fi
+    # Run with mpirun if threads > 1, otherwise run directly
+    if [ -n "$threads" ] && [[ "$threads" -gt 1 ]]; then
+      if ! cmuts-core --version 2>/dev/null | grep -q "MPI"; then
+        echo "Error: cmuts was not built with MPI support, --threads > 1 cannot be used" >&2
+        exit 1
+      fi
+      if ! command -v mpirun &>/dev/null; then
+        echo "Error: mpirun not found, but cmuts was built with MPI support" >&2
+        exit 1
+      fi
+      mpirun -np "$threads" cmuts-core "${new_args[@]}"
+    elif [ -n "$threads" ]; then
+      cmuts-core "${new_args[@]}"
     else
       cmuts-core "${args[@]:1}"
     fi
