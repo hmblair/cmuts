@@ -36,6 +36,8 @@ done
 command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but is not installed. Exiting."; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but is not installed. Exiting."; exit 1; }
 
+NPROC=$(nproc 2>/dev/null || echo 1)
+
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 CODECS_DIR=${SCRIPT_DIR}/htscodecs
 BUILD_DIR=${SCRIPT_DIR}/build
@@ -56,7 +58,7 @@ if [[ ! -d ${CODECS_DIR}/build ]]; then
   mkdir build
   cd build
   ../configure --prefix="$(pwd)/.."
-  make
+  make -j${NPROC}
   make install
   popd > /dev/null
 fi
@@ -73,7 +75,7 @@ cmake ${CMAKE_OPTIONS} ..
 
 # Build and install project
 
-make
+make -j${NPROC}
 make install
 
 popd > /dev/null

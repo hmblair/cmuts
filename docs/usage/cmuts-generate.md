@@ -25,7 +25,7 @@ cmuts generate \
 This generates:
 
 1. **Reference sequences** (`--out-fasta`): Random nucleotide sequences of the specified length
-2. **Aligned reads** (`-o`/`--out`): Simulated alignments with random modifications. Use `--bam` and/or `--cram` to produce sorted BAM/CRAM files (requires samtools). Without either flag, raw SAM is written.
+2. **Aligned reads** (`-o`/`--out`): Simulated alignments with random modifications. At least one of `--sam`, `--bam`, or `--cram` is required.
 3. **Expected counts** (`--out-h5`): Ground truth modification counts for validation
 
 You can then run `cmuts core` on the generated data and compare its output to the expected counts to verify correctness.
@@ -75,17 +75,9 @@ cmuts core \
 
 **`--out-fasta`** : The file to store the references in. (required)
 
-**`-o`/`--out`** : Base name for the output alignment file(s). The appropriate extension (`.sam`, `.bam`, `.cram`) is appended based on the format flags. (required)
+**`-o, --out`** : The output file for alignments (SAM, BAM, or CRAM). (required)
 
 **`--out-h5`** : The file to store the expected modifications in. (required)
-
-**`--sam`** : Produce a SAM file with MD tags (requires samtools).
-
-**`--bam`** : Produce a sorted BAM file with MD tags (requires samtools).
-
-**`--cram`** : Produce a sorted CRAM file (requires samtools).
-
-At least one of `--sam`, `--bam`, or `--cram` is required. Multiple can be used together.
 
 
 ### Quality thresholds
@@ -113,3 +105,13 @@ At least one of `--sam`, `--bam`, or `--cram` is required. Multiple can be used 
 
 **`--no-deletions`** : Do not count deletions as modifications.
 <!-- END AUTO-GENERATED CLI OPTIONS -->
+
+### Output format flags
+
+At least one of the following is required. Multiple can be used together, in which case `-o` is treated as a base name and the appropriate extensions are appended.
+
+**`--sam`** : Produce a SAM file with MD tags (requires samtools).
+
+**`--bam`** : Produce a sorted BAM file with MD tags (requires samtools).
+
+**`--cram`** : Produce a sorted CRAM file (requires samtools).
