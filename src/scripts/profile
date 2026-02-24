@@ -8,14 +8,19 @@ command -v mpirun >/dev/null 2>&1 || { echo >&2 "MPI (mpirun) is required but it
 
 __time() {
     # Use GNU time (gtime on macOS via homebrew, time on Linux)
+    # Write timing to a temp file so command stdout/stderr remain visible.
+    local tmpfile=$(mktemp)
     if command -v gtime &>/dev/null; then
-        gtime --format "%e %M" "$@" 2>&1 > /dev/null
+        gtime --format "%e %M" -o "$tmpfile" "$@" >&2
     elif command -v time &>/dev/null; then
-        command time --format "%e %M" "$@" 2>&1 > /dev/null
+        command time --format "%e %M" -o "$tmpfile" "$@" >&2
     else
         echo "Error: GNU time not found. Install with 'brew install gnu-time' (macOS) or ensure 'time' is installed (Linux)." >&2
+        rm -f "$tmpfile"
         exit 1
     fi
+    cat "$tmpfile"
+    rm -f "$tmpfile"
 }
 
 generate() {
