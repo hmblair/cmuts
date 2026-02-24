@@ -75,13 +75,17 @@ cmuts core \
 
 **`--out-fasta`** : The file to store the references in. (required)
 
-**`-o`/`--out`** : The output file for alignments (SAM, BAM, or CRAM). When `--bam` or `--cram` is used, this is treated as a base name and the appropriate extension is appended. (required)
+**`-o`/`--out`** : Base name for the output alignment file(s). The appropriate extension (`.sam`, `.bam`, `.cram`) is appended based on the format flags. (required)
 
 **`--out-h5`** : The file to store the expected modifications in. (required)
 
+**`--sam`** : Produce a SAM file with MD tags (requires samtools).
+
 **`--bam`** : Produce a sorted BAM file with MD tags (requires samtools).
 
-**`--cram`** : Produce a sorted CRAM file (requires samtools). Both `--bam` and `--cram` can be used together.
+**`--cram`** : Produce a sorted CRAM file (requires samtools).
+
+At least one of `--sam`, `--bam`, or `--cram` is required. Multiple can be used together.
 
 
 ### Quality thresholds
