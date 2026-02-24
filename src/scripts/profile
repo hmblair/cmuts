@@ -51,7 +51,7 @@ generate() {
             --max-indel-length ${MAX_INDEL} \
             --quality-window ${WINDOW} \
             --collapse ${COLLAPSE} \
-            --bam --cram
+            --bam --cram --sam
 
     fi
 }
@@ -169,6 +169,59 @@ profile() {
     echo "    Execution time:    $min_time seconds"
     echo "    Peak memory usage: $min_mem KB"
 
+    if [[ -n "$SM_DIR" ]]; then
+
+        local SM_PARSER="${SM_DIR}/internals/bin/shapemapper_mutation_parser"
+        local SM_COUNTER="${SM_DIR}/internals/bin/shapemapper_mutation_counter"
+        local SM_PARSED="_sm_parsed.mut"
+        local SM_COUNTS="_sm_counts.txt"
+        local SAM_FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.sam"
+
+        min_time=""
+        min_mem=""
+
+        for ((i=0; i<${RUNS}; i++)); do
+
+            rm -f ${SM_PARSED} ${SM_COUNTS}
+
+            result=$(__time bash -c "\
+                ${SM_PARSER} \
+                    -i ${SAM_FILE} \
+                    -o ${SM_PARSED} \
+                    --input_is_unpaired \
+                    -m ${MIN_MAPQ} \
+                    > /dev/null 2>&1 && \
+                ${SM_COUNTER} \
+                    -i ${SM_PARSED} \
+                    -c ${SM_COUNTS} \
+                    -n ${LENGTH} \
+                    --warn_on_no_mapped \
+                    > /dev/null 2>&1")
+
+            exec_time=$(echo $result | cut -d' ' -f1)
+            mem_usage=$(echo $result | cut -d' ' -f2)
+
+            if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
+                min_time=$exec_time
+            fi
+
+            if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
+                min_mem=$mem_usage
+            fi
+
+        done
+
+        rm -f ${SM_PARSED} ${SM_COUNTS}
+
+        FACTOR=" / 1024"
+        min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
+
+        echo "   shapemapper2:"
+        echo "    Execution time:    $min_time seconds"
+        echo "    Peak memory usage: $min_mem KB"
+
+    fi
+
 }
 
 RUNS=1
@@ -179,6 +232,7 @@ REFERENCES_SET=false
 LENGTHS_SET=false
 LOWMEM=""
 USE_CRAM=0
+SM_DIR=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -198,12 +252,20 @@ while [[ "$#" -gt 0 ]]; do
                    ;;
         --cram) USE_CRAM=true
                 ;;
+        --shapemapper-dir) shift
+                           SM_DIR=${1:-""}
+                           ;;
         *) echo "Unknown option: $1"
            exit 1
            ;;
     esac
     shift
 done
+
+if [[ -n "$SM_DIR" ]]; then
+    [[ -x "${SM_DIR}/internals/bin/shapemapper_mutation_parser" ]] || { echo >&2 "shapemapper_mutation_parser not found in ${SM_DIR}/internals/bin/. Exiting."; exit 1; }
+    [[ -x "${SM_DIR}/internals/bin/shapemapper_mutation_counter" ]] || { echo >&2 "shapemapper_mutation_counter not found in ${SM_DIR}/internals/bin/. Exiting."; exit 1; }
+fi
 
 SCRIPT_DIR=$(pwd)
 CASES_DIR=${SCRIPT_DIR}"/.cases"
