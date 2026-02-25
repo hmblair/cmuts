@@ -350,7 +350,7 @@ if ${REFERENCES_SET}; then
     echo " ─────────────────────────────"
 
 
-    for REFERENCES in $((10 ** 2)) $((10 ** 3)) $((10 ** 4)) $((10 ** 5)); do
+    for REFERENCES in $((10 ** 1)) $((10 ** 2)) $((10 ** 3)) $((10 ** 4)) $((10 ** 5)); do
 
         echo "   REFERENCES:       $REFERENCES"
         echo " ─────────────────────────────"
