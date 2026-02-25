@@ -121,7 +121,7 @@ profile() {
 
     echo "   cmuts:"
     echo "    Execution time:    $min_time seconds"
-    echo "    Peak memory usage: $min_mem KB"
+    echo "    Peak memory usage: $min_mem MB"
 
     if command -v rf-count &>/dev/null; then
 
@@ -172,7 +172,7 @@ profile() {
 
         echo "   rf-count:"
         echo "    Execution time:    $min_time seconds"
-        echo "    Peak memory usage: $min_mem KB"
+        echo "    Peak memory usage: $min_mem MB"
 
     fi
 
@@ -226,7 +226,7 @@ profile() {
 
         echo "   shapemapper2:"
         echo "    Execution time:    $min_time seconds"
-        echo "    Peak memory usage: $min_mem KB"
+        echo "    Peak memory usage: $min_mem MB"
 
     fi
 
