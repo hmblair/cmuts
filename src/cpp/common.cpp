@@ -1,6 +1,8 @@
 #include "common.hpp"
 #include "infra/utils.hpp"
 
+#include <unistd.h>
+
 
 
 
@@ -1854,7 +1856,8 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
 
     for (const auto& name : filenames) {
 
-        std::cout << "        Building index " << file << "/" << nfiles << "\n\033[A";
+        std::cout << "        Building index " << file << "/" << nfiles << "\n";
+        if (isatty(STDOUT_FILENO)) std::cout << "\033[A";
 
         try {
             _group.push_back(_get_file(name));

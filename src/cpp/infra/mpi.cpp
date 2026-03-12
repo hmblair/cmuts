@@ -1,7 +1,14 @@
 #include "infra/mpi.hpp"
 #include "infra/utils.hpp"
 
+#include <unistd.h>
+
 namespace MPI {
+
+static bool is_tty() {
+    static bool tty = isatty(STDOUT_FILENO);
+    return tty;
+}
 
 static inline int32_t ceil_div(int32_t x, int32_t y) {
     return x/y + (x % y != 0);
@@ -255,7 +262,7 @@ std::string Manager::time_str() const { return timer.str(); }
 
 void Manager::up(int lines) const {
 
-    if (root()) {
+    if (root() && is_tty()) {
         std::cout << "\033[" + std::to_string(lines) + "A";
     }
 
@@ -263,7 +270,7 @@ void Manager::up(int lines) const {
 
 void Manager::down(int lines) const {
 
-    if (root()) {
+    if (root() && is_tty()) {
         for (int ix = 0; ix < lines; ix++) {
             std::cout << "\n";
         }

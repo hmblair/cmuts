@@ -1,6 +1,7 @@
 #include "infra/utils.hpp"
 
 #include <sstream>
+#include <unistd.h>
 
 template <typename T>
 static inline void _add_arg(
@@ -225,11 +226,19 @@ void Program::parse(int argc, char** argv) {
 
 namespace Utils {
 
+static bool is_tty() {
+    static bool tty = isatty(STDOUT_FILENO);
+    return tty;
+}
+
 void cursor_up(int num_lines) {
-    std::cout << "\033[" + std::to_string(num_lines) + "A";
+    if (is_tty()) {
+        std::cout << "\033[" + std::to_string(num_lines) + "A";
+    }
 }
 
 void cursor_down(int num_lines) {
+    if (!is_tty()) return;
     for (int ix = 0; ix < num_lines; ix++) {
         std::cout << "\n";
     }

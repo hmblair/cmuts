@@ -6,6 +6,7 @@ ANSI terminal formatting and statistics display for probing data.
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, SupportsFloat, Union
 
 import numpy as np
@@ -27,10 +28,10 @@ __all__ = [
 ]
 
 
-# ANSI escape codes for terminal formatting
+# ANSI escape codes for terminal formatting (disabled when stdout is not a TTY)
 
-BOLD = "\033[1m"
-RESET = "\033[0m"
+BOLD = "\033[1m" if sys.stdout.isatty() else ""
+RESET = "\033[0m" if sys.stdout.isatty() else ""
 
 # Formatting constants
 

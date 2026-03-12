@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import os
+import sys
 import h5py
 import argparse
 import cmuts
@@ -118,8 +119,8 @@ parser.add_argument(
 # ANSI escape codes (for printing)
 
 
-BOLD = '\033[1m'
-RESET = '\033[0m'
+BOLD = '\033[1m' if sys.stdout.isatty() else ''
+RESET = '\033[0m' if sys.stdout.isatty() else ''
 
 
 def _subtitle(name: str) -> str:
