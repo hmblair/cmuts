@@ -1,0 +1,17 @@
+name: Rebuild HF Space
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Space rebuild
+        run: |
+          curl -s -X POST \
+            "https://huggingface.co/api/spaces/hamishmilsonblair/cmuts/restart" \
+            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"factory_reboot": true}'
