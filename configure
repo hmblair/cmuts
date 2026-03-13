@@ -10,6 +10,7 @@ DEBUG=0
 CLEAN=0
 MPI_BUILD=0
 INSTALL_COMPLETIONS=0
+BUILD_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -29,6 +30,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_COMPLETIONS=1
       shift
       ;;
+    --build-only)
+      BUILD_ONLY=1
+      shift
+      ;;
     *)
       echo "Unknown option $1"
       exit 1
@@ -41,7 +46,7 @@ done
 command -v make >/dev/null 2>&1 || { echo >&2 "Make is required but is not installed. Exiting."; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo >&2 "CMake is required but is not installed. Exiting."; exit 1; }
 
-NPROC=$(nproc 2>/dev/null || echo 1)
+NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 CODECS_DIR=${SCRIPT_DIR}/htscodecs
@@ -73,7 +78,7 @@ pushd ${BUILD_DIR} > /dev/null
 # Run cmake with appropriate options
 
 CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR} -DVERSION=${VERSION}"
-[[ -n "${HDF5_DIR}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
+[[ -n "${HDF5_DIR:-}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
 [[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDEBUG=1"
 [[ "${MPI_BUILD:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DMPI_BUILD=1"
 cmake ${CMAKE_OPTIONS} ..
@@ -85,6 +90,15 @@ make install
 
 popd > /dev/null
 
+echo
+echo " -- cmuts built successfully --"
+echo
+
+# --build-only: stop here (used by conda builds and CI)
+if [[ "${BUILD_ONLY}" == "1" ]]; then
+  exit 0
+fi
+
 # Post-install steps
 
 for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
@@ -93,10 +107,6 @@ for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
     ln -s "$script" "${BIN_DIR}/$name"
   fi
 done
-
-echo
-echo " -- cmuts built successfully --"
-echo
 
 # Generate documentation from JSON config
 python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
