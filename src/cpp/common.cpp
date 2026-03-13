@@ -1110,12 +1110,6 @@ static inline bool _is_seq(const std::string& line) {
 
 }
 
-static inline bool _is_aux(const std::string& line) {
-
-    return line.starts_with("@PG");
-
-}
-
 
 Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool read) {
 

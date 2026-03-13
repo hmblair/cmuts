@@ -1,5 +1,6 @@
 #include "io/cram.hpp"
 #include "infra/utils.hpp"
+#include "infra/logging.hpp"
 #include <stdexcept>
 
 
@@ -760,6 +761,8 @@ static inline PreservationMap _get_preservation_map(CramBlock& block) {
     PreservationMap map;
 
     int32_t size = block.itf8();
+    (void)size;
+    CMUTS_TRACE("Preservation map size: " + std::to_string(size) + " bytes");
     int32_t keys = block.itf8();
 
     for (int32_t ix = 0; ix < keys; ix++) {
@@ -817,6 +820,8 @@ static inline std::shared_ptr<Codec> _get_codec(CramBlock& block) {
 
     Codec_t codec = _codec_from_cram(block.itf8());
     int32_t size  = block.itf8();
+    (void)size;
+    CMUTS_TRACE("Codec size: " + std::to_string(size) + " bytes");
 
     switch (codec) {
 
@@ -874,6 +879,8 @@ static inline std::shared_ptr<Codec> _get_codec(CramBlock& block) {
 static inline CodecMap _read_data_series(CramBlock& block) {
 
     int32_t size = block.itf8();
+    (void)size;
+    CMUTS_TRACE("Data series map size: " + std::to_string(size) + " bytes");
     int32_t keys = block.itf8();
     CodecMap codecs;
 
@@ -882,6 +889,8 @@ static inline CodecMap _read_data_series(CramBlock& block) {
         std::string key  = block.str(KEY_SIZE);
         ExtData_t type   = _aux_from_code(key);
         auto codec = _get_codec(block);
+        CMUTS_TRACE("Data series " + key + " encoding: " +
+                    std::to_string(static_cast<int>(_get_aux_enc_type(type))));
         codecs.map[type] = codec;
 
         // Fill in the externals map if appropriate
@@ -903,12 +912,15 @@ static inline CodecMap _read_data_series(CramBlock& block) {
 static inline void _read_tag_dictionary(CramBlock& block) {
 
     int32_t size = block.itf8();
+    (void)size;
+    CMUTS_TRACE("Tag dictionary size: " + std::to_string(size) + " bytes");
     int32_t keys = block.itf8();
 
     for (int32_t ix = 0; ix < keys; ix++) {
 
         int32_t key = block.itf8();
-        ExtData_t type = ExtData_t::DL;
+        (void)key;
+        CMUTS_TRACE("Tag dictionary key: " + std::to_string(key));
         (void)_get_codec(block);
 
     }
@@ -964,10 +976,8 @@ CramSlice::CramSlice(uint8_t*& data, CodecMap _codecs, bool crc)
 
                 if (codec.second->id() == -1) {
                     codec.second->attach(stream);
-                    #ifdef DEBUG
-                        std::string _codec_name = _get_codec_name(codec.second->type());
-                        __log(_LOG_FILE, "Attached codec of type " + _codec_name + " to block " + std::to_string(block.content) + ".");
-                    #endif
+                    CMUTS_DEBUG("Attached codec of type " + _get_codec_name(codec.second->type()) +
+                               " to block " + std::to_string(block.content) + ".");
                 }
 
             }
