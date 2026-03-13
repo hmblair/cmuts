@@ -1,17 +1,55 @@
-name: Rebuild HF Space
+name: Sync HF Space
 
 on:
   push:
     branches: [master]
 
 jobs:
-  rebuild:
+  sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Space rebuild
+      - name: Checkout cmuts
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: cmuts
+
+      - name: Clone Space repo
         run: |
-          curl -s -X POST \
-            "https://huggingface.co/api/spaces/hamishmilsonblair/cmuts/restart" \
-            -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"factory_reboot": true}'
+          git clone https://hamishmilsonblair:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/hamishmilsonblair/cmuts space
+        env:
+          GIT_LFS_SKIP_SMUDGE: "1"
+
+      - name: Sync source to Space repo
+        run: |
+          # Remove old cmuts source from Space repo (if any)
+          rm -rf space/cmuts
+
+          # Copy cmuts source (excluding .git, build artifacts, large test data)
+          rsync -a \
+            --exclude='.git' \
+            --exclude='build/' \
+            --exclude='*.bam' \
+            --exclude='*.bai' \
+            --exclude='*.crai' \
+            --exclude='*.cmix' \
+            --exclude='*.cmfa' \
+            --exclude='*.fastq' \
+            --exclude='*.fastq.gz' \
+            --exclude='examples/' \
+            --exclude='docs/' \
+            --exclude='figures/' \
+            cmuts/ space/cmuts/
+
+      - name: Push to Space
+        run: |
+          cd space
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to push"
+          else
+            git commit -m "Sync from hmblair/cmuts@${GITHUB_SHA::8}"
+            git push
+          fi
