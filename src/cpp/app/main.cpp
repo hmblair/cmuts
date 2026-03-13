@@ -1,5 +1,7 @@
 #include "app/main.hpp"
 
+#include <unistd.h>
+
 static inline void _print_title(const MPI::Manager& mpi) {
 
     mpi.down();
@@ -259,7 +261,7 @@ int main(int argc, char** argv) {
             CMUTS_TRACE("Before run()");
             cmuts::run<float>(*input, fasta, hdf5, mpi, params, stats, name);
             CMUTS_TRACE("After run()");
-            stats.body();
+            if (isatty(STDOUT_FILENO)) stats.body();
             processed++;
         } catch (const std::exception& e) {
             mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
@@ -268,6 +270,10 @@ int main(int argc, char** argv) {
 
     }
     CMUTS_TRACE("Finished file loop, processed=" + std::to_string(processed));
+
+    if (!isatty(STDOUT_FILENO) && processed > 0) {
+        stats.body();
+    }
 
     if (processed == 0) {
         __cleanup(mpi, opt);

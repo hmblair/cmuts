@@ -1856,8 +1856,9 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
 
     for (const auto& name : filenames) {
 
-        std::cout << "        Building index " << file << "/" << nfiles << "\n";
-        if (isatty(STDOUT_FILENO)) std::cout << "\033[A";
+        if (isatty(STDOUT_FILENO)) {
+            std::cout << "        Building index " << file << "/" << nfiles << "\n\033[A";
+        }
 
         try {
             _group.push_back(_get_file(name));

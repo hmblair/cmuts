@@ -1,5 +1,7 @@
 #include "core/cmuts.hpp"
 
+#include <unistd.h>
+
 
 template <typename dtype>
 class Stack {
@@ -1191,7 +1193,7 @@ void run(
 ) {
 
     CMUTS_TRACE("run: entered");
-    stats.body();
+    if (isatty(STDOUT_FILENO)) stats.body();
     CMUTS_TRACE("run: after stats.body()");
     MPI::Chunk chunk = mpi.chunk(hdf5.chunk_size(), file.size());
     CMUTS_TRACE("run: chunk low=" + std::to_string(chunk.low) +
@@ -1416,7 +1418,7 @@ double Stats::elapsed() const {
 
 void Stats::print() {
 
-    if (elapsed() > _print_every) {
+    if (isatty(STDOUT_FILENO) && elapsed() > _print_every) {
         body();
     }
 
