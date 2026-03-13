@@ -9,6 +9,7 @@ set -eo pipefail
 DEBUG=0
 CLEAN=0
 MPI_BUILD=0
+INSTALL_COMPLETIONS=0
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -22,6 +23,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --mpi)
       MPI_BUILD=1
+      shift
+      ;;
+    --install-completions)
+      INSTALL_COMPLETIONS=1
       shift
       ;;
     *)
@@ -102,6 +107,29 @@ python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
   ${SCRIPT_DIR}/docs/usage/cmuts-generate.md
 
 pip3 install .
+
+# Generate shell completions
+python3 ${SCRIPT_DIR}/scripts/generate_completions.py
+
+if [[ "${INSTALL_COMPLETIONS}" == "1" ]]; then
+  BASH_COMP_DIR="${HOME}/.local/share/bash-completion/completions"
+  ZSH_COMP_DIR="${HOME}/.local/share/zsh/site-functions"
+
+  mkdir -p "${BASH_COMP_DIR}" "${ZSH_COMP_DIR}"
+  cp "${SCRIPT_DIR}/completions/cmuts.bash" "${BASH_COMP_DIR}/cmuts"
+  cp "${SCRIPT_DIR}/completions/_cmuts" "${ZSH_COMP_DIR}/_cmuts"
+
+  echo
+  echo " -- Shell completions installed --"
+  echo
+  echo "For bash, ensure this is in your ~/.bashrc:"
+  echo "  source ${BASH_COMP_DIR}/cmuts"
+  echo
+  echo "For zsh, ensure ${ZSH_COMP_DIR} is in your fpath."
+  echo "Add to ~/.zshrc (before compinit):"
+  echo "  fpath=(${ZSH_COMP_DIR} \$fpath)"
+  echo "Then run: autoload -Uz compinit && compinit"
+fi
 
 echo
 echo " -- cmuts installed successfully --"
