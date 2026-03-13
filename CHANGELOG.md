@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.3] - 2026-03-12
+
+### Added
+
+- Bash and zsh shell completions for the `cmuts` CLI, with context-aware file type filtering for all subcommands
+- `--install-completions` flag for `./configure` to install completions to user directories
+- `scripts/generate_completions.py` to generate completions from JSON arg configs
+- GitHub workflow to sync cmuts source to HF Space repo on push
+- Hugging Face Space link in README and docs
+
+### Fixed
+
+- Memory units label corrected from KB to MB in profile script
+
+### Changed
+
+- Progress updates suppressed in non-TTY mode; only final stats are printed
+- Terminal escape sequences suppressed when stdout is not a TTY
+
 ## [1.4.2] - 2026-02-24
 
 ### Added
