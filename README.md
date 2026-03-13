@@ -9,7 +9,7 @@ In a picture:
 
 ![cmuts-overview](./docs/figures/overview.png)
 
-Detailed documentation can be found at [hmblair.github.io/cmuts](https://hmblair.github.io/cmuts).
+Detailed documentation can be found at [hmblair.github.io/cmuts](https://hmblair.github.io/cmuts). You can also try cmuts directly in the browser via the [Hugging Face Space](https://huggingface.co/spaces/hamishmilsonblair/cmuts).
 
 ## Quick Start
 

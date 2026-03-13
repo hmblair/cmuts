@@ -4,6 +4,10 @@ Fast mutation counting and reactivity profiling for MaP-seq experiments.
 
 ![cmuts overview](figures/overview.png)
 
+## Try it Online
+
+You can run cmuts directly in your browser via the [Hugging Face Space](https://huggingface.co/spaces/hamishmilsonblair/cmuts) — no installation required.
+
 ## Getting Started
 
 1. Install all [requirements](/cmuts/installation/requirements)
