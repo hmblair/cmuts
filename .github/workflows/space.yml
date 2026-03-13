@@ -8,48 +8,20 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout cmuts
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          path: cmuts
-
       - name: Clone Space repo
         run: |
           git clone https://hamishmilsonblair:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/hamishmilsonblair/cmuts space
-        env:
-          GIT_LFS_SKIP_SMUDGE: "1"
 
-      - name: Sync source to Space repo
-        run: |
-          # Remove old cmuts source from Space repo (if any)
-          rm -rf space/cmuts
-
-          # Copy cmuts source (excluding .git, build artifacts, large test data)
-          rsync -a \
-            --exclude='.git' \
-            --exclude='build/' \
-            --exclude='*.bam' \
-            --exclude='*.bai' \
-            --exclude='*.crai' \
-            --exclude='*.cmix' \
-            --exclude='*.cmfa' \
-            --exclude='*.fastq' \
-            --exclude='*.fastq.gz' \
-            --exclude='examples/' \
-            --exclude='docs/' \
-            --exclude='figures/' \
-            cmuts/ space/cmuts/
-
-      - name: Push to Space
+      - name: Update pinned commit SHA
         run: |
           cd space
+          sed -i "s/^ARG CMUTS_SHA=.*/ARG CMUTS_SHA=${GITHUB_SHA}/" Dockerfile
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add -A
+          git add Dockerfile
           if git diff --cached --quiet; then
-            echo "No changes to push"
+            echo "No changes"
           else
-            git commit -m "Sync from hmblair/cmuts@${GITHUB_SHA::8}"
+            git commit -m "Pin cmuts@${GITHUB_SHA::8}"
             git push
           fi
