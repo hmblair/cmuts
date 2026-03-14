@@ -21,7 +21,10 @@ git clone https://github.com/hmblair/cmuts.git
 cd cmuts
 
 # Install system dependencies (Ubuntu/Debian)
-sudo apt-get install libhdf5-dev libhts-dev zlib1g-dev cmake
+sudo apt-get install libhdf5-dev libhts-dev zlib1g-dev cmake autoconf samtools
+
+# Optional: OpenMP for multithreaded pairwise counting
+sudo apt-get install libomp-dev
 
 # Build and install
 ./configure && pip install -e ".[dev]"
@@ -29,7 +32,13 @@ sudo apt-get install libhdf5-dev libhts-dev zlib1g-dev cmake
 
 For macOS with Homebrew:
 ```bash
-brew install hdf5 htslib zlib cmake
+# Required
+brew install hdf5 htslib zlib cmake autoconf automake libtool samtools
+
+# Optional: OpenMP for multithreaded pairwise counting
+brew install libomp
+
+# Build and install
 ./configure && pip install -e ".[dev]"
 ```
 

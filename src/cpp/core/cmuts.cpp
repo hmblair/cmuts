@@ -277,7 +277,9 @@ static inline void __joint(Data<dtype>& data) {
 
     auto arr = data.pairs->view();
 
+    #ifdef HAVE_OPENMP
     #pragma omp parallel for schedule(dynamic)
+    #endif
     for (int32_t ix = data.min; ix < data.tmp.size(); ix++) {
 
         dtype ix_val   = data.tmp[ix];

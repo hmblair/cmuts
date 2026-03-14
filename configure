@@ -77,11 +77,27 @@ pushd ${BUILD_DIR} > /dev/null
 
 # Run cmake with appropriate options
 
-CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR} -DVERSION=${VERSION}"
-[[ -n "${HDF5_DIR:-}" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DHDF5_ROOT=${HDF5_DIR}"
-[[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDEBUG=1"
-[[ "${MPI_BUILD:-}" == "1" ]] && CMAKE_OPTIONS="${CMAKE_OPTIONS} -DMPI_BUILD=1"
-cmake ${CMAKE_OPTIONS} ..
+CMAKE_OPTIONS=(
+  -DCMAKE_INSTALL_PREFIX=${SCRIPT_DIR}
+  -DVERSION=${VERSION}
+)
+
+# On macOS, help CMake find libomp from Homebrew
+if [[ "$(uname)" == "Darwin" ]] && [[ -d "/opt/homebrew/opt/libomp" ]]; then
+  CMAKE_OPTIONS+=(
+    "-DOpenMP_C_FLAGS=-Xpreprocessor -fopenmp"
+    "-DOpenMP_CXX_FLAGS=-Xpreprocessor -fopenmp"
+    -DOpenMP_C_LIB_NAMES=omp
+    -DOpenMP_CXX_LIB_NAMES=omp
+    -DOpenMP_omp_LIBRARY=/opt/homebrew/opt/libomp/lib/libomp.dylib
+    "-DCMAKE_C_FLAGS=-I/opt/homebrew/opt/libomp/include"
+    "-DCMAKE_CXX_FLAGS=-I/opt/homebrew/opt/libomp/include"
+  )
+fi
+[[ -n "${HDF5_DIR:-}" ]] && CMAKE_OPTIONS+=(-DHDF5_ROOT=${HDF5_DIR})
+[[ "${DEBUG:-}" == "1" ]] && CMAKE_OPTIONS+=(-DDEBUG=1)
+[[ "${MPI_BUILD:-}" == "1" ]] && CMAKE_OPTIONS+=(-DMPI_BUILD=1)
+cmake "${CMAKE_OPTIONS[@]}" ..
 
 # Build and install project
 
@@ -116,7 +132,13 @@ python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
   ${SCRIPT_DIR}/config/tests_args.json \
   ${SCRIPT_DIR}/docs/usage/cmuts-generate.md
 
-pip3 install .
+if command -v uv >/dev/null 2>&1; then
+  uv pip install .
+elif command -v pip3 >/dev/null 2>&1; then
+  pip3 install .
+else
+  echo "Warning: neither uv nor pip3 found, skipping Python package install"
+fi
 
 # Generate shell completions
 python3 ${SCRIPT_DIR}/scripts/generate_completions.py

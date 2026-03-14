@@ -3,33 +3,40 @@
 
 Building and running the `cmuts` pipeline requires the following packages:
 
+**Required:**
+
  - `python>=3.9` with all packages in `requirements.txt`
  - `cmake>=3.29` with `pkg-config`
- - `autoconf`
+ - `autoconf`, `automake`, `libtool`
  - `samtools` and `htslib`
  - `hdf5`
- - `omp`
  - `fastp`
 
-The MPI build also requires
+**Optional:**
+
+ - `omp` — enables multithreaded pairwise counting (builds fine without it)
+
+The MPI build also requires:
 
  - `openmpi`
  - `hdf5-mpi`
 
-In addition, demultiplexing with `cmuts align` requires
+Demultiplexing with `cmuts align` requires:
 
  - `ultraplex`
 
-to be installed. Note that this requires `python==3.9`, and will not install for more recent versions of `python`.
+Note that `ultraplex` requires `python==3.9`, and will not install for more recent versions of `python`.
 
 The following should install all (save for `python` and its packages) on a personal device. For installation on a managed cluster, consult the respective guidelines.
 
 === "Mac OS"
     ```bash
     # Install brew from https://brew.sh
-    brew install cmake autoconf samtools
-    # For non-MPI builds only:
-    brew install hdf5
+    # Required:
+    brew install cmake autoconf automake libtool samtools
+    brew install hdf5       # for non-MPI builds
+    # Optional:
+    brew install libomp     # enables multithreaded pairwise counting
     # For MPI builds only:
     brew install openmpi hdf5-mpi
     ```
@@ -37,10 +44,12 @@ The following should install all (save for `python` and its packages) on a perso
 === "Linux (Ubuntu/Debian)"
     ```bash
     sudo apt-get update
+    # Required:
     sudo apt-get install -y cmake autoconf pkg-config
     sudo apt-get install -y samtools libhts-dev
     sudo apt-get install -y libhdf5-dev
-    sudo apt-get install -y libomp-dev
+    # Optional:
+    sudo apt-get install -y libomp-dev   # multithreaded pairwise counting
     # For MPI builds only:
     sudo apt-get install -y libopenmpi-dev openmpi-bin
     sudo apt-get install -y libhdf5-openmpi-dev
@@ -48,10 +57,12 @@ The following should install all (save for `python` and its packages) on a perso
 
 === "Linux (Fedora/RHEL)"
     ```bash
+    # Required:
     sudo dnf install -y cmake autoconf pkg-config
     sudo dnf install -y samtools htslib-devel
     sudo dnf install -y hdf5-devel
-    sudo dnf install -y libomp-devel
+    # Optional:
+    sudo dnf install -y libomp-devel     # multithreaded pairwise counting
     # For MPI builds only:
     sudo dnf install -y openmpi-devel hdf5-openmpi-devel
     # Load MPI module (may be required):

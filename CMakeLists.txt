@@ -40,7 +40,7 @@ endif()
 find_package(HDF5 REQUIRED)
 find_package(ZLIB REQUIRED)
 pkg_check_modules(HTSLIB REQUIRED htslib)
-find_package(OpenMP REQUIRED)
+find_package(OpenMP)
 
 include(FetchContent)
 function(FetchContent_MakeAvailable_If_Not_Already_Present name)
@@ -147,8 +147,12 @@ target_link_libraries(libcmuts PRIVATE
     argparse
     xtensor
     htscodecs
-    OpenMP::OpenMP_CXX
 )
+
+if (OpenMP_FOUND)
+    target_link_libraries(libcmuts PRIVATE OpenMP::OpenMP_CXX)
+    target_compile_definitions(libcmuts PRIVATE HAVE_OPENMP)
+endif()
 
 target_compile_definitions(libcmuts PRIVATE VERSION="${VERSION}")
 
@@ -197,8 +201,11 @@ function(setup_target _target)
         xtensor
         htscodecs
         libcmuts
-        OpenMP::OpenMP_CXX
     )
+
+    if (OpenMP_FOUND)
+        target_link_libraries(${_target} PRIVATE OpenMP::OpenMP_CXX)
+    endif()
 
     set_target_properties(${_target} PROPERTIES
         INSTALL_RPATH "${PROJECT_SOURCE_DIR}/htscodecs/lib"
