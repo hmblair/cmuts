@@ -1,5 +1,5 @@
 {% set name = "cmuts" %}
-{% set version = "1.4.4" %}
+{% set version = "1.4.5" %}
 
 package:
   name: {{ name }}
@@ -7,11 +7,13 @@ package:
 
 source:
   url: https://github.com/hmblair/{{ name }}/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 0b0cb34f96e44ca8f52d7c7abd47f5f6b8ca0bac2b1bb16b5b3c115c4507810c
+  sha256: 85798502754b04a1fd0bd70c080c5da71a7301013fa87092f576144a0fa32783
 
 build:
   number: 0
-  skip: true  # [win]
+  skip: true  # [win or (osx and x86_64)]
+  run_exports:
+    - {{ pin_subpackage(name, max_pin="x") }}
 
 requirements:
   build:
@@ -19,7 +21,6 @@ requirements:
     - {{ compiler('cxx') }}
     - cmake >=3.29
     - make
-    - pkg-config
     - autoconf
     - automake
     - libtool
@@ -29,10 +30,6 @@ requirements:
     - htslib
     - hdf5
     - zlib
-    - xz           # provides liblzma (transitive dep of htslib)
-    - bzip2        # transitive dep of htslib
-    - libcurl      # transitive dep of htslib
-    - libdeflate   # transitive dep of htslib
     - llvm-openmp  # [osx]
     - libgomp      # [linux]
     - python
