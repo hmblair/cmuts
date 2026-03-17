@@ -409,6 +409,10 @@ def plot_snr_scaling(
         s = _trim_leading_zeros(snr_nomod)
         plt.plot(xi[s], snr_nomod[s], color=plt.get_cmap("PuBu")(0.7), linewidth=2, label="Unmodified")
 
+        # Set ylim based on mod/nomod curves before Pareto expands it
+        curve_max = max(np.nanmax(snr_mod), np.nanmax(snr_nomod))
+        plt.ylim(0, curve_max * 1.1)
+
         # Pareto: best allocation at each relative total depth
         fracs = np.linspace(0.01, 0.99, 200)
         snr_pareto = np.empty(len(xi))
@@ -421,8 +425,9 @@ def plot_snr_scaling(
             snr_pareto[i:i + chunk] = snr_grid.max(axis=1)
 
         dy = ScaledTranslation(0, 2.0 / 72, plt.gcf().dpi_scale_trans)
+        pareto_transform = plt.gca().transData + dy
         plt.plot(xi, snr_pareto, color="black", linewidth=1, linestyle=(0, (3, 2)),
-                 label="Pareto", transform=plt.gca().transData + dy)
+                 label="Pareto", zorder=6, transform=pareto_transform)
     else:
         snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
         plt.plot(xi, snr_mod, color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
@@ -432,6 +437,18 @@ def plot_snr_scaling(
     plt.xlim(0.1, 10)
     plt.grid(axis="y", alpha=0.5)
     plt.tick_params(axis="both", labelsize=TICK_SIZE)
+
+    # Hatch infeasible region above Pareto curve
+    if nomod is not None:
+        ax = plt.gca()
+        ylim = ax.get_ylim()
+        ax.fill_between(xi, snr_pareto, ylim[1] * 2, color="none",
+                        edgecolor="silver", linewidth=0, hatch="/////", alpha=1.0, zorder=5,
+                        transform=pareto_transform)
+        for spine in ax.spines.values():
+            spine.set_zorder(10)
+        ax.tick_params(zorder=10)
+        ax.set_ylim(ylim)
 
     _title("SNR vs Read Depth", name)
     _xlabel("Relative Total Read Depth")
