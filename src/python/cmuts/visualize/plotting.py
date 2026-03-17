@@ -383,6 +383,20 @@ def plot_snr_scaling(
         snr_both = np.array([_mean_snr(ki, ki) for ki in k])
         plt.plot(k, snr_both, color="grey", linewidth=2, linestyle="--", label="Both")
 
+        # Optimal: maximize mean SNR over allocation fraction
+        from scipy.optimize import minimize_scalar
+
+        def _optimal_snr(ki: float) -> float:
+            def neg_snr(f: float) -> float:
+                n_m = ki * total_reads * f
+                n_n = ki * total_reads * (1 - f)
+                return -_mean_snr(n_m / mod_reads, n_n / nomod_reads)
+            res = minimize_scalar(neg_snr, bounds=(1e-3, 1 - 1e-3), method="bounded")
+            return -res.fun
+
+        snr_opt = np.array([_optimal_snr(ki) for ki in k])
+        plt.plot(k, snr_opt, color="red", linewidth=2, label="Optimal")
+
         # Modified: scale mod only, remap x to relative total
         snr_mod = np.array([_mean_snr(ki, 1.0) for ki in k])
         x_mod = k * f_mod + f_nomod
