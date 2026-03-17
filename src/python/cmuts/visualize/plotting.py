@@ -368,13 +368,13 @@ def plot_snr_scaling(
     mod_reads = float(np.asarray(mod.reads).max())
 
     prior = 0.001
-    mod_err2 = np.maximum(mod_err ** 2, prior * (1 - prior) / mod_reads)
+    mod_err2 = np.maximum(mod_err**2, prior * (1 - prior) / mod_reads)
 
     if nomod is not None:
         nomod_err = np.asarray(nomod.error)
         nomod_reads = float(np.asarray(nomod.reads).max())
         total_reads = mod_reads + nomod_reads
-        nomod_err2 = np.maximum(nomod_err ** 2, prior * (1 - prior) / nomod_reads)
+        nomod_err2 = np.maximum(nomod_err**2, prior * (1 - prior) / nomod_reads)
     else:
         nomod_err2 = None
         total_reads = mod_reads
@@ -407,7 +407,9 @@ def plot_snr_scaling(
         nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
         snr_nomod = _mean_snr_vec(np.ones_like(nomod_scales), nomod_scales)
         s = _trim_leading_zeros(snr_nomod)
-        plt.plot(xi[s], snr_nomod[s], color=plt.get_cmap("PuBu")(0.7), linewidth=2, label="Unmodified")
+        plt.plot(
+            xi[s], snr_nomod[s], color=plt.get_cmap("PuBu")(0.7), linewidth=2, label="Unmodified"
+        )
 
         # Set ylim based on mod/nomod curves before Pareto expands it
         curve_max = max(np.nanmax(snr_mod), np.nanmax(snr_nomod))
@@ -418,16 +420,26 @@ def plot_snr_scaling(
         snr_pareto = np.empty(len(xi))
         chunk = 500
         for i in range(0, len(xi), chunk):
-            xi_c = xi[i:i + chunk]
+            xi_c = xi[i : i + chunk]
             ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
             ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
-            snr_grid = np.column_stack([_mean_snr_vec(ms[:, j], ns[:, j]) for j in range(len(fracs))])
-            snr_pareto[i:i + chunk] = snr_grid.max(axis=1)
+            snr_grid = np.column_stack(
+                [_mean_snr_vec(ms[:, j], ns[:, j]) for j in range(len(fracs))]
+            )
+            snr_pareto[i : i + chunk] = snr_grid.max(axis=1)
 
         dy = ScaledTranslation(0, 2.0 / 72, plt.gcf().dpi_scale_trans)
         pareto_transform = plt.gca().transData + dy
-        plt.plot(xi, snr_pareto, color="black", linewidth=1, linestyle=(0, (3, 2)),
-                 label="Pareto", zorder=6, transform=pareto_transform)
+        plt.plot(
+            xi,
+            snr_pareto,
+            color="black",
+            linewidth=1,
+            linestyle=(0, (3, 2)),
+            label="Pareto",
+            zorder=6,
+            transform=pareto_transform,
+        )
     else:
         snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
         plt.plot(xi, snr_mod, color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
@@ -442,9 +454,18 @@ def plot_snr_scaling(
     if nomod is not None:
         ax = plt.gca()
         ylim = ax.get_ylim()
-        ax.fill_between(xi, snr_pareto, ylim[1] * 2, color="none",
-                        edgecolor="silver", linewidth=0, hatch="/////", alpha=1.0, zorder=5,
-                        transform=pareto_transform)
+        ax.fill_between(
+            xi,
+            snr_pareto,
+            ylim[1] * 2,
+            color="none",
+            edgecolor="silver",
+            linewidth=0,
+            hatch="/////",
+            alpha=1.0,
+            zorder=5,
+            transform=pareto_transform,
+        )
         for spine in ax.spines.values():
             spine.set_zorder(10)
         ax.tick_params(zorder=10)
