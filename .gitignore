@@ -20,5 +20,6 @@ figures/
 outputs/
 examples/**/*.png
 __pycache__/
+uv.lock
 site/
 etc/
