@@ -455,6 +455,7 @@ def _data_from_counts(
         pairwise_snr = _pairwise_snr(prob, pairs)
 
         pairs = pairs.sum((-2, -1))
+        assert pairs is not None  # narrowing for mypy
         covariance = _correlation(prob, pairs, opts.sig)
         mi = _mutual_information(prob)
 

@@ -379,6 +379,18 @@ def plot_snr_scaling(
         nomod_err2 = None
         total_reads = mod_reads
 
+    # SEM of mean SNR at current depth. Error bands at projected depths
+    # scale this proportionally by curve(k)/curve(1).
+    current_se2 = mod_err2.copy()
+    if nomod_err2 is not None:
+        current_se2 = current_se2 + nomod_err2
+    current_se = np.sqrt(current_se2)
+    current_snr = np.where(current_se > 0, reactivity / current_se, 0.0)
+    _flat = current_snr.ravel()
+    _valid = _flat[~np.isnan(_flat)]
+    snr_at_1 = _valid.mean() if len(_valid) > 0 else 1.0
+    snr_sem_at_1 = _valid.std() / np.sqrt(len(_valid)) if len(_valid) > 1 else 0.0
+
     def _mean_snr_vec(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
         """Compute mean SNR for an array of scale factors. Returns shape (N,)."""
         se2 = mod_err2[None] / mod_scales[:, None, None]
@@ -387,6 +399,11 @@ def plot_snr_scaling(
         se = np.sqrt(se2)
         snr = np.where(se > 0, reactivity[None] / se, 0.0)
         return np.nanmean(snr, axis=-1).mean(axis=-1)
+
+    def _snr_band(snr_curve: np.ndarray) -> np.ndarray:
+        """Compute ±1 SEM band by scaling the current SEM proportionally."""
+        ratio = np.where(snr_at_1 > 0, snr_curve / snr_at_1, 0.0)
+        return np.abs(ratio) * snr_sem_at_1
 
     def _trim_leading_zeros(snr: np.ndarray) -> slice:
         """Trim leading near-zero region, keeping one point before the visible rise."""
@@ -400,19 +417,35 @@ def plot_snr_scaling(
         # Modified: extra reads go to mod, nomod stays at current depth
         mod_scales = np.maximum((xi * total_reads - nomod_reads) / mod_reads, 1e-10)
         snr_mod = _mean_snr_vec(mod_scales, np.ones_like(mod_scales))
+        sem_mod = _snr_band(snr_mod)
         s = _trim_leading_zeros(snr_mod)
-        plt.plot(xi[s], snr_mod[s], color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
+        mod_color = plt.get_cmap("RdPu")(0.7)
+        plt.fill_between(
+            xi[s],
+            (snr_mod - sem_mod)[s],
+            (snr_mod + sem_mod)[s],
+            color=mod_color,
+            alpha=0.2,
+        )
+        plt.plot(xi[s], snr_mod[s], color=mod_color, linewidth=2, label="Modified")
 
         # Unmodified: extra reads go to nomod, mod stays at current depth
         nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
         snr_nomod = _mean_snr_vec(np.ones_like(nomod_scales), nomod_scales)
+        sem_nomod = _snr_band(snr_nomod)
         s = _trim_leading_zeros(snr_nomod)
-        plt.plot(
-            xi[s], snr_nomod[s], color=plt.get_cmap("PuBu")(0.7), linewidth=2, label="Unmodified"
+        nomod_color = plt.get_cmap("PuBu")(0.7)
+        plt.fill_between(
+            xi[s],
+            (snr_nomod - sem_nomod)[s],
+            (snr_nomod + sem_nomod)[s],
+            color=nomod_color,
+            alpha=0.2,
         )
+        plt.plot(xi[s], snr_nomod[s], color=nomod_color, linewidth=2, label="Unmodified")
 
         # Set ylim based on mod/nomod curves before Pareto expands it
-        curve_max = max(np.nanmax(snr_mod), np.nanmax(snr_nomod))
+        curve_max: float = max(np.nanmax(snr_mod + sem_mod), np.nanmax(snr_nomod + sem_nomod))
         plt.ylim(0, curve_max * 1.1)
 
         # Pareto: best allocation at each relative total depth
@@ -428,11 +461,14 @@ def plot_snr_scaling(
             )
             snr_pareto[i : i + chunk] = snr_grid.max(axis=1)
 
+        sem_pareto = _snr_band(snr_pareto)
+        pareto_upper = snr_pareto + sem_pareto
+
         dy = ScaledTranslation(0, 2.0 / 72, plt.gcf().dpi_scale_trans)
         pareto_transform = plt.gca().transData + dy
         plt.plot(
             xi,
-            snr_pareto,
+            pareto_upper,
             color="black",
             linewidth=1,
             linestyle=(0, (3, 2)),
@@ -442,7 +478,16 @@ def plot_snr_scaling(
         )
     else:
         snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
-        plt.plot(xi, snr_mod, color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
+        sem_mod = _snr_band(snr_mod)
+        mod_color = plt.get_cmap("RdPu")(0.7)
+        plt.fill_between(
+            xi,
+            snr_mod - sem_mod,
+            snr_mod + sem_mod,
+            color=mod_color,
+            alpha=0.2,
+        )
+        plt.plot(xi, snr_mod, color=mod_color, linewidth=2, label="Modified")
 
     plt.axvline(1.0, color="grey", linestyle="--", linewidth=1, alpha=0.7)
     plt.xscale("log")
@@ -456,7 +501,7 @@ def plot_snr_scaling(
         ylim = ax.get_ylim()
         ax.fill_between(
             xi,
-            snr_pareto,
+            pareto_upper,
             ylim[1] * 2,
             color="none",
             edgecolor="silver",
