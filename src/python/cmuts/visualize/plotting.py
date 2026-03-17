@@ -343,6 +343,75 @@ def _plot_mi(
     _save_and_close(name, figtype, dir)
 
 
+def plot_snr_scaling(
+    mod: ProbingData,
+    nomod: "Union[ProbingData, None]",
+    combined: ProbingData,
+    name: str,
+    dir: str = FIGURES,
+) -> None:
+    """Plot expected mean SNR as a function of relative total read depth.
+
+    When nomod is present, three curves show how extra reads could be allocated:
+    - Modified: all extra reads go to the modified condition
+    - Unmodified: all extra reads go to the unmodified condition
+    - Both: extra reads split proportionally between conditions
+    """
+    os.makedirs(dir, exist_ok=True)
+
+    x = np.geomspace(1e-4, 10, 200)
+    reactivity = np.asarray(combined.reactivity)
+    mod_err = np.asarray(mod.error)
+    mod_reads = float(np.asarray(mod.reads).max())
+
+    if nomod is not None:
+        nomod_err = np.asarray(nomod.error)
+        nomod_reads = float(np.asarray(nomod.reads).max())
+        total_reads = mod_reads + nomod_reads
+        f_mod = mod_reads / total_reads
+        f_nomod = nomod_reads / total_reads
+
+    def _mean_snr(mod_scale: float, nomod_scale: float) -> float:
+        se2 = mod_err**2 / mod_scale + (nomod_err**2 / nomod_scale if nomod is not None else 0)
+        se = np.sqrt(se2)
+        snr = np.divide(reactivity, se, where=(se > 0), out=np.zeros_like(reactivity))
+        return float(np.nanmean(snr, axis=-1).mean(axis=0))
+
+    k = x
+    if nomod is not None:
+        # Both: scale both proportionally
+        snr_both = np.array([_mean_snr(ki, ki) for ki in k])
+        plt.plot(k, snr_both, color="grey", linewidth=2, linestyle="--", label="Both")
+
+        # Modified: scale mod only, remap x to relative total
+        snr_mod = np.array([_mean_snr(ki, 1.0) for ki in k])
+        x_mod = k * f_mod + f_nomod
+        cmap_mod = plt.get_cmap("RdPu")
+        plt.plot(x_mod, snr_mod, color=cmap_mod(0.7), linewidth=2, label="Modified")
+
+        # Unmodified: scale nomod only, remap x to relative total
+        snr_nomod = np.array([_mean_snr(1.0, ki) for ki in k])
+        x_nomod = f_mod + k * f_nomod
+        cmap_nomod = plt.get_cmap("PuBu")
+        plt.plot(x_nomod, snr_nomod, color=cmap_nomod(0.7), linewidth=2, label="Unmodified")
+    else:
+        snr_mod = np.array([_mean_snr(ki, 1.0) for ki in k])
+        cmap_mod = plt.get_cmap("RdPu")
+        plt.plot(k, snr_mod, color=cmap_mod(0.7), linewidth=2, label="Modified")
+
+    plt.axvline(1.0, color="grey", linestyle="--", linewidth=1, alpha=0.7)
+    plt.xscale("log")
+    plt.xlim(0.1, 10)
+    plt.grid(axis="y", alpha=0.5)
+    plt.tick_params(axis="both", labelsize=TICK_SIZE)
+
+    _title("SNR vs Read Depth", name)
+    _xlabel("Relative Total Read Depth")
+    _ylabel("Mean SNR")
+
+    _save_and_close(name, "snr-scaling", dir)
+
+
 def plot_all(
     data: ProbingData,
     name: str,

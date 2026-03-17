@@ -159,6 +159,7 @@ def main():
     # Plot figures
 
     cmuts.visualize.plot_all(combined, args.group)
+    cmuts.visualize.plot_snr_scaling(mod, nomod, combined, args.group)
 
 
 if __name__ == "__main__":

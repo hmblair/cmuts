@@ -168,7 +168,7 @@ def _snr(
     error: ProbingDatum,
 ) -> da.Array:
     return da.divide(
-        da.abs(reactivity),
+        reactivity,
         error,
         where=(error > 0),
         out=np.zeros_like(reactivity),
