@@ -92,7 +92,7 @@ The output of `cmuts normalize` will be an HDF5 file with the following structur
 
 **roi-mask** (Region Of Interest): A boolean array indicating the region of the RNA which is of structural importance (i.e. all but the flanking sequences and low-coverage regions).
 
-**SNR** (Signal-To-Noise): An estimate of the average SNR per nucleotide, based on the computed error, one for each reference.
+**SNR** (Signal-To-Noise): The mean signed signal-to-noise ratio across all nucleotide positions, computed as reactivity / error for each position and averaged. Signed (not absolute) values are used so that noise-only positions contribute zero in expectation, avoiding positive bias. One value per reference.
 
 **error**: The standard error of the mean at each nucleotide.
 
@@ -119,3 +119,13 @@ In the case where 2D data was also present in the input, the output HDF5 file wi
     If a value was passed to `--group`, then the above will be contained in an HDF5 group with that name.
 
 ### Figures
+
+In addition to the standard profile and coverage plots, `cmuts normalize` generates an **SNR scaling plot** (`snr-scaling.png`) that shows how the mean SNR is expected to change with sequencing depth. The x-axis is relative total read depth (1.0 = current depth), and three curves show the effect of allocating additional reads to:
+
+- **Modified** — all extra reads go to the treated condition
+- **Unmodified** — all extra reads go to the untreated condition
+- **Both** — extra reads are split proportionally between conditions
+
+This plot helps determine whether additional sequencing of a specific condition would meaningfully improve data quality. When only a modified condition is present (no `--nomod`), a single curve is shown.
+
+The SNR at a given depth is estimated by scaling the standard error as $\text{SE} \propto 1/\sqrt{n}$, holding the observed reactivity fixed. This is exact for Bernoulli proportions but assumes the mutation rate estimates are accurate, which may not hold at very low read counts.
