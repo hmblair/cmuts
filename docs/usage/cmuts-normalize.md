@@ -120,11 +120,13 @@ In the case where 2D data was also present in the input, the output HDF5 file wi
 
 ### Figures
 
+Figures are saved to a `figures/` directory next to the output HDF5 file. For example, `-o /path/to/reactivity.h5` will write figures to `/path/to/figures/`.
+
 In addition to the standard profile and coverage plots, `cmuts normalize` generates an **SNR scaling plot** (`snr-scaling.png`) that shows how the mean SNR is expected to change with sequencing depth. The x-axis is relative total read depth (1.0 = current depth), and three curves show the effect of allocating additional reads to:
 
 - **Modified** — all extra reads go to the treated condition
 - **Unmodified** — all extra reads go to the untreated condition
-- **Both** — extra reads are split proportionally between conditions
+- **Pareto** — optimal allocation of reads between conditions (shown as a dashed black line with hatching above indicating the infeasible region)
 
 This plot helps determine whether additional sequencing of a specific condition would meaningfully improve data quality. When only a modified condition is present (no `--nomod`), a single curve is shown.
 

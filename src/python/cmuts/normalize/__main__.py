@@ -158,8 +158,9 @@ def main():
 
     # Plot figures
 
-    cmuts.visualize.plot_all(combined, args.group)
-    cmuts.visualize.plot_snr_scaling(mod, nomod, combined, args.group)
+    figdir = os.path.join(os.path.dirname(os.path.abspath(args.out)), "figures")
+    cmuts.visualize.plot_all(combined, args.group, figdir)
+    cmuts.visualize.plot_snr_scaling(mod, nomod, combined, args.group, figdir)
 
 
 if __name__ == "__main__":
