@@ -352,66 +352,80 @@ def plot_snr_scaling(
 ) -> None:
     """Plot expected mean SNR as a function of relative total read depth.
 
-    When nomod is present, three curves show how extra reads could be allocated:
+    When nomod is present, three curves are shown:
     - Modified: all extra reads go to the modified condition
     - Unmodified: all extra reads go to the unmodified condition
-    - Both: extra reads split proportionally between conditions
+    - Pareto: optimal allocation of reads between conditions
+
+    When only a modified condition is present, a single curve is shown.
     """
+    from matplotlib.transforms import ScaledTranslation
+
     os.makedirs(dir, exist_ok=True)
 
-    x = np.geomspace(1e-4, 10, 200)
     reactivity = np.asarray(combined.reactivity)
     mod_err = np.asarray(mod.error)
     mod_reads = float(np.asarray(mod.reads).max())
+
+    prior = 0.001
+    mod_err2 = np.maximum(mod_err ** 2, prior * (1 - prior) / mod_reads)
 
     if nomod is not None:
         nomod_err = np.asarray(nomod.error)
         nomod_reads = float(np.asarray(nomod.reads).max())
         total_reads = mod_reads + nomod_reads
-        f_mod = mod_reads / total_reads
-        f_nomod = nomod_reads / total_reads
-
-    def _mean_snr(mod_scale: float, nomod_scale: float) -> float:
-        se2 = mod_err**2 / mod_scale + (nomod_err**2 / nomod_scale if nomod is not None else 0)
-        se = np.sqrt(se2)
-        snr = np.divide(reactivity, se, where=(se > 0), out=np.zeros_like(reactivity))
-        return float(np.nanmean(snr, axis=-1).mean(axis=0))
-
-    k = x
-    if nomod is not None:
-        # Both: scale both proportionally
-        snr_both = np.array([_mean_snr(ki, ki) for ki in k])
-        plt.plot(k, snr_both, color="grey", linewidth=2, linestyle="--", label="Both")
-
-        # Optimal: maximize mean SNR over allocation fraction
-        from scipy.optimize import minimize_scalar
-
-        def _optimal_snr(ki: float) -> float:
-            def neg_snr(f: float) -> float:
-                n_m = ki * total_reads * f
-                n_n = ki * total_reads * (1 - f)
-                return -_mean_snr(n_m / mod_reads, n_n / nomod_reads)
-            res = minimize_scalar(neg_snr, bounds=(1e-3, 1 - 1e-3), method="bounded")
-            return -res.fun
-
-        snr_opt = np.array([_optimal_snr(ki) for ki in k])
-        plt.plot(k, snr_opt, color="red", linewidth=2, label="Optimal")
-
-        # Modified: scale mod only, remap x to relative total
-        snr_mod = np.array([_mean_snr(ki, 1.0) for ki in k])
-        x_mod = k * f_mod + f_nomod
-        cmap_mod = plt.get_cmap("RdPu")
-        plt.plot(x_mod, snr_mod, color=cmap_mod(0.7), linewidth=2, label="Modified")
-
-        # Unmodified: scale nomod only, remap x to relative total
-        snr_nomod = np.array([_mean_snr(1.0, ki) for ki in k])
-        x_nomod = f_mod + k * f_nomod
-        cmap_nomod = plt.get_cmap("PuBu")
-        plt.plot(x_nomod, snr_nomod, color=cmap_nomod(0.7), linewidth=2, label="Unmodified")
+        nomod_err2 = np.maximum(nomod_err ** 2, prior * (1 - prior) / nomod_reads)
     else:
-        snr_mod = np.array([_mean_snr(ki, 1.0) for ki in k])
-        cmap_mod = plt.get_cmap("RdPu")
-        plt.plot(k, snr_mod, color=cmap_mod(0.7), linewidth=2, label="Modified")
+        nomod_err2 = None
+        total_reads = mod_reads
+
+    def _mean_snr_vec(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
+        """Compute mean SNR for an array of scale factors. Returns shape (N,)."""
+        se2 = mod_err2[None] / mod_scales[:, None, None]
+        if nomod_err2 is not None:
+            se2 = se2 + nomod_err2[None] / nomod_scales[:, None, None]
+        se = np.sqrt(se2)
+        snr = np.where(se > 0, reactivity[None] / se, 0.0)
+        return np.nanmean(snr, axis=-1).mean(axis=-1)
+
+    def _trim_leading_zeros(snr: np.ndarray) -> slice:
+        """Trim leading near-zero region, keeping one point before the visible rise."""
+        nz = np.nonzero(snr > 0.01)[0]
+        start = max(nz[0] - 1, 0) if len(nz) > 0 else 0
+        return slice(start, None)
+
+    xi = np.geomspace(0.1, 10, 10000)
+
+    if nomod is not None:
+        # Modified: extra reads go to mod, nomod stays at current depth
+        mod_scales = np.maximum((xi * total_reads - nomod_reads) / mod_reads, 1e-10)
+        snr_mod = _mean_snr_vec(mod_scales, np.ones_like(mod_scales))
+        s = _trim_leading_zeros(snr_mod)
+        plt.plot(xi[s], snr_mod[s], color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
+
+        # Unmodified: extra reads go to nomod, mod stays at current depth
+        nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
+        snr_nomod = _mean_snr_vec(np.ones_like(nomod_scales), nomod_scales)
+        s = _trim_leading_zeros(snr_nomod)
+        plt.plot(xi[s], snr_nomod[s], color=plt.get_cmap("PuBu")(0.7), linewidth=2, label="Unmodified")
+
+        # Pareto: best allocation at each relative total depth
+        fracs = np.linspace(0.01, 0.99, 200)
+        snr_pareto = np.empty(len(xi))
+        chunk = 500
+        for i in range(0, len(xi), chunk):
+            xi_c = xi[i:i + chunk]
+            ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
+            ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
+            snr_grid = np.column_stack([_mean_snr_vec(ms[:, j], ns[:, j]) for j in range(len(fracs))])
+            snr_pareto[i:i + chunk] = snr_grid.max(axis=1)
+
+        dy = ScaledTranslation(0, 2.0 / 72, plt.gcf().dpi_scale_trans)
+        plt.plot(xi, snr_pareto, color="black", linewidth=1, linestyle=(0, (3, 2)),
+                 label="Pareto", transform=plt.gca().transData + dy)
+    else:
+        snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
+        plt.plot(xi, snr_mod, color=plt.get_cmap("RdPu")(0.7), linewidth=2, label="Modified")
 
     plt.axvline(1.0, color="grey", linestyle="--", linewidth=1, alpha=0.7)
     plt.xscale("log")

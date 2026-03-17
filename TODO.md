@@ -1,3 +1,7 @@
+# Beta prior on mutation rates
+
+Consider adding a Beta prior (e.g. Beta(0.001, 0.999)) to the per-position mutation rate estimates in `cmuts normalize`. Currently, positions with 0 observed mutations get an error of exactly 0, which causes issues downstream (e.g. SNR scaling plots show a nonzero floor when one condition has many zero-mutation positions). A Beta-Bernoulli posterior would give every position a small nonzero variance proportional to 1/n, making error estimates more honest at low mutation rates. This affects the core reactivity computation in `internal.py`, not just plotting.
+
 # `cmuts run` — unified pipeline command
 
 ## Interface
