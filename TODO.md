@@ -108,3 +108,23 @@ cmuts run --fasta ref.fasta --mod DMS/*.fq --nomod ETH/*.fq  -o profiles.h5 --gr
 - New Python script at `src/python/cmuts-run`.
 - Shells out to `cmuts align`, `cmuts core`, `cmuts normalize` (stays in sync with existing tools).
 - Add `run` subcommand to `src/scripts/cmuts` dispatcher.
+
+# Plotly backend cleanup
+
+## plotly.py
+
+- [ ] Remove `ArrayType` alias — it's just `np.ndarray` with extra indirection. Either use `np.ndarray` directly or switch to `numpy.typing.ArrayLike`.
+- [ ] `plot_heatmap` bypasses `_base_layout` with its own inline layout dict. If the base style changes, heatmaps won't pick it up. Intentional but worth documenting.
+- [ ] `plot_snr_scaling` is ~200 lines mixing signal processing with visualization. The SNR computation should live in cmuts core, with this function receiving pre-computed curves.
+- [ ] The band-plotting pattern in `plot_snr_scaling` (invisible lower trace + `fill="tonexty"`) is repeated 3 times — extract a helper.
+- [ ] `plot_profile` has an `error: Optional[np.ndarray]` branch that may be dead in practice since `plot_examples` always passes error.
+
+## app.py (cmuts-space)
+
+- [ ] **Fragile yield shape.** The 14-element tuple is maintained by convention across `_progress_yield`, the final yield, `load_saved_result`, and `_load_from_query`. A dataclass or named structure would prevent silent breakage.
+- [ ] **Mismatched output shapes.** `run_pipeline` outputs 14 components (includes file, url) while `load_saved_result` outputs 13 (no file/url, adds load_status). Hard to reason about what maps where.
+- [ ] `_read_profiles` and `_build_stats_table` re-read the HDF5 immediately after `combined.save()` — this data is already available from the in-memory `ProbingData`.
+- [ ] `select_profile` has a redundant local `from cmuts.visualize.plotly import plot_profile` — already imported at module level.
+- [ ] `NormConfig.norm_cutoff` and `NormConfig.norm_percentile` are collected from the UI but silently ignored (not in `cmuts.Opts`). Either remove from the UI or document the limitation.
+- [ ] `no_insertions` is shared between `CoreConfig` and `NormConfig` via a single checkbox — this coupling is implicit.
+- [ ] Remove dead `_empty_plot()` function (unused now that everything goes through `_plot_update`).
