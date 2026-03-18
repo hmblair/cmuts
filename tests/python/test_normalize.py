@@ -5,15 +5,15 @@ Tests that the wrapper script correctly constructs Opts from CLI arguments
 and invokes compute_reactivity. Uses synthetic HDF5 count data generated
 by `cmuts generate` + `cmuts core`.
 """
+
 from __future__ import annotations
 
 import subprocess
-import tempfile
+import sys
 from pathlib import Path
 
 import h5py
 import pytest
-
 from helpers import TestParams, TestRunner
 
 
@@ -42,11 +42,15 @@ def _run_normalize(
 ) -> subprocess.CompletedProcess:
     """Run the cmuts-normalize script as a subprocess."""
     cmd = [
-        "python", str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
+        sys.executable,
+        str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
         str(counts_h5),
-        "--fasta", str(fasta),
-        "--mod", *mod,
-        "-o", str(out),
+        "--fasta",
+        str(fasta),
+        "--mod",
+        *mod,
+        "-o",
+        str(out),
         "--overwrite",
     ]
     if extra_args:
@@ -58,10 +62,12 @@ def _find_mod_groups(h5_path: Path) -> list[str]:
     """Find group paths containing counts-1d datasets."""
     groups = []
     with h5py.File(h5_path, "r") as f:
+
         def visitor(name: str, obj: object) -> None:
             if name.endswith("counts-1d") and hasattr(obj, "shape"):
                 # Parent group is everything before /counts-1d
                 groups.append(name.rsplit("/counts-1d", 1)[0])
+
         f.visititems(visitor)
     return groups
 
@@ -115,7 +121,10 @@ class TestNormalizeOpts:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, fasta, out, mod=groups,
+            counts_h5,
+            fasta,
+            out,
+            mod=groups,
             extra_args=["--clip-low", "--clip-high"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
@@ -127,7 +136,10 @@ class TestNormalizeOpts:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, fasta, out, mod=groups,
+            counts_h5,
+            fasta,
+            out,
+            mod=groups,
             extra_args=["--blank-5p", "3", "--blank-3p", "3"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
@@ -139,7 +151,10 @@ class TestNormalizeOpts:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, fasta, out, mod=groups,
+            counts_h5,
+            fasta,
+            out,
+            mod=groups,
             extra_args=["--no-insertions"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
@@ -151,7 +166,10 @@ class TestNormalizeOpts:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, fasta, out, mod=groups,
+            counts_h5,
+            fasta,
+            out,
+            mod=groups,
             extra_args=["--no-deletions"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
@@ -163,7 +181,10 @@ class TestNormalizeOpts:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, fasta, out, mod=groups,
+            counts_h5,
+            fasta,
+            out,
+            mod=groups,
             extra_args=["--group", "mygroup"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
@@ -183,7 +204,10 @@ class TestNormalizeErrors:
 
         out = tmp_path / "out.h5"
         result = _run_normalize(
-            counts_h5, tmp_path / "nonexistent.fasta", out, mod=groups,
+            counts_h5,
+            tmp_path / "nonexistent.fasta",
+            out,
+            mod=groups,
         )
         assert result.returncode != 0
 

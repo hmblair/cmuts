@@ -2,6 +2,9 @@ import os
 from typing import Any, Union
 
 import dask.array as da
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm, SymLogNorm
@@ -65,7 +68,9 @@ def _matrix_plot(data: np.ndarray, norm, label: str, cmap: str = CMAP) -> None:
 
 
 def _prefix(name: str, dir: str = FIGURES) -> str:
-    return f"{dir}/{name}-" if name else ""
+    if name:
+        return os.path.join(dir, f"{name}-")
+    return os.path.join(dir, "")
 
 
 def _title(title: str, name: str) -> None:
@@ -84,6 +89,7 @@ def _ylabel(label: str) -> None:
 
 
 def _save_and_close(name: str, figtype: str, dir: str = FIGURES) -> None:
+    os.makedirs(dir, exist_ok=True)
     ax = plt.gca()
     _, labels = ax.get_legend_handles_labels()
     if labels:
@@ -137,7 +143,8 @@ def _plot_cumulative_reads(
     reads: ArrayType, name: str, block: int = 100, dir: str = FIGURES
 ) -> None:
     reads = np.asarray(reads)
-    n = reads.shape[0] // block
+    block = min(block, reads.shape[0])
+    n = max(reads.shape[0] // block, 1)
     reads = reads[: n * block]
     reads = reads.reshape(n, block).mean(1)
 
@@ -193,12 +200,13 @@ def _plot_profile(
     _ylabel("Reactivity")
 
     figtype = "profile"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def plot_profiles(
     reactivities: list[np.ndarray],
     names: list[str],
+    dir: str = FIGURES,
 ) -> None:
     """Plot multiple reactivity profiles overlaid."""
     for ix in range(len(names)):
@@ -211,7 +219,7 @@ def plot_profiles(
     _ylabel("Reactivity")
 
     figtype = "profile"
-    _save_and_close(name, figtype)
+    _save_and_close(name, figtype, dir)
 
 
 def _plot_error(
@@ -317,6 +325,13 @@ def _plot_correlation(values: np.ndarray, name: str, dir: str = FIGURES) -> None
 
     figtype = "correlation"
     _save_and_close(name, figtype, dir)
+
+
+def _indexed_name(name: str, ix: int, total: int) -> str:
+    if total <= 1:
+        return name
+    suffix = f"{ix + 1}"
+    return f"{name}-{suffix}" if name else suffix
 
 
 def _plot_mi(
@@ -545,11 +560,11 @@ def plot_all(
 
     if data.mi is not None:
         for ix in range(data.size()):
-            _plot_mi(data.mi[ix], name, dir)
+            _plot_mi(data.mi[ix], _indexed_name(name, ix, data.size()), dir)
 
     if data.covariance is not None:
         for ix in range(data.size()):
-            _plot_correlation(data.covariance[ix], name, dir)
+            _plot_correlation(data.covariance[ix], _indexed_name(name, ix, data.size()), dir)
 
 
 def main():
