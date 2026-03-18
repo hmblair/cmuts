@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import numpy as np
-import plotly.graph_objects as go
 import pytest
 
-from cmuts.internal import ProbingData
-from cmuts.visualize.plotly import (
+go = pytest.importorskip("plotly.graph_objects")
+
+from cmuts.internal import ProbingData  # noqa: E402
+from cmuts.visualize.plotly import (  # noqa: E402
     plot_correlation,
     plot_coverage,
     plot_cumulative_reads,
