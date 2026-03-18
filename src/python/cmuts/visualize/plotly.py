@@ -83,22 +83,47 @@ def _symlog(x: np.ndarray, linthresh: float) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+_HEATMAP_NTS = ["A", "C", "G", "U"]
+_HEATMAP_MODS = ["A", "C", "G", "U", "del", "ins", "term"]
+
+
 def plot_heatmap(heatmap: ArrayType, name: str = "") -> go.Figure:
     heatmap = np.asarray(heatmap)
     with np.errstate(divide="ignore"):
-        log_heatmap = np.log10(np.clip(heatmap, 1e-4, 1e0))
+        log_heatmap = np.where(heatmap > 0, np.log10(heatmap), np.nan)
+
+    # Build descriptive hover text per cell
+    hover_text = []
+    for i, nt in enumerate(_HEATMAP_NTS):
+        row = []
+        for j, mod in enumerate(_HEATMAP_MODS):
+            val = heatmap[i, j]
+            prob = f"{val:.4e}" if val > 0 else "0"
+            if mod in _HEATMAP_NTS and mod == nt:
+                row.append(f"Match ({nt})<br>Probability: {prob}")
+            elif mod in _HEATMAP_NTS:
+                row.append(f"Mismatch {nt} \u2192 {mod}<br>Probability: {prob}")
+            elif mod == "del":
+                row.append(f"Deletion of {nt}<br>Probability: {prob}")
+            elif mod == "ins":
+                row.append(f"Insertion at {nt}<br>Probability: {prob}")
+            else:
+                row.append(f"Termination at {nt}<br>Probability: {prob}")
+        hover_text.append(row)
 
     title = f"Modification Heatmap ({name})" if name else "Modification Heatmap"
     fig = go.Figure(
         data=go.Heatmap(
             z=log_heatmap,
-            x=["A", "C", "G", "U", "del", "ins", "term"],
-            y=["A", "C", "G", "U"],
+            x=_HEATMAP_MODS,
+            y=_HEATMAP_NTS,
             colorscale="RdPu",
             zmin=-4,
             zmax=0,
+            text=hover_text,
+            hoverinfo="text",
             colorbar={
-                "title": "Occurrence Probability",
+                "title": "Probability",
                 "tickvals": [-4, -3, -2, -1, 0],
                 "ticktext": [
                     "10\u207b\u2074",
@@ -110,8 +135,39 @@ def plot_heatmap(heatmap: ArrayType, name: str = "") -> go.Figure:
             },
         )
     )
-    fig.update_layout(**_base_layout(title))
-    fig.update_layout(yaxis_autorange="reversed")
+
+    # Cell outlines
+    for i in range(len(_HEATMAP_NTS)):
+        for j in range(len(_HEATMAP_MODS)):
+            fig.add_shape(
+                type="rect",
+                x0=j - 0.5,
+                x1=j + 0.5,
+                y0=i - 0.5,
+                y1=i + 0.5,
+                line={"color": "black", "width": 1},
+                layer="above",
+            )
+
+    fig.update_layout(
+        font={"family": FONT_FAMILY},
+        title={"text": title, "font": {"size": TITLE_SIZE}},
+        xaxis_title="Modification Type",
+        xaxis={"showgrid": False, "zeroline": False, "constrain": "domain"},
+        yaxis_title="Reference Nucleotide",
+        yaxis={
+            "autorange": "reversed",
+            "showgrid": False,
+            "zeroline": False,
+            "ticklabelstandoff": 10,
+            "scaleanchor": "x",
+            "constrain": "domain",
+        },
+        template="plotly_white",
+        height=300,
+        width=550,
+        margin={"l": 50, "r": 20, "t": 40, "b": 40},
+    )
     return fig
 
 
