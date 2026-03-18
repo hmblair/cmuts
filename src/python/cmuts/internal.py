@@ -119,16 +119,22 @@ def _accumulate_arrays(
     file: h5py.File,
     groups: list[str],
 ) -> da.Array:
-    arr: da.Array = da.from_array(file[groups[0]], chunks="auto")
+    arr: da.Array = da.from_array(_get_dataset(file, groups[0]), chunks="auto")
 
     for group in groups[1:]:
-        try:
-            arr += da.from_array(file[group], chunks="auto")
-        except Exception as e:
-            print(f"Error loading the dataset {group}:")
-            raise e
+        arr += da.from_array(_get_dataset(file, group), chunks="auto")
 
     return arr
+
+
+def _get_dataset(file: h5py.File, path: str) -> h5py.Dataset:
+    try:
+        return file[path]
+    except KeyError:
+        available = list(file.keys())
+        raise KeyError(
+            f"Dataset '{path}' not found in '{file.filename}'. " f"Available groups: {available}"
+        ) from None
 
 
 #
