@@ -133,7 +133,7 @@ def _get_dataset(file: h5py.File, path: str) -> h5py.Dataset:
     except KeyError:
         available = list(file.keys())
         raise KeyError(
-            f"Dataset '{path}' not found in '{file.filename}'. " f"Available groups: {available}"
+            f"Dataset '{path}' not found in '{file.filename}'. Available groups: {available}"
         ) from None
 
 
