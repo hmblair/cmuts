@@ -360,7 +360,7 @@ def plot_pairwise_coverage(values: np.ndarray, name: str = "") -> go.Figure:
         )
     )
     fig.update_layout(**_base_layout(title, "Residue", "Residue"))
-    fig.update_layout(yaxis_autorange="reversed")
+    fig.update_layout(yaxis_autorange="reversed", yaxis_scaleanchor="x")
     return fig
 
 
@@ -387,7 +387,7 @@ def plot_correlation(values: np.ndarray, name: str = "") -> go.Figure:
         )
     )
     fig.update_layout(**_base_layout(title, "Residue", "Residue"))
-    fig.update_layout(yaxis_autorange="reversed")
+    fig.update_layout(yaxis_autorange="reversed", yaxis_scaleanchor="x")
     return fig
 
 
@@ -410,7 +410,7 @@ def plot_mi(values: np.ndarray, name: str = "") -> go.Figure:
         )
     )
     fig.update_layout(**_base_layout(title, "Residue", "Residue"))
-    fig.update_layout(yaxis_autorange="reversed")
+    fig.update_layout(yaxis_autorange="reversed", yaxis_scaleanchor="x")
     return fig
 
 
