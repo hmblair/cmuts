@@ -12,8 +12,6 @@ import plotly.graph_objects as go
 
 from cmuts.internal import ProbingData
 
-ArrayType = np.ndarray
-
 # Styling constants matching the matplotlib versions
 FONT_FAMILY = "Helvetica"
 LABEL_SIZE = 14
@@ -87,7 +85,7 @@ _HEATMAP_NTS = ["A", "C", "G", "U"]
 _HEATMAP_MODS = ["A", "C", "G", "U", "del", "ins", "term"]
 
 
-def plot_heatmap(heatmap: ArrayType, name: str = "") -> go.Figure:
+def plot_heatmap(heatmap: np.ndarray, name: str = "") -> go.Figure:
     heatmap = np.asarray(heatmap)
     with np.errstate(divide="ignore"):
         log_heatmap = np.where(heatmap > 0, np.log10(heatmap), np.nan)
@@ -171,7 +169,7 @@ def plot_heatmap(heatmap: ArrayType, name: str = "") -> go.Figure:
     return fig
 
 
-def plot_read_hist(reads: ArrayType, name: str = "") -> go.Figure:
+def plot_read_hist(reads: np.ndarray, name: str = "") -> go.Figure:
     reads = np.asarray(reads)
     with np.errstate(divide="ignore"):
         lr = np.where(reads == 0, -1, np.log10(reads))
@@ -200,7 +198,7 @@ def plot_read_hist(reads: ArrayType, name: str = "") -> go.Figure:
     return fig
 
 
-def plot_cumulative_reads(reads: ArrayType, name: str = "", block: int = 100) -> go.Figure:
+def plot_cumulative_reads(reads: np.ndarray, name: str = "", block: int = 100) -> go.Figure:
     reads = np.asarray(reads)
     block = min(block, reads.shape[0])
     n = max(reads.shape[0] // block, 1)
@@ -218,7 +216,7 @@ def plot_cumulative_reads(reads: ArrayType, name: str = "", block: int = 100) ->
     return fig
 
 
-def plot_termination(term: ArrayType, name: str = "") -> go.Figure:
+def plot_termination(term: np.ndarray, name: str = "") -> go.Figure:
     term = np.asarray(term).copy()
     quot = term.sum(axis=1)[:, None]
     term = np.divide(term, quot, where=(quot > 0), out=term)
@@ -310,8 +308,8 @@ def plot_multiple_examples(reactivity: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_examples(
-    reactivity: ArrayType,
-    error: ArrayType,
+    reactivity: np.ndarray,
+    error: np.ndarray,
     name: str = "",
     num: int = 250,
 ) -> go.Figure:
@@ -323,7 +321,7 @@ def plot_examples(
         return plot_multiple_examples(reactivity[:num], name)
 
 
-def plot_coverage(coverage: ArrayType, reads: ArrayType, name: str = "") -> go.Figure:
+def plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str = "") -> go.Figure:
     coverage = np.asarray(coverage)
     reads = np.asarray(reads)
     data = coverage / reads.mean()
