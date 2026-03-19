@@ -9,4 +9,5 @@ cmuts visualize \
   --file "$HDF5" \
   --dataset "$DATASET" \
   --fasta "$FASTA" \
-  --cif "$CIF"
+  --cif "$CIF" \
+  --vmax 1.0

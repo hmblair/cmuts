@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 import argparse
+from typing import Union
+
 import h5py
 import numpy as np
+
 import cmuts
-from typing import Union
 
 
 def _seq_from_fasta(file: str, n: int = 0) -> str:
-
     seq = ""
     count = 0
 
-    with open(file, 'r') as f:
+    with open(file) as f:
         for line in f:
             if line.startswith(">"):
                 count += 1
@@ -23,9 +24,7 @@ def _seq_from_fasta(file: str, n: int = 0) -> str:
     return seq.upper().replace("U", "T")
 
 
-parser = argparse.ArgumentParser(
-    description="Color structure by reactivity data from HDF5 file"
-)
+parser = argparse.ArgumentParser(description="Color structure by reactivity data from HDF5 file")
 parser.add_argument(
     "--file",
     help="Path to HDF5 file",
@@ -58,7 +57,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--chain",
-    nargs='?',
+    nargs="?",
     default=None,
     help="Chain of the structure to color. All if none is specified.",
 )
@@ -79,6 +78,18 @@ parser.add_argument(
     default=0,
     help="Trim this many bases from the 3' end of the reactivity data.",
 )
+parser.add_argument(
+    "--vmin",
+    type=float,
+    default=None,
+    help="Clip reactivity values below this threshold.",
+)
+parser.add_argument(
+    "--vmax",
+    type=float,
+    default=None,
+    help="Clip reactivity values above this threshold.",
+)
 
 
 def _load_reactivity(
@@ -88,8 +99,7 @@ def _load_reactivity(
     trim5: int = 0,
     trim3: int = 0,
 ) -> np.ndarray:
-
-    with h5py.File(file, 'r') as f:
+    with h5py.File(file, "r") as f:
         data = f[dataset]
         if data.ndim == 2:
             data = data[index]
@@ -112,17 +122,19 @@ def _overlay_on_cif(
     cif: str,
     trim5: int,
     trim3: int,
+    vmin: Union[float, None],
+    vmax: Union[float, None],
     color: str,
     chain: str,
     bin: str,
 ) -> None:
-
     reactivity = _load_reactivity(file, dataset, index, trim5, trim3)
+    reactivity = np.clip(reactivity, vmin, vmax)
     seq = _seq_from_fasta(fasta, index)
-    cmuts.visualize.cif(reactivity, seq, cif, color, chain, bin)
+    cmuts.visualize.visualize_structure(reactivity, seq, cif, color, chain, bin)
+
 
 if __name__ == "__main__":
-
     args = parser.parse_args()
     _overlay_on_cif(
         args.file,
@@ -132,6 +144,8 @@ if __name__ == "__main__":
         args.cif,
         args.trim_5p,
         args.trim_3p,
+        args.vmin,
+        args.vmax,
         args.color,
         args.chain,
         args.bin,
