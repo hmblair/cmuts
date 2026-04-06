@@ -68,6 +68,7 @@ cmuts-plot = "cmuts.visualize.plotting:main"
 cmuts-visualize = "cmuts.visualize.structure:main"
 
 [tool.setuptools_scm]
+fallback_version = "0.0.0"
 
 [tool.setuptools.packages.find]
 where = ["src/python"]
