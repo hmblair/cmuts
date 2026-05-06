@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 __all__ = [
     "NormScheme",
     "get_norm",
+    "pooled_norm",
 ]
 
 
@@ -126,5 +127,60 @@ def get_norm(
         return _get_norm_percentile(data, opts)
     if scheme == NormScheme.OUTLIER:
         return _get_norm_outlier(data, opts)
+
+    raise ValueError(f"Invalid normalization scheme {scheme}.")
+
+
+def pooled_norm(
+    datasets: list[ProbingData],
+    opts: Opts,
+) -> np.ndarray:
+    """Compute a single normalization factor pooled across multiple datasets.
+
+    Used to make reactivities directly comparable across experimental groups.
+    For UBR, pools high-coverage reactivity values across all datasets and takes
+    the percentile. For OUTLIER, averages the per-reference factors across
+    datasets. For RAW, returns ones.
+
+    Args:
+        datasets: List of computed ProbingData objects (one per group).
+        opts: Options specifying normalization scheme.
+
+    Returns:
+        Shared normalization factor as a numpy array.
+    """
+    if not datasets:
+        return np.ones(1, dtype=np.float64)
+    if len(datasets) == 1:
+        return get_norm(datasets[0], opts)
+
+    scheme = _get_norm_scheme(opts.norm)
+
+    if scheme == NormScheme.RAW:
+        return _get_norm_raw(datasets[0], opts)
+
+    if scheme == NormScheme.UBR:
+        READ_CUTOFF = 100
+        PERCENTILE = 90
+
+        all_vals: list[np.ndarray] = []
+        for data in datasets:
+            mask = np.asarray(data.mask)
+            reads = np.asarray(data.reads)
+            reactivity = np.asarray(data.reactivity)
+            good_pos = mask & (reads > READ_CUTOFF)[:, None]
+            vals = reactivity[good_pos]
+            if vals.size:
+                all_vals.append(vals)
+
+        if not all_vals:
+            return _get_norm_raw(datasets[0], opts)
+
+        pooled = np.concatenate(all_vals).flatten()
+        return np.asarray(np.percentile(pooled, PERCENTILE))
+
+    if scheme == NormScheme.OUTLIER:
+        norms = [_get_norm_outlier(data, opts) for data in datasets]
+        return np.mean(norms, axis=0)
 
     raise ValueError(f"Invalid normalization scheme {scheme}.")

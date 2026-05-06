@@ -194,6 +194,121 @@ class TestNormalizeOpts:
             assert "reactivity" in f["mygroup"]
 
 
+class TestNormalizeMultiGroup:
+    """Tests for --groups multi-group mode."""
+
+    def _write_toml(self, path: Path, entries: list[dict]) -> None:
+        lines: list[str] = []
+        for e in entries:
+            lines.append("[[group]]")
+            lines.append(f'name = "{e["name"]}"')
+            mods = ", ".join(f'"{m}"' for m in e["mod"])
+            lines.append(f"mod = [{mods}]")
+            if e.get("nomod"):
+                nomods = ", ".join(f'"{m}"' for m in e["nomod"])
+                lines.append(f"nomod = [{nomods}]")
+            lines.append("")
+        path.write_text("\n".join(lines))
+
+    def _run_groups(
+        self,
+        counts_h5: Path,
+        fasta: Path,
+        out: Path,
+        groups_toml: Path,
+        extra_args: list[str] | None = None,
+    ) -> subprocess.CompletedProcess:
+        cmd = [
+            sys.executable,
+            str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
+            str(counts_h5),
+            "--fasta",
+            str(fasta),
+            "--groups",
+            str(groups_toml),
+            "-o",
+            str(out),
+            "--overwrite",
+        ]
+        if extra_args:
+            cmd.extend(extra_args)
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=out.parent)
+
+    def test_two_groups_shared_norm(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """Two groups produce a single HDF5 with both as top-level groups."""
+        counts_h5, fasta = test_data
+        groups = _find_mod_groups(counts_h5)
+        assert groups, "No count groups found in test HDF5"
+        # Reuse the single available dataset for both groups — sufficient to
+        # exercise the multi-group code path without needing distinct counts.
+        ds = groups[0]
+
+        toml_path = tmp_path / "groups.toml"
+        self._write_toml(
+            toml_path,
+            [
+                {"name": "g1", "mod": [ds]},
+                {"name": "g2", "mod": [ds]},
+            ],
+        )
+
+        out = tmp_path / "out.h5"
+        result = self._run_groups(counts_h5, fasta, out, toml_path)
+        assert result.returncode == 0, f"stderr:\n{result.stderr}"
+        assert out.exists()
+
+        with h5py.File(out, "r") as f:
+            assert "g1" in f and "g2" in f
+            assert "reactivity" in f["g1"]
+            assert "reactivity" in f["g2"]
+
+    def test_independent_norm_flag(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """--independent-norm runs without error."""
+        counts_h5, fasta = test_data
+        groups = _find_mod_groups(counts_h5)
+        assert groups
+        ds = groups[0]
+
+        toml_path = tmp_path / "groups.toml"
+        self._write_toml(
+            toml_path,
+            [
+                {"name": "g1", "mod": [ds]},
+                {"name": "g2", "mod": [ds]},
+            ],
+        )
+
+        out = tmp_path / "out.h5"
+        result = self._run_groups(counts_h5, fasta, out, toml_path, ["--independent-norm"])
+        assert result.returncode == 0, f"stderr:\n{result.stderr}"
+
+    def test_groups_and_mod_mutually_exclusive(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """Passing both --groups and --mod is rejected."""
+        counts_h5, fasta = test_data
+        groups = _find_mod_groups(counts_h5)
+
+        toml_path = tmp_path / "groups.toml"
+        self._write_toml(toml_path, [{"name": "g1", "mod": [groups[0]]}])
+
+        out = tmp_path / "out.h5"
+        cmd = [
+            sys.executable,
+            str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
+            str(counts_h5),
+            "--fasta",
+            str(fasta),
+            "--groups",
+            str(toml_path),
+            "--mod",
+            groups[0],
+            "-o",
+            str(out),
+            "--overwrite",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        assert result.returncode != 0
+
+
 class TestNormalizeErrors:
     """Tests that the script fails gracefully on bad inputs."""
 

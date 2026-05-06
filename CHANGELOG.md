@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.7] - 2026-05-06
+
+### Added
+
+- `cmuts.Group` dataclass and `cmuts.compute_reactivities()` for processing multiple experimental groups in one pass, with normalization pooled across groups so reactivities are directly comparable
+- `cmuts.save_groups()` for writing multiple groups to a single HDF5 file
+- `cmuts.pooled_norm()` for computing a shared normalization factor across multiple `ProbingData` objects (UBR pools high-coverage reactivities; OUTLIER averages per-reference factors)
+- `cmuts normalize --groups <toml>` flag accepting a TOML file with `[[group]]` entries (`name`, `mod`, optional `nomod`)
+- `cmuts normalize --independent-norm` flag to disable cross-group pooling
+- Multi-group integration tests for the `cmuts normalize` CLI
+
+### Changed
+
+- `cmuts-normalize` script is now a thin shim over `python -m cmuts.normalize`; the implementation lives in `cmuts/normalize/__main__.py`
+
 ## [1.4.6] - 2026-03-17
 
 ### Added

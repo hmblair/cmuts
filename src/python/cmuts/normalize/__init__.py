@@ -4,9 +4,10 @@ This module provides normalization schemes and utilities for converting
 raw mutation rates into normalized reactivity values.
 """
 
-from .schemes import NormScheme, get_norm
+from .schemes import NormScheme, get_norm, pooled_norm
 
 __all__ = [
     "NormScheme",
     "get_norm",
+    "pooled_norm",
 ]

@@ -35,11 +35,15 @@ from . import visualize
 # Core data types and functions
 from .internal import (
     DataGroups,
+    Group,
+    GroupResult,
     Opts,
     ProbingData,
+    compute_reactivities,
     compute_reactivity,
+    save_groups,
 )
-from .normalize import NormScheme
+from .normalize import NormScheme, pooled_norm
 
 # Output formatting
 from .output import (
@@ -53,10 +57,15 @@ __version__ = _get_version("cmuts")
 __all__ = [
     "__version__",
     "DataGroups",
+    "Group",
+    "GroupResult",
     "NormScheme",
     "Opts",
     "ProbingData",
+    "compute_reactivities",
     "compute_reactivity",
+    "pooled_norm",
+    "save_groups",
     "stats",
     "subtitle",
     "title",

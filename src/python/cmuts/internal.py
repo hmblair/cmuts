@@ -36,7 +36,7 @@ import h5py
 import numpy as np
 from scipy.stats import t as student
 
-from .normalize.schemes import get_norm
+from .normalize.schemes import get_norm, pooled_norm
 
 # Core datatypes and dataclasses
 
@@ -70,6 +70,21 @@ class Opts:
     blank: tuple[int, int]
     clip: tuple[bool, bool]
     sig: float
+
+
+@dataclass
+class Group:
+    """A named experimental group with one or more replicate datasets.
+
+    Attributes:
+        name: Output group name (used as the HDF5 group when saving).
+        mod: HDF5 paths for the modified condition (replicates are summed).
+        nomod: HDF5 paths for the unmodified control (optional).
+    """
+
+    name: str
+    mod: list[str]
+    nomod: Union[list[str], None] = None
 
 
 # Input array indices
@@ -833,3 +848,131 @@ def compute_reactivity(
         nomod.clip(opts.clip[0], opts.clip[1])
 
     return mod, nomod, combined
+
+
+@dataclass
+class GroupResult:
+    """Per-group output of :func:`compute_reactivities`."""
+
+    group: Group
+    mod: ProbingData
+    nomod: Union[ProbingData, None]
+    combined: ProbingData
+
+
+def compute_reactivities(
+    file: h5py.File,
+    fasta: str,
+    groups: list[Group],
+    opts: Opts,
+    shared_norm: bool = True,
+) -> list[GroupResult]:
+    """Compute reactivity profiles for one or more experimental groups.
+
+    All groups share a single FASTA reference. Mutation counts are read once,
+    then per-group raw reactivities are computed and (optionally) normalized
+    using a single factor pooled across all groups so the values are directly
+    comparable.
+
+    Args:
+        file: Open HDF5 file containing count data for all groups.
+        fasta: Path to FASTA file with reference sequences.
+        groups: One or more named groups, each with mod and optional nomod paths.
+        opts: Processing options. ``opts.mod`` and ``opts.nomod`` are ignored;
+            data locations come from ``groups``. The other fields (cutoff, ins,
+            dels, norm, blank, clip, sig) are applied to every group.
+        shared_norm: If True (default), compute one normalization factor pooled
+            across all groups. If False, normalize each group independently.
+
+    Returns:
+        One :class:`GroupResult` per input group, in the same order.
+
+    Raises:
+        FileNotFoundError: If the FASTA file does not exist.
+        ValueError: If ``groups`` is empty.
+    """
+    if not groups:
+        raise ValueError("compute_reactivities requires at least one Group.")
+    if not os.path.exists(fasta):
+        raise FileNotFoundError(f"FASTA file not found: {fasta}")
+
+    lengths = _lengths_from_fasta(fasta)
+
+    # First pass: compute raw (unnormalized, unclipped) reactivities per group.
+
+    raw: list[GroupResult] = []
+    for group in groups:
+        mod_groups = DataGroups(list(group.mod))
+        nomod_groups = DataGroups(list(group.nomod) if group.nomod else None)
+
+        mod = _probing_data_from_counts(file, mod_groups, opts, lengths)
+        nomod = _probing_data_from_counts(file, nomod_groups, opts, lengths)
+
+        if mod is None:
+            raise ValueError(f"Group '{group.name}' has no mod datasets; at least one is required.")
+
+        combined = _merge_conditions(mod, nomod)
+
+        mod = mod.compute()
+        combined = combined.compute()
+        if nomod is not None:
+            nomod = nomod.compute()
+
+        raw.append(GroupResult(group=group, mod=mod, nomod=nomod, combined=combined))
+
+    # Compute the normalization factor.
+
+    if shared_norm and len(raw) > 1:
+        norm = pooled_norm([r.combined for r in raw], opts)
+    else:
+        norm = None  # marker: per-group
+
+    # Apply normalization and clipping.
+
+    for r in raw:
+        n = norm if norm is not None else get_norm(r.combined, opts)
+        r.mod.normalize(n)
+        r.combined.normalize(n)
+        if r.nomod is not None:
+            r.nomod.normalize(n)
+
+        r.mod.clip(opts.clip[0], opts.clip[1])
+        r.combined.clip(opts.clip[0], opts.clip[1])
+        if r.nomod is not None:
+            r.nomod.clip(opts.clip[0], opts.clip[1])
+
+    return raw
+
+
+def save_groups(
+    path: str,
+    results: list[tuple[str, ProbingData]],
+) -> None:
+    """Save multiple ProbingData objects to a single HDF5 file.
+
+    Each entry is written under its own group at the file root. The
+    sequences dataset (shared across groups) is written once.
+
+    Args:
+        path: Output HDF5 file. Overwritten if it exists.
+        results: List of ``(group_name, ProbingData)`` tuples.
+    """
+    with h5py.File(path, "w") as f:
+        for name, data in results:
+            grp = f if name == "" else f.create_group(name)
+            grp.create_dataset(Datasets.REACTIVITY, data=np.asarray(data.reactivity))
+            grp.create_dataset(Datasets.READS, data=np.asarray(data.reads))
+            grp.create_dataset(Datasets.ERROR, data=np.asarray(data.error))
+            grp.create_dataset(Datasets.SNR, data=np.asarray(data.snr))
+            grp.create_dataset(Datasets.HEATMAP, data=np.asarray(data.heatmap))
+            if data.norm is not None:
+                grp.create_dataset(Datasets.NORM, data=np.asarray(data.norm))
+            if data.mi is not None:
+                grp.create_dataset(Datasets.MI, data=np.asarray(data.mi))
+            if data.covariance is not None:
+                grp.create_dataset(Datasets.COV, data=np.asarray(data.covariance))
+            if data.pairwise_snr is not None:
+                grp.create_dataset(Datasets.PAIRWISE_SNR, data=np.asarray(data.pairwise_snr))
+
+        if results and results[0][1].sequences is not None:
+            f.create_dataset(Datasets.SEQUENCE, data=np.asarray(results[0][1].sequences))
