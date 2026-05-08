@@ -231,10 +231,37 @@ def plot_termination(term: np.ndarray, name: str = "") -> go.Figure:
     return fig
 
 
+def _seq_tick_labels(sequence: str) -> tuple[list[int], list[str]]:
+    """Build x-axis tick values/labels showing nucleotide letters.
+
+    Each position gets a letter; positions 1, every 10th, and the last also
+    get the residue number on a second line below the letter.
+    """
+    n = len(sequence)
+    tickvals = list(range(n))
+    ticktext: list[str] = []
+    for i, nt in enumerate(sequence):
+        pos = i + 1
+        if pos == 1 or pos % 10 == 0 or pos == n:
+            ticktext.append(f"{nt}<br>{pos}")
+        else:
+            ticktext.append(nt)
+    return tickvals, ticktext
+
+
+def _apply_sequence_axis(fig: go.Figure, sequence: Optional[str], length: int) -> None:
+    """Replace the x-axis numeric ticks with sequence letter ticks (if seq fits)."""
+    if not sequence or len(sequence) < length:
+        return
+    tickvals, ticktext = _seq_tick_labels(sequence[:length])
+    fig.update_xaxes(tickmode="array", tickvals=tickvals, ticktext=ticktext)
+
+
 def plot_profile(
     reactivity: np.ndarray,
     error: Optional[np.ndarray] = None,
     name: str = "",
+    sequence: Optional[str] = None,
 ) -> go.Figure:
     title = f"Reactivity Profile ({name})" if name else "Reactivity Profile"
     fig = go.Figure()
@@ -247,12 +274,14 @@ def plot_profile(
 
     fig.update_layout(**_base_layout(title, "Residue", "Reactivity"))
     fig.update_xaxes(range=[0, len(reactivity)])
+    _apply_sequence_axis(fig, sequence, len(reactivity))
     return fig
 
 
 def plot_profiles(
     reactivities: list[np.ndarray],
     names: list[str],
+    sequence: Optional[str] = None,
 ) -> go.Figure:
     color_sets = [
         (_RDPU_FILL, _RDPU_LINE),
@@ -266,6 +295,7 @@ def plot_profiles(
     fig.update_layout(**_base_layout("Reactivity Profile", "Residue", "Reactivity"))
     max_len = max(len(r) for r in reactivities)
     fig.update_xaxes(range=[0, max_len])
+    _apply_sequence_axis(fig, sequence, max_len)
     return fig
 
 
@@ -312,11 +342,12 @@ def plot_examples(
     error: np.ndarray,
     name: str = "",
     num: int = 250,
+    sequence: Optional[str] = None,
 ) -> go.Figure:
     reactivity = np.asarray(reactivity)
     error = np.asarray(error)
     if reactivity.shape[0] == 1:
-        return plot_profile(reactivity[0], error[0], name)
+        return plot_profile(reactivity[0], error[0], name, sequence=sequence)
     else:
         return plot_multiple_examples(reactivity[:num], name)
 

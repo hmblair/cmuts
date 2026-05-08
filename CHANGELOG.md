@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.8] - 2026-05-08
+
+### Added
+
+- Optional `sequence` parameter on `plot_profile`, `plot_profiles`, and `plot_examples` (Plotly). When provided, the x-axis shows the nucleotide letter at every position with the residue number underneath at every 10th position (and the first/last)
+
 ## [1.4.7] - 2026-05-06
 
 ### Added
