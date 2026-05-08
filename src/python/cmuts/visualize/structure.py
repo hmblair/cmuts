@@ -202,19 +202,20 @@ def _to_defattr_atom(
                 ix += 1
 
 
-def _color_by_defattr(
-    bin: str,
+def chimerax_command(
     cif: str,
     defattr: str,
-    color: str,
-    max: float = 1,
+    color: str = "indianred",
+    max_value: float = 1.0,
     chain: Union[str, None] = None,
-) -> None:
-    """
-    Color a .cif file with the given .defattr file.
-    """
+) -> str:
+    """Build the ChimeraX command string that visualizes ``defattr`` on ``cif``.
 
-    chmx_cmd = (
+    Use the basename of ``cif`` and ``defattr`` (rather than absolute paths)
+    when generating a command for users to run locally — they will typically
+    keep both files in the same directory.
+    """
+    return (
         f"open {cif}; "
         + "close #1.2-999; "
         + ("" if chain is None else f"del ~/{chain}; ")
@@ -223,7 +224,7 @@ def _color_by_defattr(
         + "graphics quality 5; "
         + "renumber start 1 relative false; "
         + f"open {defattr}; "
-        + f"color byattribute value palette white:{color} range 0,{max}; "
+        + f"color byattribute value palette white:{color} range 0,{max_value}; "
         + "hide cartoons; "
         + "nucleotides atoms; "
         + "style sphere; "
@@ -231,8 +232,18 @@ def _color_by_defattr(
         + "lighting ambientIntensity 1.3"
     )
 
-    cmd = [bin, "--cmd", chmx_cmd]
-    subprocess.run(cmd)
+
+def _color_by_defattr(
+    bin: str,
+    cif: str,
+    defattr: str,
+    color: str,
+    max: float = 1,
+    chain: Union[str, None] = None,
+) -> None:
+    """Color a .cif file with the given .defattr file by launching ChimeraX."""
+    chmx_cmd = chimerax_command(cif, defattr, color, max, chain)
+    subprocess.run([bin, "--cmd", chmx_cmd])
 
 
 def _color_by_reactivity(
@@ -269,15 +280,26 @@ def _color_atoms_by_value(
     _color_by_defattr(bin, cif, defattr, color)
 
 
-def visualize_structure(
+def make_defattr(
     reactivity: np.ndarray,
     seq: str,
     cif: str,
-    color: str = "indianred",
+    defattr_path: str,
     chain: Union[str, None] = None,
-    bin: str = "ChimeraX",
-) -> None:
-    """Visualize reactivity data on a 3D molecular structure."""
+) -> float:
+    """Align ``reactivity`` against the ``cif`` sequence and write a defattr file.
+
+    Args:
+        reactivity: Per-position reactivity values for ``seq``.
+        seq: Reference sequence the reactivities correspond to (T/U interchangeable).
+        cif: Path to the structure file used to extract the chain sequence for alignment.
+        defattr_path: Output path for the .defattr file.
+        chain: Chain id to align against (default: A).
+
+    Returns:
+        The maximum (post-alignment, NaN-zeroed) reactivity value, suitable for
+        passing as ``max_value`` to :func:`chimerax_command`.
+    """
     if not os.path.exists(cif):
         raise FileNotFoundError(f"Structure file not found: {cif}")
     if len(reactivity) != len(seq):
@@ -289,7 +311,43 @@ def visualize_structure(
     aln1, aln2 = _seq_align(seq, cif_seq)
     aln_data = _data_aln(reactivity, aln1, aln2)
     aln_data = np.nan_to_num(aln_data, nan=0.0)
-    _color_by_reactivity(bin, cif, aln_data, chain, color)
+    _to_defattr(aln_data, defattr_path, chain=chain)
+    return float(aln_data.max()) if aln_data.size else 1.0
+
+
+def visualize_structure(
+    reactivity: np.ndarray,
+    seq: str,
+    cif: str,
+    color: str = "indianred",
+    chain: Union[str, None] = None,
+    bin: str = "ChimeraX",
+    defattr_out: Union[str, None] = None,
+    run_chimerax: bool = True,
+) -> str:
+    """Visualize reactivity data on a 3D molecular structure.
+
+    Writes a defattr file and (by default) launches ChimeraX to display the
+    coloured structure. Set ``run_chimerax=False`` to write only the defattr
+    and return the ChimeraX command — useful for server-side use where the
+    user runs ChimeraX on their own machine.
+
+    Args:
+        defattr_out: Path to write the defattr file. Defaults to a hidden file
+            in the working directory.
+        run_chimerax: When True (default), launch ChimeraX to render the result.
+            When False, the defattr is written and the ChimeraX command is
+            returned without launching anything.
+
+    Returns:
+        The ChimeraX command string used to (or that would) render the structure.
+    """
+    defattr = defattr_out or ".cmuts-visualize.defattr"
+    max_value = make_defattr(reactivity, seq, cif, defattr, chain)
+    cmd = chimerax_command(cif, defattr, color, max_value, chain)
+    if run_chimerax:
+        subprocess.run([bin, "--cmd", cmd])
+    return cmd
 
 
 def visualize_structure_atoms(

@@ -90,6 +90,17 @@ parser.add_argument(
     default=None,
     help="Clip reactivity values above this threshold.",
 )
+parser.add_argument(
+    "--defattr-out",
+    default=None,
+    help="Path to write the .defattr file (default: a hidden temp file).",
+)
+parser.add_argument(
+    "--no-chimerax",
+    action="store_true",
+    help="Don't launch ChimeraX; only write the .defattr file and print "
+    "the ChimeraX command for the user to run themselves.",
+)
 
 
 def _load_reactivity(
@@ -127,11 +138,28 @@ def _overlay_on_cif(
     color: str,
     chain: str,
     bin: str,
+    defattr_out: Union[str, None],
+    run_chimerax: bool,
 ) -> None:
     reactivity = _load_reactivity(file, dataset, index, trim5, trim3)
     reactivity = np.clip(reactivity, vmin, vmax)
     seq = _seq_from_fasta(fasta, index)
-    cmuts.visualize.visualize_structure(reactivity, seq, cif, color, chain, bin)
+    cmd = cmuts.visualize.visualize_structure(
+        reactivity,
+        seq,
+        cif,
+        color,
+        chain,
+        bin,
+        defattr_out=defattr_out,
+        run_chimerax=run_chimerax,
+    )
+    if not run_chimerax:
+        if defattr_out:
+            print(f"Defattr written to: {defattr_out}")
+        print()
+        print("Run the following to visualize the structure with ChimeraX:")
+        print(f"  {bin} --cmd '{cmd}'")
 
 
 if __name__ == "__main__":
@@ -149,4 +177,6 @@ if __name__ == "__main__":
         args.color,
         args.chain,
         args.bin,
+        args.defattr_out,
+        not args.no_chimerax,
     )

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.9] - 2026-05-08
+
+### Added
+
+- `cmuts.visualize.make_defattr` and `cmuts.visualize.chimerax_command` public functions for splitting structure visualization into "write defattr" and "build ChimeraX command" steps — enables server-side workflows where the user runs ChimeraX locally
+- `visualize_structure` now accepts `defattr_out` and `run_chimerax` parameters and returns the ChimeraX command string
+- `cmuts-visualize` CLI gains `--defattr-out` and `--no-chimerax` flags. With `--no-chimerax`, the script writes the defattr and prints the ChimeraX command instead of launching ChimeraX
+
 ## [1.4.8] - 2026-05-08
 
 ### Added
