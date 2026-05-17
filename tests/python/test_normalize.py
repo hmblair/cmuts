@@ -115,7 +115,7 @@ class TestNormalizeOpts:
         assert out.exists()
 
     def test_clip_flags(self, test_data: tuple[Path, Path], tmp_path: Path):
-        """--clip-low and --clip-high flags work."""
+        """--clip-below and --clip-above flags work with explicit thresholds."""
         counts_h5, fasta = test_data
         groups = _find_mod_groups(counts_h5)
 
@@ -125,7 +125,7 @@ class TestNormalizeOpts:
             fasta,
             out,
             mod=groups,
-            extra_args=["--clip-low", "--clip-high"],
+            extra_args=["--clip-below", "0", "--clip-above", "1"],
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
 

@@ -71,14 +71,18 @@ parser.add_argument(
     action="store_true",
 )
 parser.add_argument(
-    "--clip-low",
-    help="Clip negative reactivity values.",
-    action="store_true",
+    "--clip-below",
+    help="Clip reactivity values below this threshold (e.g. 0).",
+    type=float,
+    default=None,
+    metavar="N",
 )
 parser.add_argument(
-    "--clip-high",
-    help="Clip reactivity values above 1.",
-    action="store_true",
+    "--clip-above",
+    help="Clip reactivity values above this threshold (e.g. 1).",
+    type=float,
+    default=None,
+    metavar="N",
 )
 parser.add_argument(
     "--blank-5p",
@@ -220,7 +224,7 @@ def main():
 
     _remove_if_exists(args.out, args.overwrite)
 
-    clip = (args.clip_low, args.clip_high)
+    clip = (args.clip_below, args.clip_above)
     blank = (args.blank_5p, args.blank_3p)
 
     # opts.mod and opts.nomod are unused by compute_reactivities; pass empties.

@@ -68,7 +68,7 @@ class Opts:
     dels: bool
     norm: str  # "ubr", "raw", or "outlier"
     blank: tuple[int, int]
-    clip: tuple[bool, bool]
+    clip: tuple[float | None, float | None]  # (clip_below, clip_above); None = no clip
     sig: float
 
 
@@ -586,14 +586,14 @@ class ProbingData:
 
     def clip(
         self: ProbingData,
-        low: bool,
-        high: bool,
+        below: float | None,
+        above: float | None,
     ) -> None:
-        if low:
-            self.reactivity = da.clip(self.reactivity, 0, None)
-        if high:
-            self.reactivity = da.clip(self.reactivity, None, 1)
-        if low or high:
+        if below is not None:
+            self.reactivity = da.clip(self.reactivity, below, None)
+        if above is not None:
+            self.reactivity = da.clip(self.reactivity, None, above)
+        if below is not None or above is not None:
             self.snr = _snr(self.reactivity, self.error)
 
     def normalize(
