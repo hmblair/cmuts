@@ -139,25 +139,24 @@ def _plot_read_hist(reads: ArrayType, name: str, dir: str = FIGURES) -> None:
     _save_and_close(name, figtype, dir)
 
 
-def _plot_cumulative_reads(
-    reads: ArrayType, name: str, block: int = 100, dir: str = FIGURES
+def _plot_reads_per_block(
+    reads: ArrayType, name: str, nblocks: int = 100, dir: str = FIGURES
 ) -> None:
+    """Plot mean reads per reference, references split into a fixed
+    number of equal-sized blocks in their FASTA order.
+    """
     reads = np.asarray(reads)
-    block = min(block, reads.shape[0])
-    n = max(reads.shape[0] // block, 1)
-    reads = reads[: n * block]
-    reads = reads.reshape(n, block).mean(1)
+    nblocks = max(min(nblocks, reads.shape[0]), 1)
+    block = max(reads.shape[0] // nblocks, 1)
+    reads = reads[: nblocks * block]
+    means = reads.reshape(nblocks, block).mean(1)
 
-    with np.errstate(divide="ignore"):
-        lr = np.where(reads == 0, -1, np.log10(reads))
+    _line_plot(means)
+    _title("Mean reads per reference bin", name)
+    _xlabel("Reference bin")
+    _ylabel("Mean reads")
 
-    _line_plot(lr)
-
-    _title("Cumulative reads", name)
-    _xlabel("Sequence index")
-    _ylabel("Read Depth")
-
-    figtype = "cumulative-reads"
+    figtype = "reads-per-block"
     _save_and_close(name, figtype, dir)
 
 
@@ -556,7 +555,7 @@ def plot_all(
 
     if not data.single():
         _plot_read_hist(data.reads, name, dir)
-        _plot_cumulative_reads(data.reads, name, dir=dir)
+        _plot_reads_per_block(data.reads, name, dir=dir)
 
     if data.mi is not None:
         for ix in range(data.size()):

@@ -11,7 +11,6 @@ from cmuts.internal import ProbingData  # noqa: E402
 from cmuts.visualize.plotly import (  # noqa: E402
     plot_correlation,
     plot_coverage,
-    plot_cumulative_reads,
     plot_examples,
     plot_heatmap,
     plot_mi,
@@ -19,6 +18,7 @@ from cmuts.visualize.plotly import (  # noqa: E402
     plot_profile,
     plot_profiles,
     plot_read_hist,
+    plot_reads_per_block,
     plot_snr_scaling,
     plot_termination,
 )
@@ -118,9 +118,9 @@ class TestPlotlyFigures:
         fig = plot_read_hist(data.reads, "sample")
         assert isinstance(fig, go.Figure)
 
-    def test_plot_cumulative_reads(self) -> None:
+    def test_plot_reads_per_block(self) -> None:
         data = _make_probing_data(nseq=200)
-        fig = plot_cumulative_reads(data.reads, "sample")
+        fig = plot_reads_per_block(data.reads, "sample")
         assert isinstance(fig, go.Figure)
 
     def test_plot_profiles(self) -> None:

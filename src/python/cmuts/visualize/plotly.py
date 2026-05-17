@@ -198,21 +198,25 @@ def plot_read_hist(reads: np.ndarray, name: str = "") -> go.Figure:
     return fig
 
 
-def plot_cumulative_reads(reads: np.ndarray, name: str = "", block: int = 100) -> go.Figure:
+def plot_reads_per_block(reads: np.ndarray, name: str = "", nblocks: int = 100) -> go.Figure:
+    """Plot mean reads per reference, with the references split into a
+    fixed number of equal-sized blocks in their FASTA order.
+
+    The x-axis is the block index (0..nblocks-1); the y-axis is the
+    arithmetic mean of per-reference read counts inside that block. No
+    sorting is applied, so spatial trends along the FASTA are preserved.
+    """
     reads = np.asarray(reads)
-    block = min(block, reads.shape[0])
-    n = max(reads.shape[0] // block, 1)
-    reads = reads[: n * block]
-    reads = reads.reshape(n, block).mean(1)
+    nblocks = max(min(nblocks, reads.shape[0]), 1)
+    block = max(reads.shape[0] // nblocks, 1)
+    reads = reads[: nblocks * block]
+    means = reads.reshape(nblocks, block).mean(1)
 
-    with np.errstate(divide="ignore"):
-        lr = np.where(reads == 0, -1, np.log10(reads))
-
-    title = f"Cumulative reads ({name})" if name else "Cumulative reads"
+    title = f"Mean reads per reference bin ({name})" if name else "Mean reads per reference bin"
     fig = go.Figure()
-    _line_trace(fig, lr)
-    fig.update_layout(**_base_layout(title, "Sequence index", "Read Depth"))
-    fig.update_xaxes(range=[0, len(lr)])
+    _line_trace(fig, means)
+    fig.update_layout(**_base_layout(title, "Reference bin", "Mean reads"))
+    fig.update_xaxes(range=[0, len(means)])
     return fig
 
 

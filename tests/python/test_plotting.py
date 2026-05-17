@@ -91,7 +91,7 @@ class TestPlotAll:
         assert "sample-heatmap.png" in created
         assert "sample-examples.png" in created
         assert "sample-reads-hist.png" in created
-        assert "sample-cumulative-reads.png" in created
+        assert "sample-reads-per-block.png" in created
 
     def test_plot_all_handles_pairwise_data(
         self,
