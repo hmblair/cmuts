@@ -3,12 +3,27 @@
 set -eou pipefail
 
 print-usage() {
-  echo "Usage: $(basename "$0") [--log LOGFILE] {align|core|generate|normalize|plot|visualize|test}"
+  echo "Usage: $(basename "$0") [--log LOGFILE] <command> [options]"
   echo ""
-  echo "Test options:"
-  echo "  test              Run pytest integration tests"
-  echo "  test --quick      Run quick tests only (skip slow/stress tests)"
-  echo "  test --cram       Run CRAM-specific tests only"
+  echo "Commands:"
+  echo "  align       Trim, demultiplex, and align FASTQ/BAM reads to a reference FASTA"
+  echo "  core        Count mutations, insertions, and deletions in aligned reads"
+  echo "  generate    Create synthetic test data for validating the pipeline"
+  echo "  normalize   Compute normalized reactivity profiles from core counts"
+  echo "  plot        Plot reactivity profiles from HDF5 files"
+  echo "  visualize   Overlay a reactivity profile onto a 3D RNA structure"
+  echo "  test        Run the integration test suite"
+  echo ""
+  echo "Run '$(basename "$0") <command> -h' for command-specific options."
+}
+
+print-test-usage() {
+  echo "Usage: $(basename "$0") test [--quick] [--cram] [pytest args...]"
+  echo ""
+  echo "  --quick   Run quick tests only (skip slow/stress tests)"
+  echo "  --cram    Run CRAM-specific tests only"
+  echo ""
+  echo "Any additional arguments are passed through to pytest."
 }
 
 export _CMUTS_DIR="$(dirname "$(dirname "$(which cmuts)")")"
@@ -99,6 +114,10 @@ case "${args[0]:-}" in
     # Pass through any additional args (e.g., -k, --quick)
     for arg in "${args[@]:1}"; do
       case "$arg" in
+        -h|--help)
+          print-test-usage
+          exit 0
+          ;;
         --quick)
           pytest_args+=("-m" "not slow")
           ;;
