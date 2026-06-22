@@ -41,7 +41,7 @@ _cmuts() {
                         '(-v --verbose)--verbose[Enable verbose (debug) logging to .cmuts.log file.]' \
                         '--pairwise[Compute pairwise modification counts.]' \
                         '--tokenize[Tokenize the reference sequences.]' \
-                        '--token-map[Comma-separated integer tokens for A,C,G,U in order, used by --tokenize (e.g. "4,5,6,7"). T and U share the fourth value. Defaults to 0,1,2,3.]: :' \
+                        '--token-map[Comma-separated non-negative integer tokens for A,C,G,U in order, used by --tokenize (e.g. "4,5,6,7"). T and U share the fourth value. Defaults to 0,1,2,3.]: :' \
                         '--min-mapq[Mapping quality threshold for alignment processing.]: :' \
                         '--min-phred[PHRED score threshold for base processing.]: :' \
                         '--min-length[Skip reads shorter than this length.]: :' \
