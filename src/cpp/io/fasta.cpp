@@ -1,50 +1,46 @@
 #include "io/fasta.hpp"
 
-
-
-
-
 //
 // Tools for working with binary sequence data
 //
 
-
-
-
-
 static inline base_t _to_int(char base) {
 
     switch (base) {
-        case A:   { return IX_A;   }
-        case C:   { return IX_C;   }
-        case G:   { return IX_G;   }
-        case T:   { return IX_T;   }
-        case U:   { return IX_U;   }
-        default:  { return IX_UNK; }
+    case A: {
+        return IX_A;
     }
-
+    case C: {
+        return IX_C;
+    }
+    case G: {
+        return IX_G;
+    }
+    case T: {
+        return IX_T;
+    }
+    case U: {
+        return IX_U;
+    }
+    default: {
+        return IX_UNK;
+    }
+    }
 }
-
 
 static inline int32_t _bytes_from_seq(int32_t n) {
 
     return (n + BASES_PER_BYTE - 1) / BASES_PER_BYTE;
-
 }
-
 
 static inline base_t _binary_mask(base_t nuc, int32_t i) {
 
-    return static_cast<base_t>(
-        nuc << ((3 - (i % BASES_PER_BYTE)) * 2)
-    );
-
+    return static_cast<base_t>(nuc << ((3 - (i % BASES_PER_BYTE)) * 2));
 }
-
 
 static inline seq_t _to_binary(const std::string& sequence) {
 
-    int32_t len   = sequence.length();
+    int32_t len = sequence.length();
     int32_t bytes = _bytes_from_seq(len);
     seq_t binary(bytes);
 
@@ -52,33 +48,29 @@ static inline seq_t _to_binary(const std::string& sequence) {
 
         base_t nuc = _to_int(sequence[i]);
         if (nuc == IX_UNK) {
-            throw std::runtime_error("Invalid nucleotide \"" + std::to_string(sequence[i]) + "\" encountered.");
+            throw std::runtime_error("Invalid nucleotide \"" + std::to_string(sequence[i]) +
+                                     "\" encountered.");
         }
 
         binary[i / BASES_PER_BYTE] |= _binary_mask(nuc, i);
-
     }
 
     return binary;
-
 }
-
 
 static inline base_t _from_binary(base_t binary, int32_t j) {
 
     return (binary >> ((3 - j) * 2)) & BIN_T;
-
 }
-
 
 static inline int32_t _mod_round_up(int32_t val, int32_t div) {
 
     int32_t out = val % div;
-    if (out == 0) { out = div; }
+    if (out == 0) {
+        out = div;
+    }
     return out;
-
 }
-
 
 static inline seq_t _from_binary(const seq_t& binary, int32_t length) {
 
@@ -98,9 +90,7 @@ static inline seq_t _from_binary(const seq_t& binary, int32_t length) {
     }
 
     return sequence;
-
 }
-
 
 static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, int64_t offset) {
 
@@ -115,17 +105,13 @@ static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, i
     file.read(reinterpret_cast<char*>(binary.data()), bytes * sizeof(base_t));
 
     return _from_binary(binary, length);
-
 }
-
 
 static inline void _write_binary_sequence(std::ofstream& file, const std::string& sequence) {
 
     seq_t binary = _to_binary(sequence);
     file.write(reinterpret_cast<const char*>(binary.data()), binary.size() * sizeof(base_t));
-
 }
-
 
 static inline HeaderBlock _read_fasta_header_block(std::ifstream& file) {
 
@@ -133,9 +119,7 @@ static inline HeaderBlock _read_fasta_header_block(std::ifstream& file) {
     file.read(reinterpret_cast<char*>(&block.length), sizeof(int32_t));
     file.read(reinterpret_cast<char*>(&block.sequences), sizeof(int32_t));
     return block;
-
 }
-
 
 static inline std::vector<HeaderBlock> _read_fasta_header(std::ifstream& file) {
 
@@ -145,40 +129,36 @@ static inline std::vector<HeaderBlock> _read_fasta_header(std::ifstream& file) {
     while (block.length != EOH) {
 
         block = _read_fasta_header_block(file);
-        if (!block.empty()) { blocks.push_back(block); }
-
+        if (!block.empty()) {
+            blocks.push_back(block);
+        }
     }
 
     return blocks;
-
 }
-
 
 static inline void _write_fasta_header_block(std::ofstream& file, const HeaderBlock& block) {
 
     file.write(reinterpret_cast<const char*>(&block.length), sizeof(int32_t));
     file.write(reinterpret_cast<const char*>(&block.sequences), sizeof(int32_t));
-
 }
-
 
 static inline void _write_fasta_eoh(std::ofstream& file) {
 
     file.write(reinterpret_cast<const char*>(&EOH), sizeof(int32_t));
-
 }
 
-
-static inline void _write_fasta_header(std::ofstream& file, const std::vector<HeaderBlock>& blocks) {
+static inline void _write_fasta_header(std::ofstream& file,
+                                       const std::vector<HeaderBlock>& blocks) {
 
     for (const auto& block : blocks) {
-        if (!block.empty()) { _write_fasta_header_block(file, block); }
+        if (!block.empty()) {
+            _write_fasta_header_block(file, block);
+        }
     }
 
     _write_fasta_eoh(file);
-
 }
-
 
 static inline std::vector<HeaderBlock> _get_fasta_header(const std::string& name) {
 
@@ -198,7 +178,6 @@ static inline std::vector<HeaderBlock> _get_fasta_header(const std::string& name
             block.sequences = 1;
         }
         sequence = fasta.next();
-
     }
 
     if (!block.empty()) {
@@ -206,16 +185,11 @@ static inline std::vector<HeaderBlock> _get_fasta_header(const std::string& name
     }
 
     return blocks;
-
 }
-
 
 static inline void _fasta_to_binary(const std::string& fname, const std::string& bname) {
 
-    __log(
-        _LOG_FILE,
-        "Building index for " + fname + "..."
-    );
+    __log(_LOG_FILE, "Building index for " + fname + "...");
 
     _throw_if_not_exists(fname);
     _throw_if_exists(bname);
@@ -243,36 +217,21 @@ static inline void _fasta_to_binary(const std::string& fname, const std::string&
 
     binary.close();
 
-    __log(
-        _LOG_FILE,\
-        "Successfully created " + bname + " with " + std::to_string(count) + " sequences."
-    );
-
+    __log(_LOG_FILE,
+          "Successfully created " + bname + " with " + std::to_string(count) + " sequences.");
 }
-
-
-
-
 
 //
 // FASTA Header
 //
 
-
-
-
-
 bool HeaderBlock::empty() const {
 
     return (length <= 0 || sequences == 0);
-
 }
 
-
-Header::Header(std::ifstream& file) :
-    _blocks(_read_fasta_header(file)),
-    _offset((2 * _blocks.size() + 1) * sizeof(int32_t)) {}
-
+Header::Header(std::ifstream& file)
+    : _blocks(_read_fasta_header(file)), _offset((2 * _blocks.size() + 1) * sizeof(int32_t)) {}
 
 int32_t Header::size() const {
 
@@ -282,9 +241,7 @@ int32_t Header::size() const {
     }
 
     return _sequences;
-
 }
-
 
 int32_t Header::length(int32_t ix) const {
 
@@ -295,13 +252,11 @@ int32_t Header::length(int32_t ix) const {
             return block.length;
         }
         count += block.sequences;
-
     }
 
-    throw std::runtime_error("The index " + std::to_string(ix) + " is larger than the number of sequences in the header.");
-
+    throw std::runtime_error("The index " + std::to_string(ix) +
+                             " is larger than the number of sequences in the header.");
 }
-
 
 int32_t Header::longest() const {
 
@@ -311,22 +266,18 @@ int32_t Header::longest() const {
     }
 
     return _longest;
-
 }
-
 
 Offset Header::offset(int32_t ix) {
 
     Offset offset;
-    int32_t count  = 0;
+    int32_t count = 0;
 
     // Loop until we have consumed ix sequences
 
     for (const auto& block : _blocks) {
 
-        auto bytes = static_cast<int64_t>(
-            _bytes_from_seq(block.length)
-        );
+        auto bytes = static_cast<int64_t>(_bytes_from_seq(block.length));
 
         if (count + block.sequences > ix) {
             offset.offset += (ix - count) * bytes;
@@ -336,80 +287,50 @@ Offset Header::offset(int32_t ix) {
             offset.offset += block.sequences * bytes;
             count += block.sequences;
         }
-
     }
 
     // Account for the header by adding _offset
 
     offset.offset += _offset;
     return offset;
-
 }
-
-
-
 
 //
 // Interface with HDF5
 //
 
-
-
-
 template <typename dtype>
-static inline HDF5::Memspace<dtype, FASTA_DATASET_SIZE> __memspace(
-    const BinaryFASTA& fasta,
-    HDF5::File& hdf5
-) {
-    std::vector<size_t> dims = {
-        static_cast<size_t>(fasta.size()),
-        static_cast<size_t>(fasta.longest())
-    };
+static inline HDF5::Memspace<dtype, FASTA_DATASET_SIZE> __memspace(const BinaryFASTA& fasta,
+                                                                   HDF5::File& hdf5) {
+    std::vector<size_t> dims = {static_cast<size_t>(fasta.size()),
+                                static_cast<size_t>(fasta.longest())};
     return hdf5.memspace<dtype, FASTA_DATASET_SIZE>(dims, FASTA_DATASET);
 }
 
 template <typename dtype>
-static inline void _fasta_to_hdf5(
-    BinaryFASTA& fasta,
-    HDF5::File& hdf5,
-    const MPI::Manager& mpi,
-    const std::array<base_t, BASES>& tokens
-) {
+static inline void _fasta_to_hdf5(BinaryFASTA& fasta, HDF5::File& hdf5, const MPI::Manager& mpi,
+                                  const std::array<base_t, BASES>& tokens) {
 
     HDF5::Memspace<dtype, FASTA_DATASET_SIZE> memspace = __memspace<dtype>(fasta, hdf5);
-    MPI::Chunk chunk = mpi.chunk(
-        hdf5.chunk_size(),
-        fasta.size()
-    );
+    MPI::Chunk chunk = mpi.chunk(hdf5.chunk_size(), fasta.size());
 
-    for (int32_t ix = chunk.low; ix < chunk.high; ix+= chunk.step) {
+    for (int32_t ix = chunk.low; ix < chunk.high; ix += chunk.step) {
         for (int32_t jx = 0; jx < chunk.size && ix + jx < fasta.size(); jx++) {
 
             view_t<dtype, FASTA_DATASET_SIZE> arr = memspace.view(jx);
             seq_t sequence = fasta.sequence(ix + jx);
-            std::transform(
-                sequence.begin(), sequence.end(), arr.begin(),
-                [&](base_t base) { return static_cast<dtype>(tokens[base]); }
-            );
-
+            std::transform(sequence.begin(), sequence.end(), arr.begin(),
+                           [&](base_t base) { return static_cast<dtype>(tokens[base]); });
         }
 
         memspace.safe_write(ix);
         memspace.clear();
-
     }
-
 }
-
-
-
-
 
 //
 // BinaryFASTA
 //
-
-
 
 static inline std::string _cmfa_extension(const std::string& filename) {
 
@@ -417,16 +338,16 @@ static inline std::string _cmfa_extension(const std::string& filename) {
     std::string base = (last_dot != std::string::npos) ? filename.substr(0, last_dot) : filename;
 
     return base + ".cmfa";
-
 }
-
 
 BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
     : _fasta_name(fasta), _name(_cmfa_extension(fasta)) {
 
     _throw_if_not_exists(_fasta_name);
 
-    if (rebuild) { _delete(_name); }
+    if (rebuild) {
+        _delete(_name);
+    }
 
     if (!_exists(_name) && !cmuts::mutex::check(_fasta_name)) {
         cmuts::mutex::Mutex mutex = cmuts::mutex::lock(_fasta_name);
@@ -437,19 +358,15 @@ BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
 
     cmuts::mutex::wait(_fasta_name);
 
-    _file   = std::ifstream(_name);
+    _file = std::ifstream(_name);
     _header = Header(_file);
 
     __log(_LOG_FILE, "Successfully loaded " + _name + ".");
-
 }
 
-
 BinaryFASTA::BinaryFASTA(BinaryFASTA&& other) noexcept
-    : _name(std::move(other._name)),
-      _file(std::move(other._file)),
+    : _name(std::move(other._name)), _file(std::move(other._file)),
       _header(std::move(other._header)) {}
-
 
 BinaryFASTA& BinaryFASTA::operator=(BinaryFASTA&& other) noexcept {
 
@@ -460,49 +377,37 @@ BinaryFASTA& BinaryFASTA::operator=(BinaryFASTA&& other) noexcept {
     }
 
     return *this;
-
 }
-
 
 std::string BinaryFASTA::name() const {
 
     return _name;
-
 }
-
 
 int32_t BinaryFASTA::size() const {
 
     return _header.size();
-
 }
-
 
 int32_t BinaryFASTA::length(int32_t ix) const {
 
     return _header.length(ix);
-
 }
-
 
 seq_t BinaryFASTA::sequence(int32_t ix) {
 
     Offset offset = _header.offset(ix);
 
     return _read_binary_sequence(_file, offset.length, offset.offset);
-
 }
-
 
 int32_t BinaryFASTA::longest() const {
 
     return _header.longest();
-
 }
 
-
-void BinaryFASTA::hdf5(HDF5::File& hdf5, const MPI::Manager& mpi, const std::array<base_t, BASES>& tokens) {
+void BinaryFASTA::hdf5(HDF5::File& hdf5, const MPI::Manager& mpi,
+                       const std::array<base_t, BASES>& tokens) {
 
     _fasta_to_hdf5<base_t>(*this, hdf5, mpi, tokens);
-
 }

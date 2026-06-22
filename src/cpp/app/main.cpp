@@ -11,7 +11,9 @@
 static inline std::array<base_t, BASES> __parse_token_map(const std::string& spec) {
 
     std::array<base_t, BASES> tokens = {IX_A, IX_C, IX_G, IX_U};
-    if (spec.empty()) { return tokens; }
+    if (spec.empty()) {
+        return tokens;
+    }
 
     std::stringstream ss(spec);
     std::string item;
@@ -22,10 +24,12 @@ static inline std::array<base_t, BASES> __parse_token_map(const std::string& spe
         }
         int64_t val = std::stoll(item);
         if (val < 0) {
-            throw std::invalid_argument("--token-map tokens must be non-negative; got \"" + item + "\".");
+            throw std::invalid_argument("--token-map tokens must be non-negative; got \"" + item +
+                                        "\".");
         }
         if (val > std::numeric_limits<base_t>::max()) {
-            throw std::invalid_argument("--token-map value \"" + item + "\" is out of range for the sequence dtype.");
+            throw std::invalid_argument("--token-map value \"" + item +
+                                        "\" is out of range for the sequence dtype.");
         }
         tokens[i++] = static_cast<base_t>(val);
     }
@@ -33,24 +37,19 @@ static inline std::array<base_t, BASES> __parse_token_map(const std::string& spe
         throw std::invalid_argument("--token-map expects exactly 4 integers (A,C,G,U).");
     }
     return tokens;
-
 }
 
 static inline void _print_title(const MPI::Manager& mpi) {
 
     mpi.down();
-    if (mpi.root()) { Utils::version(); }
+    if (mpi.root()) {
+        Utils::version();
+    }
     mpi.divide();
-
 }
 
-
-static inline bool __write_sequences(
-    BinaryFASTA& fasta,
-    HDF5::File& hdf5,
-    const MPI::Manager& mpi,
-    const std::string& token_map
-) {
+static inline bool __write_sequences(BinaryFASTA& fasta, HDF5::File& hdf5, const MPI::Manager& mpi,
+                                     const std::string& token_map) {
 
     mpi.down();
 
@@ -64,60 +63,49 @@ static inline bool __write_sequences(
             return false;
         }
     } else {
-        mpi.err() << "WARNING: The file \"" << hdf5.name() << "\" already contains the dataset \"" << FASTA_DATASET << "\". No tokenization can be done.\n";
+        mpi.err() << "WARNING: The file \"" << hdf5.name() << "\" already contains the dataset \""
+                  << FASTA_DATASET << "\". No tokenization can be done.\n";
     }
 
     return true;
-
 }
 
-
-static inline void __cleanup(
-    const MPI::Manager& mpi,
-    const cmutsProgram& opt
-) {
+static inline void __cleanup(const MPI::Manager& mpi, const cmutsProgram& opt) {
 
     try {
-        if (opt.overwrite) { mpi.remove(opt.output); }
+        if (opt.overwrite) {
+            mpi.remove(opt.output);
+        }
     } catch (const std::exception& e) {
         mpi.err() << "Error during cleanup: " << e.what() << "\n";
     }
-
 }
 
+static inline cmuts::Params _construct_params(const cmutsProgram& opt, cmuts::Spread spread) {
 
-static inline cmuts::Params _construct_params(
-    const cmutsProgram& opt,
-    cmuts::Spread spread
-) {
-
-    return {
-        opt.joint,
-        spread,
-        opt.min_mapq,
-        opt.min_quality,
-        opt.min_length,
-        opt.max_length,
-        opt.max_indel_length,
-        opt .quality_window,
-        opt.collapse,
-        opt.max_hamming,
-        !opt.no_mismatch,
-        !opt.no_insertion,
-        !opt.no_deletion,
-        !opt.only_reverse,
-        !opt.no_reverse,
-        opt.secondary,
-        opt.downsample,
-        opt.no_filter_matches,
-        opt.no_filter_insertions,
-        opt.no_filter_deletions,
-        cmuts::_ignore_str_to_bool(opt.ignore_bases),
-        !opt.disable_ambiguous
-    };
-
+    return {opt.joint,
+            spread,
+            opt.min_mapq,
+            opt.min_quality,
+            opt.min_length,
+            opt.max_length,
+            opt.max_indel_length,
+            opt.quality_window,
+            opt.collapse,
+            opt.max_hamming,
+            !opt.no_mismatch,
+            !opt.no_insertion,
+            !opt.no_deletion,
+            !opt.only_reverse,
+            !opt.no_reverse,
+            opt.secondary,
+            opt.downsample,
+            opt.no_filter_matches,
+            opt.no_filter_insertions,
+            opt.no_filter_deletions,
+            cmuts::_ignore_str_to_bool(opt.ignore_bases),
+            !opt.disable_ambiguous};
 }
-
 
 int main(int argc, char** argv) {
 
@@ -164,7 +152,9 @@ int main(int argc, char** argv) {
     // Delete the exiting output file if specified
 
     try {
-        if (opt.overwrite) { mpi.remove(opt.output); }
+        if (opt.overwrite) {
+            mpi.remove(opt.output);
+        }
     } catch (const std::exception& e) {
         mpi.err() << "Error: " << e.what() << "\n";
         return EXIT_FAILURE;
@@ -278,15 +268,8 @@ int main(int argc, char** argv) {
 
     // Initialise the stats tracker, and print the header
 
-    cmuts::Stats stats(
-        files.size(),
-        files.aligned(),
-        files.unaligned(),
-        files.references(),
-        fasta.longest(),
-        static_cast<double>(opt.print_every),
-        mpi
-    );
+    cmuts::Stats stats(files.size(), files.aligned(), files.unaligned(), files.references(),
+                       fasta.longest(), static_cast<double>(opt.print_every), mpi);
     stats.header();
 
     size_t processed = 0;
@@ -294,7 +277,8 @@ int main(int argc, char** argv) {
     CMUTS_TRACE("Starting file loop, total=" + std::to_string(files.size()));
     for (auto& input : files) {
 
-        std::string name = _path(input->name());;
+        std::string name = _path(input->name());
+        ;
 
         try {
             CMUTS_TRACE("Processing file: " + name);
@@ -302,13 +286,14 @@ int main(int argc, char** argv) {
             CMUTS_TRACE("Before run()");
             cmuts::run<float>(*input, fasta, hdf5, mpi, params, stats, name);
             CMUTS_TRACE("After run()");
-            if (isatty(STDOUT_FILENO)) stats.body();
+            if (isatty(STDOUT_FILENO))
+                stats.body();
             processed++;
         } catch (const std::exception& e) {
-            mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what() << "\n";
+            mpi.err() << "Error processing the file \"" << input->name() << "\": " << e.what()
+                      << "\n";
             continue;
         }
-
     }
     CMUTS_TRACE("Finished file loop, processed=" + std::to_string(processed));
 
@@ -326,9 +311,9 @@ int main(int argc, char** argv) {
     mpi.down();
 
     if (processed < files.size()) {
-        mpi.err() << "WARNING: only " << processed << " of " << files.size() << " files were processed.\n";
+        mpi.err() << "WARNING: only " << processed << " of " << files.size()
+                  << " files were processed.\n";
     }
 
     return tokenize_ok ? EXIT_SUCCESS : EXIT_FAILURE;
-
 }
