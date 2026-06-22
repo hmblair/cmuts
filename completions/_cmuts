@@ -48,7 +48,7 @@ _cmuts() {
                         '--max-length[Skip reads longer than this length.]: :' \
                         '--max-hamming[The maximum number of mismatches, insertions, and deletions in a processed read.]: :' \
                         '--secondary[Consider secondary alignments for processing as well.]' \
-                        '--downsample[Limit read depths per reference.]: :' \
+                        '--downsample[Process at most this many quality-passing reads per reference (caps usable depth and avoids over-processing). Reads failing the quality filters do not count toward the limit.]: :' \
                         '--ignore-bases[Do not count mismatches or deletions occurring at these bases. Pass as a single string.]: :' \
                         '--max-indel-length[The longest indels to consider.]: :' \
                         '--quality-window[Check the quality of each base in a window of this size around each base.]: :' \

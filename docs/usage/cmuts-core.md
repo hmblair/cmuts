@@ -130,7 +130,7 @@ will create an HDF5 file `$OUTPUT` with the structure
 
 **`--secondary`** : Consider secondary alignments for processing as well.
 
-**`--downsample`** : Limit read depths per reference.
+**`--downsample`** : Process at most this many quality-passing reads per reference (caps usable depth and avoids over-processing). Reads failing the quality filters do not count toward the limit.
 
 **`--ignore-bases`** : Do not count mismatches or deletions occurring at these bases. Pass as a single string.
 

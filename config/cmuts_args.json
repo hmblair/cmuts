@@ -152,7 +152,7 @@
           "type": "int",
           "short": "",
           "long": "--downsample",
-          "help": "Limit read depths per reference.",
+          "help": "Process at most this many quality-passing reads per reference (caps usable depth and avoids over-processing). Reads failing the quality filters do not count toward the limit.",
           "default": 2147483647
         },
         {

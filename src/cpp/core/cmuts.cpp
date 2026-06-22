@@ -1081,7 +1081,7 @@ static inline bool __check_all(
 
 
 template <typename dtype>
-static inline void __count_with_quality_check(
+static inline bool __count_with_quality_check(
     HTS::Alignment& aln,
     const seq_t& reference,
     Data<dtype>& data,
@@ -1091,10 +1091,12 @@ static inline void __count_with_quality_check(
 
     if (!__check_all(aln, params)) {
         stats.skipped();
+        return false;
     } else {
         __count<dtype>(aln, reference, data, params, stats);
         if (params.pairwise) { __joint<dtype>(data); }
         stats.processed();
+        return true;
     }
 
 }
@@ -1109,14 +1111,19 @@ static inline void __count_reference(
     Stats& stats
 ) {
 
+    // Count reads that pass the quality filters, stopping once `downsample`
+    // such reads have been processed. Reads that fail the filters do not count
+    // toward the cap, so this bounds usable depth per reference (and avoids
+    // over-processing) rather than bounding raw reads read from the file.
     int32_t count = 0;
     while (!iter.end() && count < params.downsample) {
 
         HTS::Alignment aln = iter.next();
-        __count_with_quality_check<dtype>(aln, reference, data, params, stats);
+        if (__count_with_quality_check<dtype>(aln, reference, data, params, stats)) {
+            count++;
+        }
 
         stats.print();
-        count++;
 
     }
 
