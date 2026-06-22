@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master]
   pull_request:
     branches: [master]
 
@@ -59,13 +59,18 @@ jobs:
         run: pytest tests/python -v -m "not slow" --tb=short
 
   build-cpp:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -81,6 +86,20 @@ jobs:
             libbz2-dev \
             liblzma-dev
 
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install \
+            hdf5 \
+            htslib \
+            zlib \
+            cmake \
+            autoconf \
+            automake \
+            libtool \
+            libomp \
+            pkg-config
+
       - name: Build htscodecs
         run: |
           cd htscodecs
@@ -88,7 +107,7 @@ jobs:
           mkdir -p build
           cd build
           ../configure --prefix="$(pwd)/.."
-          make -j$(nproc)
+          make -j"$(getconf _NPROCESSORS_ONLN)"
           make install
 
       - name: Cache CMake build
@@ -103,7 +122,11 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+          else
+            cmake .. -DCMAKE_BUILD_TYPE=Release
+          fi
 
       - name: Build
         run: cmake --build build --parallel
