@@ -31,16 +31,16 @@ constexpr size_t DEFAULT_CHUNK_SIZE = 128;
 /// Parameters controlling test data generation.
 /// These mirror the filtering parameters used by cmuts-core.
 struct Params {
-    int64_t min_mapq;           ///< Minimum mapping quality threshold
-    int64_t min_phred;          ///< Minimum PHRED quality score
-    int64_t min_length;         ///< Minimum read length
-    int64_t max_length;         ///< Maximum read length
-    int64_t max_indel_length;   ///< Maximum indel length to count
-    int64_t quality_window;     ///< Window size for quality averaging
-    int64_t collapse;           ///< Minimum distance between modifications
-    bool mismatches;            ///< Whether to count mismatches
-    bool insertions;            ///< Whether to count insertions
-    bool deletions;             ///< Whether to count deletions
+    int64_t min_mapq;         ///< Minimum mapping quality threshold
+    int64_t min_phred;        ///< Minimum PHRED quality score
+    int64_t min_length;       ///< Minimum read length
+    int64_t max_length;       ///< Maximum read length
+    int64_t max_indel_length; ///< Maximum indel length to count
+    int64_t quality_window;   ///< Window size for quality averaging
+    int64_t collapse;         ///< Minimum distance between modifications
+    bool mismatches;          ///< Whether to count mismatches
+    bool insertions;          ///< Whether to count insertions
+    bool deletions;           ///< Whether to count deletions
 };
 
 //
@@ -50,10 +50,10 @@ struct Params {
 /// Encapsulates random number generation for test data.
 /// Provides typed random value generation with clear semantics.
 class Random {
-private:
+  private:
     std::mt19937 _gen;
 
-public:
+  public:
     /// Initialize with time-based seed
     Random();
 
@@ -85,8 +85,7 @@ public:
     qual_t phred();
 
     /// Sample random element from vector
-    template <typename T>
-    T sample(const std::vector<T>& values);
+    template <typename T> T sample(const std::vector<T>& values);
 
     /// Get reference to underlying generator (for compatibility)
     std::mt19937& generator();
@@ -112,14 +111,14 @@ HTS::PHRED random_qualities(int32_t length, Random& rng);
 /// processes alignments internally. The CIGAR string and query sequence
 /// are reversed before output.
 class AlignmentGenerator {
-private:
+  private:
     // Generation state
-    int32_t _match_remaining;    ///< Remaining match/mismatch bases to generate
-    int32_t _ins_remaining;      ///< Remaining insertion bases to generate
-    int32_t _del_remaining;      ///< Remaining deletion bases to generate
-    int32_t _rpos;               ///< Current reference position (decreasing)
-    int32_t _qpos;               ///< Current query position (decreasing)
-    int32_t _last_mod_pos;       ///< Position of last modification (for collapse)
+    int32_t _match_remaining; ///< Remaining match/mismatch bases to generate
+    int32_t _ins_remaining;   ///< Remaining insertion bases to generate
+    int32_t _del_remaining;   ///< Remaining deletion bases to generate
+    int32_t _rpos;            ///< Current reference position (decreasing)
+    int32_t _qpos;            ///< Current query position (decreasing)
+    int32_t _last_mod_pos;    ///< Position of last modification (for collapse)
 
     // Configuration
     Random& _rng;
@@ -159,15 +158,11 @@ private:
     /// Select next CIGAR operation type based on remaining counts
     HTS::CIGAR_op select_next_operation();
 
-public:
+  public:
     /// Generate a random alignment against the reference sequence.
     /// Updates the expected output array with counted modifications.
-    AlignmentGenerator(
-        const seq_t& reference,
-        const Params& params,
-        view_t<float, 4>& expected_output,
-        Random& rng
-    );
+    AlignmentGenerator(const seq_t& reference, const Params& params,
+                       view_t<float, 4>& expected_output, Random& rng);
 
     /// Get the generated query sequence
     const seq_t& query() const;
@@ -194,11 +189,11 @@ public:
 
 /// Formats alignment data as a SAM record string.
 class SamRecord {
-private:
+  private:
     std::string _read_name;
     int _flag;
     std::string _ref_name;
-    int32_t _pos;           ///< 1-based position for SAM
+    int32_t _pos; ///< 1-based position for SAM
     qual_t _mapq;
     std::string _cigar;
     std::string _rnext;
@@ -207,12 +202,9 @@ private:
     std::string _seq;
     std::string _qual;
 
-public:
+  public:
     /// Construct SAM record from alignment data
-    SamRecord(
-        const std::string& ref_name,
-        const AlignmentGenerator& alignment
-    );
+    SamRecord(const std::string& ref_name, const AlignmentGenerator& alignment);
 
     /// Format as SAM record string
     std::string str() const;
@@ -237,17 +229,9 @@ void write_sam_header(size_t num_references, size_t ref_length, std::ostream& ou
 
 /// Generate test data files (SAM, FASTA, HDF5 with expected values)
 /// @param seed Random seed for reproducibility. Use -1 for time-based seed.
-void generate_test_data(
-    const MPI::Manager& mpi,
-    size_t num_references,
-    size_t reads_per_reference,
-    size_t reference_length,
-    const Params& params,
-    const std::string& sam_path,
-    const std::string& fasta_path,
-    const std::string& hdf5_path,
-    int seed = -1
-);
+void generate_test_data(const MPI::Manager& mpi, size_t num_references, size_t reads_per_reference,
+                        size_t reference_length, const Params& params, const std::string& sam_path,
+                        const std::string& fasta_path, const std::string& hdf5_path, int seed = -1);
 
 } // namespace TestGen
 
@@ -256,13 +240,11 @@ void generate_test_data(
 //
 
 class testsProgram : public Program {
-public:
+  public:
     TESTSPROGRAM_ARG_MEMBERS
 
     testsProgram()
-        : Program(TESTSPROGRAM_PROGRAM_NAME, TESTSPROGRAM_PROGRAM_VERSION),
-          TESTSPROGRAM_ARG_INIT
-    {}
+        : Program(TESTSPROGRAM_PROGRAM_NAME, TESTSPROGRAM_PROGRAM_VERSION), TESTSPROGRAM_ARG_INIT {}
 };
 
 #endif

@@ -13,52 +13,29 @@ typedef argparse::ArgumentParser Parser;
 // Tag type to disambiguate group-only constructor from default value constructor
 struct GroupTag {};
 
-template <typename T>
-class Arg {
-private:
-
+template <typename T> class Arg {
+  private:
     Parser& _parser;
     std::string _name;
 
-public:
-
-    Arg(
-        Parser& parser,
-        const std::string& short_name,
-        const std::string& long_name,
-        const std::string& help
-    );
-    Arg(
-        Parser& parser,
-        const std::string& short_name,
-        const std::string& long_name,
-        const std::string& help,
-        GroupTag,
-        const std::string& group
-    );
-    Arg(
-        Parser& parser,
-        const std::string& short_name,
-        const std::string& long_name,
-        const std::string& help,
-        T default_value,
-        const std::string& group = ""
-    );
+  public:
+    Arg(Parser& parser, const std::string& short_name, const std::string& long_name,
+        const std::string& help);
+    Arg(Parser& parser, const std::string& short_name, const std::string& long_name,
+        const std::string& help, GroupTag, const std::string& group);
+    Arg(Parser& parser, const std::string& short_name, const std::string& long_name,
+        const std::string& help, T default_value, const std::string& group = "");
     T value() const;
     operator T() const;
-
 };
 
 class Program {
-protected:
-
+  protected:
     Parser _parser;
 
-public:
-
+  public:
     Program(const std::string& program, const std::string& version);
     void parse(int argc, char** argv);
-
 };
 
 namespace Utils {
@@ -72,29 +49,25 @@ void divider();
 
 class Line {
 
-private:
-
+  private:
     std::string text;
     std::string suffix = "";
-    int width          = 31;
-    int precision      = 1;
+    int width = 31;
+    int precision = 1;
 
-public:
-
+  public:
     Line(const std::string& text);
     Line(const std::string& text, const std::string& suffix);
 
     void print(const std::string& value) const;
     void print(int64_t value) const;
     void print(double value) const;
-
 };
 
-}
+} // namespace Utils
 
-struct comma_out : std::numpunct<char>
-{
-    char do_thousands_sep()   const { return ','; }
+struct comma_out : std::numpunct<char> {
+    char do_thousands_sep() const { return ','; }
     std::string do_grouping() const { return "\3"; }
 };
 void __imbue();

@@ -52,8 +52,7 @@ qual_t Random::phred() {
     return static_cast<qual_t>(integer(0, MAX_PHRED));
 }
 
-template <typename T>
-T Random::sample(const std::vector<T>& values) {
+template <typename T> T Random::sample(const std::vector<T>& values) {
     int ix = integer(0, static_cast<int>(values.size()) - 1);
     return values[ix];
 }
@@ -89,16 +88,9 @@ HTS::PHRED random_qualities(int32_t length, Random& rng) {
 // AlignmentGenerator implementation
 //
 
-AlignmentGenerator::AlignmentGenerator(
-    const seq_t& reference,
-    const Params& params,
-    view_t<float, 4>& expected_output,
-    Random& rng
-) : _rng(rng),
-    _params(params),
-    _reference(reference),
-    _expected(expected_output)
-{
+AlignmentGenerator::AlignmentGenerator(const seq_t& reference, const Params& params,
+                                       view_t<float, 4>& expected_output, Random& rng)
+    : _rng(rng), _params(params), _reference(reference), _expected(expected_output) {
     int32_t ref_length = static_cast<int32_t>(reference.size());
 
     // Generate random alignment start position
@@ -115,7 +107,7 @@ AlignmentGenerator::AlignmentGenerator(
     // We start at the 3' end and work backwards
     _rpos = ref_length;
     _qpos = _match_remaining + _ins_remaining;
-    _last_mod_pos = _rpos + params.collapse;  // Allow first modification
+    _last_mod_pos = _rpos + params.collapse; // Allow first modification
 
     // Generate mapping quality
     _mapq = rng.mapq();
@@ -188,18 +180,18 @@ HTS::CIGAR_op AlignmentGenerator::select_next_operation() {
     // Select random length based on operation type
     int32_t max_length;
     switch (type) {
-        case HTS::CIGAR_t::MATCH:
-        case HTS::CIGAR_t::MISMATCH:
-            max_length = _match_remaining;
-            break;
-        case HTS::CIGAR_t::INS:
-            max_length = _ins_remaining;
-            break;
-        case HTS::CIGAR_t::DEL:
-            max_length = _del_remaining;
-            break;
-        default:
-            CMUTS_THROW("Invalid CIGAR operation type in test generation");
+    case HTS::CIGAR_t::MATCH:
+    case HTS::CIGAR_t::MISMATCH:
+        max_length = _match_remaining;
+        break;
+    case HTS::CIGAR_t::INS:
+        max_length = _ins_remaining;
+        break;
+    case HTS::CIGAR_t::DEL:
+        max_length = _del_remaining;
+        break;
+    default:
+        CMUTS_THROW("Invalid CIGAR operation type in test generation");
     }
 
     int32_t length = _rng.integer(1, max_length);
@@ -224,9 +216,8 @@ void AlignmentGenerator::add_mismatch(bool count_modification) {
     _query.push_back(query_base);
 
     // Check collapse distance and whether mismatches are enabled
-    bool should_count = count_modification &&
-                        (_last_mod_pos - _rpos >= _params.collapse) &&
-                        _params.mismatches;
+    bool should_count =
+        count_modification && (_last_mod_pos - _rpos >= _params.collapse) && _params.mismatches;
 
     if (should_count) {
         _expected(_rpos, ref_base, query_base) += mask_value(_qpos);
@@ -244,10 +235,8 @@ void AlignmentGenerator::add_insertion(bool count_modification) {
 
     // Check collapse distance, position validity, and whether insertions are enabled
     bool valid_position = (_rpos <= static_cast<int32_t>(_reference.size()) && _rpos > 0);
-    bool should_count = count_modification &&
-                        valid_position &&
-                        (_last_mod_pos - _rpos >= _params.collapse) &&
-                        _params.insertions;
+    bool should_count = count_modification && valid_position &&
+                        (_last_mod_pos - _rpos >= _params.collapse) && _params.insertions;
 
     if (should_count) {
         // Insertions are recorded at the position before the insertion
@@ -261,9 +250,8 @@ void AlignmentGenerator::add_deletion(bool count_modification) {
     base_t ref_base = _reference[_rpos];
 
     // Check collapse distance and whether deletions are enabled
-    bool should_count = count_modification &&
-                        (_last_mod_pos - _rpos >= _params.collapse) &&
-                        _params.deletions;
+    bool should_count =
+        count_modification && (_last_mod_pos - _rpos >= _params.collapse) && _params.deletions;
 
     if (should_count) {
         _expected(_rpos, ref_base, IX_DEL) += mask_value(_qpos);
@@ -279,100 +267,94 @@ void AlignmentGenerator::extend_alignment() {
     _cigar.extend(op);
 
     switch (op.type()) {
-        case HTS::CIGAR_t::MATCH: {
-            while (op.advance()) {
-                add_match();
-            }
-            _match_remaining -= op.length();
-            break;
+    case HTS::CIGAR_t::MATCH: {
+        while (op.advance()) {
+            add_match();
         }
+        _match_remaining -= op.length();
+        break;
+    }
 
-        case HTS::CIGAR_t::MISMATCH: {
-            // First base of mismatch run counts as modification
-            add_mismatch(true);
+    case HTS::CIGAR_t::MISMATCH: {
+        // First base of mismatch run counts as modification
+        add_mismatch(true);
+        op.advance();
+        // Subsequent bases don't count as separate modifications
+        while (op.advance()) {
+            add_mismatch(false);
+        }
+        _match_remaining -= op.length();
+        break;
+    }
+
+    case HTS::CIGAR_t::DEL: {
+        // Only count if within max indel length
+        bool count_first = (op.length() <= _params.max_indel_length);
+        if (count_first) {
+            add_deletion(true);
             op.advance();
-            // Subsequent bases don't count as separate modifications
-            while (op.advance()) {
-                add_mismatch(false);
-            }
-            _match_remaining -= op.length();
-            break;
         }
+        while (op.advance()) {
+            add_deletion(false);
+        }
+        _del_remaining -= op.length();
+        break;
+    }
 
-        case HTS::CIGAR_t::DEL: {
-            // Only count if within max indel length
-            bool count_first = (op.length() <= _params.max_indel_length);
-            if (count_first) {
-                add_deletion(true);
-                op.advance();
-            }
-            while (op.advance()) {
-                add_deletion(false);
-            }
-            _del_remaining -= op.length();
-            break;
+    case HTS::CIGAR_t::INS: {
+        // Only count if within max indel length
+        bool count_first = (op.length() <= _params.max_indel_length);
+        if (count_first) {
+            add_insertion(true);
+            op.advance();
         }
+        while (op.advance()) {
+            add_insertion(false);
+        }
+        _ins_remaining -= op.length();
+        break;
+    }
 
-        case HTS::CIGAR_t::INS: {
-            // Only count if within max indel length
-            bool count_first = (op.length() <= _params.max_indel_length);
-            if (count_first) {
-                add_insertion(true);
-                op.advance();
-            }
-            while (op.advance()) {
-                add_insertion(false);
-            }
-            _ins_remaining -= op.length();
-            break;
-        }
-
-        default: {
-            CMUTS_THROW("Unexpected CIGAR operation in test generation");
-        }
+    default: {
+        CMUTS_THROW("Unexpected CIGAR operation in test generation");
+    }
     }
 }
 
-const seq_t& AlignmentGenerator::query() const { return _query; }
-const HTS::CIGAR& AlignmentGenerator::cigar() const { return _cigar; }
-const HTS::PHRED& AlignmentGenerator::phred() const { return _phred; }
-int32_t AlignmentGenerator::position() const { return _start_pos; }
-qual_t AlignmentGenerator::mapq() const { return _mapq; }
-bool AlignmentGenerator::is_aligned() const { return _is_aligned; }
+const seq_t& AlignmentGenerator::query() const {
+    return _query;
+}
+const HTS::CIGAR& AlignmentGenerator::cigar() const {
+    return _cigar;
+}
+const HTS::PHRED& AlignmentGenerator::phred() const {
+    return _phred;
+}
+int32_t AlignmentGenerator::position() const {
+    return _start_pos;
+}
+qual_t AlignmentGenerator::mapq() const {
+    return _mapq;
+}
+bool AlignmentGenerator::is_aligned() const {
+    return _is_aligned;
+}
 
 //
 // SamRecord implementation
 //
 
-SamRecord::SamRecord(
-    const std::string& ref_name,
-    const AlignmentGenerator& alignment
-) : _read_name("read"),
-    _flag(0),
-    _ref_name(alignment.is_aligned() ? ref_name : "*"),
-    _pos(alignment.position() + 1),  // SAM uses 1-based positions
-    _mapq(alignment.mapq()),
-    _cigar(alignment.cigar().str()),
-    _rnext("*"),
-    _pnext(0),
-    _tlen(0),
-    _seq(HTS::str(alignment.query())),
-    _qual(alignment.phred().str())
-{}
+SamRecord::SamRecord(const std::string& ref_name, const AlignmentGenerator& alignment)
+    : _read_name("read"), _flag(0), _ref_name(alignment.is_aligned() ? ref_name : "*"),
+      _pos(alignment.position() + 1), // SAM uses 1-based positions
+      _mapq(alignment.mapq()), _cigar(alignment.cigar().str()), _rnext("*"), _pnext(0), _tlen(0),
+      _seq(HTS::str(alignment.query())), _qual(alignment.phred().str()) {}
 
 std::string SamRecord::str() const {
     std::stringstream ss;
-    ss << _read_name << "\t"
-       << _flag << "\t"
-       << _ref_name << "\t"
-       << _pos << "\t"
-       << static_cast<int>(_mapq) << "\t"
-       << _cigar << "\t"
-       << _rnext << "\t"
-       << _pnext << "\t"
-       << _tlen << "\t"
-       << _seq << "\t"
-       << _qual;
+    ss << _read_name << "\t" << _flag << "\t" << _ref_name << "\t" << _pos << "\t"
+       << static_cast<int>(_mapq) << "\t" << _cigar << "\t" << _rnext << "\t" << _pnext << "\t"
+       << _tlen << "\t" << _seq << "\t" << _qual;
     return ss.str();
 }
 
@@ -401,17 +383,9 @@ void write_sam_header(size_t num_references, size_t ref_length, std::ostream& ou
 // Main test generation
 //
 
-void generate_test_data(
-    const MPI::Manager& mpi,
-    size_t num_references,
-    size_t reads_per_reference,
-    size_t reference_length,
-    const Params& params,
-    const std::string& sam_path,
-    const std::string& fasta_path,
-    const std::string& hdf5_path,
-    int seed
-) {
+void generate_test_data(const MPI::Manager& mpi, size_t num_references, size_t reads_per_reference,
+                        size_t reference_length, const Params& params, const std::string& sam_path,
+                        const std::string& fasta_path, const std::string& hdf5_path, int seed) {
     // Use provided seed if non-negative, otherwise use time-based seed
     Random rng = (seed >= 0) ? Random(static_cast<unsigned>(seed)) : Random();
 
@@ -438,10 +412,8 @@ void generate_test_data(
 
     // Create HDF5 memspace for expected values
     std::vector<size_t> dims = {
-        num_references,
-        reference_length,
-        BASES,
-        6  // A, C, G, U, DEL, INS
+        num_references, reference_length, BASES,
+        6 // A, C, G, U, DEL, INS
     };
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path) + "/counts-1d");
 
@@ -449,7 +421,8 @@ void generate_test_data(
     for (size_t chunk_ix = 0; chunk_ix < num_chunks; chunk_ix++) {
         for (size_t ref_in_chunk = 0; ref_in_chunk < chunk_size; ref_in_chunk++) {
             size_t ref_ix = chunk_ix * chunk_size + ref_in_chunk;
-            if (ref_ix >= num_references) break;
+            if (ref_ix >= num_references)
+                break;
 
             // Generate random reference sequence
             seq_t reference = random_sequence(static_cast<int32_t>(reference_length), rng);
@@ -501,32 +474,15 @@ int main(int argc, char** argv) {
     }
 
     // Build parameters struct from command line options
-    TestGen::Params params = {
-        opt.min_mapq,
-        opt.min_phred,
-        opt.min_length,
-        opt.max_length,
-        opt.max_indel_length,
-        opt.quality_window,
-        opt.collapse,
-        !opt.no_mismatch,
-        !opt.no_insertion,
-        !opt.no_deletion
-    };
+    TestGen::Params params = {opt.min_mapq,    opt.min_phred,        opt.min_length,
+                              opt.max_length,  opt.max_indel_length, opt.quality_window,
+                              opt.collapse,    !opt.no_mismatch,     !opt.no_insertion,
+                              !opt.no_deletion};
 
     // Generate test data
     try {
-        TestGen::generate_test_data(
-            mpi,
-            opt.references,
-            opt.queries,
-            opt.length,
-            params,
-            opt.out_sam,
-            opt.out_fasta,
-            opt.out_h5,
-            opt.seed
-        );
+        TestGen::generate_test_data(mpi, opt.references, opt.queries, opt.length, params,
+                                    opt.out_sam, opt.out_fasta, opt.out_h5, opt.seed);
     } catch (const std::exception& err) {
         mpi.err() << "Error: " << err.what() << "\n";
         return EXIT_FAILURE;

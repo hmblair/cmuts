@@ -24,13 +24,13 @@
 #include <ranges>
 
 extern "C" {
-    #include <htslib/sam.h>
-    #include <htslib/hts.h>
-    #include <htslib/hts_log.h>
-    #include <htslib/bgzf.h>
-    #include <htslib/kstring.h>
-    #include <zlib.h>
-    #include <rANS_static.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/hts_log.h>
+#include <htslib/bgzf.h>
+#include <htslib/kstring.h>
+#include <zlib.h>
+#include <rANS_static.h>
 }
 
 #include "infra/utils.hpp"
@@ -58,30 +58,30 @@ const uint8_t HTS_N = 15;
 // Internal types used to represent bases, sequences, and qualities
 
 using base_t = int8_t;
-using seq_t  = std::vector<base_t>;
+using seq_t = std::vector<base_t>;
 using qual_t = uint8_t;
 
 // Indices of the bases in the output arrays
 
-const base_t IX_A    = 0;
-const base_t IX_C    = 1;
-const base_t IX_G    = 2;
-const base_t IX_U    = 3;
-const base_t IX_T    = 3;
-const base_t IX_DEL  = 4;
-const base_t IX_INS  = 5;
+const base_t IX_A = 0;
+const base_t IX_C = 1;
+const base_t IX_G = 2;
+const base_t IX_U = 3;
+const base_t IX_T = 3;
+const base_t IX_DEL = 4;
+const base_t IX_INS = 5;
 const base_t IX_TERM = 6;
-const base_t IX_UNK  = -1;
+const base_t IX_UNK = -1;
 
 // BGZF/header constants
 
-const int32_t     BGZF_BUFFER     = 1L << 16;
-const std::string BGZF_SORTED     = "coordinate";
+const int32_t BGZF_BUFFER = 1L << 16;
+const std::string BGZF_SORTED = "coordinate";
 const std::string HEADER_SORT_KEY = "SO:";
-const std::string HEADER_LEN_KEY  = "LN:";
+const std::string HEADER_LEN_KEY = "LN:";
 const int32_t MAGIC_SIZE = 4;
-const std::string SAM_MAGIC  = "SAM\1";
-const std::string BAM_MAGIC  = "BAM\1";
+const std::string SAM_MAGIC = "SAM\1";
+const std::string BAM_MAGIC = "BAM\1";
 const std::string CRAM_MAGIC = "CRAM";
 const std::string CMUTS_INDEX = ".cmix";
 
@@ -90,9 +90,9 @@ const int32_t UNALIGNED = -1;
 
 // Quality score special values
 
-const qual_t MAX_MAPQ     = 254;
+const qual_t MAX_MAPQ = 254;
 const qual_t MISSING_MAPQ = 255;
-const qual_t MAX_PHRED    = 41;
+const qual_t MAX_PHRED = 41;
 
 // Conversion to PHRED ASCII
 
@@ -101,7 +101,7 @@ const int32_t PHRED_OFFSET = 33;
 // Reserve this many CIGAR ops when creating a new CIGAR
 
 const int32_t CIGAR_RESERVE = 64;
-const int32_t LINE_RESERVE  = 512;
+const int32_t LINE_RESERVE = 512;
 
 // ITF8 constants
 
@@ -122,21 +122,13 @@ constexpr std::array<uint8_t, BYTE + 1> _bit_mask() {
     }
 
     return mask;
-
 }
 
 const std::array<uint8_t, BYTE + 1> BIT_MASK = _bit_mask();
 
-
-
-
 //
 // General file utilities
 //
-
-
-
-
 
 bool _exists(const std::string& filename);
 void _delete(const std::string& filename);
@@ -148,17 +140,9 @@ std::string _path(const std::string& name);
 bool _has_duplicate_paths(const std::vector<std::string>& paths);
 void _throw_if_has_duplicate_paths(const std::vector<std::string>& paths);
 
-
-
-
-
 //
 // BGZF file utilities
 //
-
-
-
-
 
 BGZF* _open_bgzf(const std::string& name);
 void _close_bgzf(BGZF*& _bgzf_file);
@@ -166,68 +150,46 @@ void _read_bgzf(BGZF* _bgzf_file, void* buffer, int32_t size);
 std::vector<unsigned char> _read_bgzf(BGZF* _bgzf_file, int32_t size);
 std::string _read_bgzf_line(BGZF* _bgzf_file, char* buffer, int32_t& ix, int32_t length);
 void _seek_bgzf(BGZF* _bgzf_file, int64_t ptr);
-template <typename dtype>
-dtype _read_bgzf_single(BGZF* _bgzf_file);
-
-
-
-
+template <typename dtype> dtype _read_bgzf_single(BGZF* _bgzf_file);
 
 //
 // FASTA
 //
 
-
-
-
-
 class FASTA {
-private:
-
+  private:
     std::string _name;
     std::fstream _file;
 
-public:
-
+  public:
     explicit FASTA(const std::string& name);
     std::string next();
     void write(const std::string& name, const std::string& sequence);
-
 };
-
-
-
-
 
 //
 // ByteStream
 //
 
-
-
-
-
 class ByteStream {
-protected:
-
-    int32_t _size      = 0;
+  protected:
+    int32_t _size = 0;
     int32_t _remaining = 0;
 
-    uint8_t _byte   = 0;
+    uint8_t _byte = 0;
     uint8_t _n_bits = 0;
 
-public:
-
+  public:
     explicit ByteStream(int32_t size);
     virtual ~ByteStream() = default;
     ByteStream(const ByteStream&) = delete;
     ByteStream& operator=(const ByteStream&) = delete;
 
-    virtual void skip(int32_t length) {};
-    virtual uint8_t byte()                               = 0;
-    virtual std::vector<uint8_t> bytes(int32_t length)   = 0;
+    virtual void skip(int32_t length){};
+    virtual uint8_t byte() = 0;
+    virtual std::vector<uint8_t> bytes(int32_t length) = 0;
     virtual std::vector<uint8_t> line(uint8_t delimiter) = 0;
-    virtual std::string str(uint8_t delimiter = '\n')    = 0;
+    virtual std::string str(uint8_t delimiter = '\n') = 0;
 
     int32_t size() const;
     int32_t remaining() const;
@@ -237,65 +199,45 @@ public:
     void memcpy(uint8_t* dest, int32_t n);
     int32_t itf8();
     int64_t ltf8();
-
 };
-
-
-
-
 
 //
 // Streams from in-memory data
 //
 
-
-
-
-
 class DataStream : public ByteStream {
-private:
-
+  private:
     std::span<const uint8_t> _data;
     int32_t _pos = 0;
 
-public:
-
+  public:
     explicit DataStream(std::span<const uint8_t> data);
 
     uint8_t byte() override;
     std::vector<uint8_t> bytes(int32_t length) override;
     std::vector<uint8_t> line(uint8_t delimiter) override;
     std::string str(uint8_t delimiter) override;
-
-
 };
 
-
 class RansStream : public DataStream {
-private:
-
+  private:
     std::vector<uint8_t> _rans_data;
     explicit RansStream(std::vector<uint8_t> data);
 
-public:
-
+  public:
     explicit RansStream(std::span<const uint8_t> data, int32_t raw);
-
 };
 
-
 class ZlibStream : public ByteStream {
-protected:
-
+  protected:
     z_stream _stream;
     std::vector<uint8_t> _buffer;
 
     int32_t _buffer_pos = 0;
     int32_t _buffer_end = 0;
-    bool _open          = false;
+    bool _open = false;
 
-public:
-
+  public:
     ZlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer);
     ~ZlibStream() override;
 
@@ -307,29 +249,17 @@ public:
     std::string str(uint8_t delimiter) override;
 
     void update(std::span<const uint8_t> data);
-
 };
-
-
-
-
-
 
 //
 // Streams from in-storage data
 //
 
-
-
-
-
 class BgzfFileStream : public ByteStream {
-private:
-
+  private:
     BGZF* _file;
 
-public:
-
+  public:
     BgzfFileStream(BGZF* file, int32_t size);
 
     void skip(int32_t length) override;
@@ -337,39 +267,26 @@ public:
     std::vector<uint8_t> bytes(int32_t length) override;
     std::vector<uint8_t> line(uint8_t delimiter) override;
     std::string str(uint8_t delimiter) override;
-
 };
 
-
 class ZlibFileStream : public ZlibStream {
-private:
-
+  private:
     BgzfFileStream _bgzf;
     std::vector<uint8_t> _bgzf_buffer;
     std::span<const uint8_t> _buffer_span;
 
     int32_t _bgzf_buffer_pos = 0;
-    int32_t _in_remaining    = 0;
+    int32_t _in_remaining = 0;
 
-public:
-
-    ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer);
+  public:
+    ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw,
+                   int32_t buffer);
     ZlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer);
 
     void fill() override;
-
 };
 
-
-
-
-
-
 namespace HTS {
-
-
-
-
 
 void _disable_logging();
 base_t _from_char(char base);
@@ -377,17 +294,9 @@ base_t _from_str(const std::string& base);
 std::string str(const seq_t& sequence, int32_t start, int32_t end);
 std::string str(const seq_t& sequence);
 
-
-
-
-
 //
 // Enums
 //
-
-
-
-
 
 enum class FileType : uint8_t {
 
@@ -397,20 +306,19 @@ enum class FileType : uint8_t {
 
 };
 
-
 enum class CIGAR_t : uint8_t {
 
     // HTS operations
 
-    UNKNOWN,  // Unknown
-    MATCH,    // Match
-    DEL,      // Deletion
-    INS,      // Insertion
-    SOFT,     // Soft clipping
-    HARD,     // Hard clipping
-    SKIP,     // ?
-    PAD,      // ?
-    BACK,     // ?
+    UNKNOWN, // Unknown
+    MATCH,   // Match
+    DEL,     // Deletion
+    INS,     // Insertion
+    SOFT,    // Soft clipping
+    HARD,    // Hard clipping
+    SKIP,    // ?
+    PAD,     // ?
+    BACK,    // ?
 
     // Additional cmuts operations
 
@@ -419,49 +327,31 @@ enum class CIGAR_t : uint8_t {
 
 };
 
-
-
-
-
 //
 // Header-related utilities
 //
 
-
-
 struct Header {
 
-    bool sorted        = false;
+    bool sorted = false;
     int32_t references = 0;
-
 };
-
 
 FileType _get_filetype(BGZF* _bgzf_file);
 Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool read = true);
 Header _read_sam_header(std::unique_ptr<ByteStream>& block, bool read = true);
 
-
-
-
-
 //
 // CIGAR operations and MD tags
 //
 
-
-
-
-
 class CIGAR_op {
-private:
-
-    CIGAR_t _type   = CIGAR_t::UNKNOWN;
+  private:
+    CIGAR_t _type = CIGAR_t::UNKNOWN;
     int32_t _length = 0;
-    int32_t _pos    = 0;
+    int32_t _pos = 0;
 
-public:
-
+  public:
     // For susbtitutions and insertions, this will hold the query
     // base at the 3'-most end of the op, which is all that is necessary
     // for cmuts.
@@ -506,18 +396,14 @@ public:
 
     // Return a MATCH of the same length
     CIGAR_op match() const;
-
 };
 
-
 class CIGAR {
-private:
-
+  private:
     // The ops in the CIGAR
     std::vector<CIGAR_op> _str;
 
-public:
-
+  public:
     // Create an empty CIGAR; possibly with reserved memory
     CIGAR() = default;
     explicit CIGAR(int32_t size);
@@ -574,40 +460,25 @@ public:
     auto begin() const -> decltype(_str.begin());
     auto end() -> decltype(_str.end());
     auto end() const -> decltype(_str.end());
-
 };
-
-
-
-
 
 //
 // PHRED
 //
 
-
-
-
-
-template <typename dtype>
-class BaseMask {
-public:
-
+template <typename dtype> class BaseMask {
+  public:
     std::vector<dtype> mask;
     int32_t good = 0;
 
     BaseMask(int32_t length);
-
 };
 
-
 class PHRED {
-private:
-
+  private:
     std::vector<qual_t> _qualities;
 
-public:
-
+  public:
     PHRED() = default;
     explicit PHRED(const std::vector<qual_t>& qualities);
 
@@ -615,33 +486,22 @@ public:
     std::string str() const;
     bool check(int32_t ix, qual_t min, int32_t window) const;
 
-    template <typename dtype>
-    BaseMask<dtype> mask(qual_t min, int32_t window) const;
-
+    template <typename dtype> BaseMask<dtype> mask(qual_t min, int32_t window) const;
 };
-
-
-
-
 
 //
 // Alignment
 //
 
-
-
-
-
 class Alignment {
-public:
-
-    bool aligned  = false;
-    bool primary  = false;
+  public:
+    bool aligned = false;
+    bool primary = false;
     bool reversed = false;
 
-    qual_t mapq       = MISSING_MAPQ;
-    int32_t length    = 0;
-    int32_t offset    = 0;
+    qual_t mapq = MISSING_MAPQ;
+    int32_t length = 0;
+    int32_t offset = 0;
     int32_t reference = -1;
 
     CIGAR cigar;
@@ -652,42 +512,28 @@ public:
 
     /// Named factory method - makes field order explicit and prevents
     /// aggregate initialization bugs (field order is self-documenting)
-    static Alignment create(
-        bool aligned,
-        bool primary,
-        bool reversed,
-        qual_t mapq,
-        int32_t length,
-        int32_t offset,
-        int32_t reference,
-        CIGAR cigar,
-        PHRED phred
-    ) {
+    static Alignment create(bool aligned, bool primary, bool reversed, qual_t mapq, int32_t length,
+                            int32_t offset, int32_t reference, CIGAR cigar, PHRED phred) {
         Alignment aln;
-        aln.aligned   = aligned;
-        aln.primary   = primary;
-        aln.reversed  = reversed;
-        aln.mapq      = mapq;
-        aln.length    = length;
-        aln.offset    = offset;
+        aln.aligned = aligned;
+        aln.primary = primary;
+        aln.reversed = reversed;
+        aln.mapq = mapq;
+        aln.length = length;
+        aln.offset = offset;
         aln.reference = reference;
-        aln.cigar     = std::move(cigar);
-        aln.phred     = std::move(phred);
+        aln.cigar = std::move(cigar);
+        aln.phred = std::move(phred);
         return aln;
     }
-
 };
 
-
-
 class Iterator {
-protected:
-
+  protected:
     int64_t _reads = 0;
-    int64_t _curr  = 0;
+    int64_t _curr = 0;
 
-public:
-
+  public:
     Iterator() = default;
     explicit Iterator(int64_t reads);
     virtual ~Iterator() = default;
@@ -698,34 +544,21 @@ public:
 
     virtual Alignment next() = 0;
     bool end() const noexcept;
-
 };
-
 
 class EmptyIterator : public Iterator {
-public:
-
+  public:
     EmptyIterator() = default;
     Alignment next() override;
-
 };
-
-
-
-
 
 //
 // Index
 //
 
-
-
-
-
 class IndexBlock {
-public:
-
-    int64_t ptr   = -1;
+  public:
+    int64_t ptr = -1;
     int64_t reads = 0;
 
     bool empty() const;
@@ -733,59 +566,43 @@ public:
     void write_ptr(std::ofstream& file);
     void write_bad_ptr(std::ofstream& file);
     void write_reads(std::ofstream& file);
-
 };
 
-
 class Index {
-private:
-
+  private:
     std::string _name;
     std::ifstream _file;
     int32_t _references;
 
-public:
-
+  public:
     Index() = default;
     Index(const std::string& filename, int32_t references);
 
     IndexBlock read(int32_t ix);
     int64_t aligned();
     int64_t unaligned();
-
 };
-
 
 Index _sam_index(BGZF* file);
 Index _bam_index(BGZF* file);
 Index _cram_index(BGZF* file);
 
-
-
-
-
 //
 // File
 //
 
-
-
-
-
 class File {
-protected:
-
+  protected:
     std::string _name;
     FileType _type;
 
-    BGZF* _hts_bgzf     = nullptr;
-    bool _sorted        = false;
+    BGZF* _hts_bgzf = nullptr;
+    bool _sorted = false;
     int32_t _references = 0;
 
     Index _index;
 
-public:
-
+  public:
     explicit File(const std::string& name, FileType type);
     File(File&& other) noexcept;
     File& operator=(File&& other) = delete;
@@ -800,33 +617,21 @@ public:
     int64_t unaligned();
 
     virtual std::shared_ptr<Iterator> get(int32_t ix, bool seek) = 0;
-
 };
-
 
 std::unique_ptr<File> _get_sam(const std::string& name);
 std::unique_ptr<File> _get_bam(const std::string& name);
 std::unique_ptr<File> _get_cram(const std::string& name);
 
-
-
-
-
 //
 // FileGroup
 //
 
-
-
-
-
 class FileGroup {
-private:
-
+  private:
     std::vector<std::unique_ptr<File>> _group;
 
-public:
-
+  public:
     explicit FileGroup(const std::vector<std::string>& filenames);
 
     int32_t size() const;
@@ -839,34 +644,17 @@ public:
     auto begin() const -> decltype(_group.begin());
     auto end() -> decltype(_group.end());
     auto end() const -> decltype(_group.end());
-
 };
-
-
-
-
 
 //
 // Printing overloads
 //
-
-
-
-
 
 std::ostream& operator<<(std::ostream& os, FileType fileType);
 std::ostream& operator<<(std::ostream& os, CIGAR_t cigar);
 std::ostream& operator<<(std::ostream& os, const CIGAR_op& op);
 std::ostream& operator<<(std::ostream& os, const CIGAR& cigar);
 
-
-
-
-
 } // namespace HTS
-
-
-
-
 
 #endif

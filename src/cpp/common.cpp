@@ -3,24 +3,14 @@
 
 #include <unistd.h>
 
-
-
-
-
 //
 // General file utilities
 //
 
-
-
-
-
 bool _exists(const std::string& filename) {
 
     return std::filesystem::exists(filename);
-
 }
-
 
 void _delete(const std::string& filename) {
 
@@ -28,55 +18,45 @@ void _delete(const std::string& filename) {
     if (_exists(filename)) {
         __throw_and_log(_LOG_FILE, "The file \"" + filename + "\" could not be deleted.");
     }
-
 }
-
 
 void _throw_if_exists(const std::string& filename) {
 
     if (_exists(filename)) {
         __throw_and_log(_LOG_FILE, "The file \"" + filename + "\" already exists.");
     }
-
 }
-
 
 void _throw_if_not_exists(const std::string& filename) {
 
     if (!_exists(filename)) {
         __throw_and_log(_LOG_FILE, "The file \"" + filename + "\" does not exist.");
     }
-
 }
-
 
 void _safe_move(const std::string& src, const std::string& dst) {
 
     _throw_if_not_exists(src);
     _throw_if_exists(dst);
     std::filesystem::rename(src, dst);
-
 }
-
 
 std::string _stem(const std::string& name) {
 
     std::filesystem::path path(name);
     return path.stem().string();
-
 }
-
 
 std::string _path(const std::string& name) {
 
     std::filesystem::path path(name);
     std::string stem = path.stem().string();
     std::string parent = path.parent_path().string();
-    if (parent.empty()) { return stem; }
+    if (parent.empty()) {
+        return stem;
+    }
     return parent + "/" + stem;
-
 }
-
 
 bool _has_duplicate_paths(const std::vector<std::string>& paths) {
 
@@ -89,29 +69,18 @@ bool _has_duplicate_paths(const std::vector<std::string>& paths) {
         seen.insert(transformedPath);
     }
     return false;
-
 }
-
 
 void _throw_if_has_duplicate_paths(const std::vector<std::string>& paths) {
 
     if (_has_duplicate_paths(paths)) {
         __throw_and_log(_LOG_FILE, "Duplicate input paths (modulo extensions) are not allowed.");
     }
-
 }
-
-
-
-
 
 //
 // BGZF file utilities
 //
-
-
-
-
 
 BGZF* _open_bgzf(const std::string& name) {
 
@@ -123,9 +92,7 @@ BGZF* _open_bgzf(const std::string& name) {
     }
 
     return _bgzf_file;
-
 }
-
 
 void _close_bgzf(BGZF*& _bgzf_file) {
 
@@ -133,9 +100,7 @@ void _close_bgzf(BGZF*& _bgzf_file) {
         bgzf_close(_bgzf_file);
         _bgzf_file = nullptr;
     }
-
 }
-
 
 void _read_bgzf(BGZF* _bgzf_file, void* buffer, int32_t size) {
 
@@ -143,28 +108,22 @@ void _read_bgzf(BGZF* _bgzf_file, void* buffer, int32_t size) {
         __throw_and_log(_LOG_FILE, "Null BGZF pointer.");
     }
 
-    auto bytes = static_cast<int32_t>(
-        bgzf_read(_bgzf_file, buffer, size)
-    );
+    auto bytes = static_cast<int32_t>(bgzf_read(_bgzf_file, buffer, size));
 
     if (bytes != size) {
 
         _close_bgzf(_bgzf_file);
-        __throw_and_log(_LOG_FILE, "BGZF failed to read " + std::to_string(size - bytes) + " of " + std::to_string(size) + " bytes.");
-
+        __throw_and_log(_LOG_FILE, "BGZF failed to read " + std::to_string(size - bytes) + " of " +
+                                       std::to_string(size) + " bytes.");
     }
-
 }
-
 
 std::vector<uint8_t> _read_bgzf(BGZF* _bgzf_file, int32_t size) {
 
     std::vector<uint8_t> buffer(size);
     _read_bgzf(_bgzf_file, buffer.data(), size);
     return buffer;
-
 }
-
 
 void _seek_bgzf(BGZF* _bgzf_file, int64_t ptr) {
 
@@ -172,14 +131,10 @@ void _seek_bgzf(BGZF* _bgzf_file, int64_t ptr) {
 
         _close_bgzf(_bgzf_file);
         __throw_and_log(_LOG_FILE, "Failed to seek to position " + std::to_string(ptr) + ".");
-
     }
-
 }
 
-
-template <typename dtype>
-dtype _read_bgzf_line(BGZF* _bgzf_file, uint8_t delimiter) {
+template <typename dtype> dtype _read_bgzf_line(BGZF* _bgzf_file, uint8_t delimiter) {
 
     kstring_t tmp = KS_INITIALIZE;
 
@@ -191,30 +146,18 @@ dtype _read_bgzf_line(BGZF* _bgzf_file, uint8_t delimiter) {
     dtype out(tmp.s, tmp.s + length);
     ks_free(&tmp);
     return out;
-
 }
 
-
-template <typename dtype>
-dtype _read_bgzf_single(BGZF* _bgzf_file) {
+template <typename dtype> dtype _read_bgzf_single(BGZF* _bgzf_file) {
 
     dtype value;
     _read_bgzf(_bgzf_file, &value, sizeof(dtype));
     return value;
-
 }
-
-
-
-
 
 //
 // zlib file utilities
 //
-
-
-
-
 
 static inline std::string _get_stream_msg(z_stream* stream) {
 
@@ -223,21 +166,19 @@ static inline std::string _get_stream_msg(z_stream* stream) {
     } else {
         return {stream->msg, strlen(stream->msg)};
     }
-
 }
-
 
 static inline z_stream _open_z_stream(std::span<const uint8_t> data) {
 
     z_stream stream;
 
-    stream.zalloc    = Z_NULL;
-    stream.zfree     = Z_NULL;
-    stream.opaque    = Z_NULL;
-    stream.next_in   = const_cast<uint8_t*>(data.data());
-    stream.avail_in  = data.size();
-    stream.total_in  = 0;
-    stream.next_out  = nullptr;
+    stream.zalloc = Z_NULL;
+    stream.zfree = Z_NULL;
+    stream.opaque = Z_NULL;
+    stream.next_in = const_cast<uint8_t*>(data.data());
+    stream.avail_in = data.size();
+    stream.total_in = 0;
+    stream.next_out = nullptr;
     stream.avail_out = 0;
     stream.total_out = 0;
 
@@ -247,16 +188,12 @@ static inline z_stream _open_z_stream(std::span<const uint8_t> data) {
     }
 
     return stream;
-
 }
-
 
 static inline void _close_z_stream(z_stream& stream) {
 
     (void)inflateEnd(&stream);
-
 }
-
 
 static inline void _read_z_stream(z_stream* stream, std::vector<uint8_t>& buffer) {
 
@@ -265,38 +202,27 @@ static inline void _read_z_stream(z_stream* stream, std::vector<uint8_t>& buffer
     }
 
     stream->total_out = 0;
-    stream->total_in  = 0;
+    stream->total_in = 0;
 
-    stream->next_out  = buffer.data();
+    stream->next_out = buffer.data();
     stream->avail_out = buffer.size();
 
     int err = inflate(stream, Z_NO_FLUSH);
     if (err != Z_OK && err != Z_STREAM_END) {
 
-        __throw_and_log(_LOG_FILE, "Failed to read from the zlib stream: " + _get_stream_msg(stream));
-
+        __throw_and_log(_LOG_FILE,
+                        "Failed to read from the zlib stream: " + _get_stream_msg(stream));
     }
-
 }
-
-
-
-
 
 //
 // FASTA
 //
 
-
-
-
-
 static inline bool _is_fasta_header(const std::string& line) {
 
     return !line.empty() && line[0] == '>';
-
 }
-
 
 static inline std::string _get_fasta_sequence(std::fstream& file) {
 
@@ -308,17 +234,14 @@ static inline std::string _get_fasta_sequence(std::fstream& file) {
     }
 
     return sequence;
-
 }
 
-
-static inline void _write_fasta_record(const std::string& name, const std::string& sequence, std::fstream& file) {
+static inline void _write_fasta_record(const std::string& name, const std::string& sequence,
+                                       std::fstream& file) {
 
     file << ">" << name << "\n";
     file << sequence << "\n";
-
 }
-
 
 FASTA::FASTA(const std::string& name) : _name(name) {
 
@@ -329,41 +252,24 @@ FASTA::FASTA(const std::string& name) : _name(name) {
         std::string line;
         std::getline(_file, line);
     }
-
 }
-
 
 std::string FASTA::next() {
 
     return _get_fasta_sequence(_file);
-
 }
-
 
 void FASTA::write(const std::string& name, const std::string& sequence) {
 
     _write_fasta_record(name, sequence, _file);
-
 }
-
-
-
-
 
 //
 // ByteStream
 //
 
-
-
-
-
 template <typename dtype>
-static inline int32_t _find_first_occurrence(
-    const dtype* begin,
-    const dtype* end,
-    dtype value
-) {
+static inline int32_t _find_first_occurrence(const dtype* begin, const dtype* end, dtype value) {
 
     auto it = std::find(begin, end, value);
     if (it == end) {
@@ -371,57 +277,47 @@ static inline int32_t _find_first_occurrence(
     } else {
         return std::distance(begin, it);
     }
-
 }
 
-
-
-
-
 ByteStream::ByteStream(int32_t size) : _size(size), _remaining(size) {}
-
 
 std::string ByteStream::str(uint8_t delimiter) {
 
     std::vector<uint8_t> values = line(delimiter);
     return {values.begin(), values.end()};
-
 }
-
 
 int32_t ByteStream::size() const {
 
     return _size;
-
 }
-
 
 int32_t ByteStream::remaining() const {
 
     return _remaining;
-
 }
-
 
 bool ByteStream::end() const noexcept {
 
     return (_remaining <= 0);
-
 }
-
 
 int32_t ByteStream::bits(int32_t length) {
 
     if (length <= 0) {
-        __throw_and_log(_LOG_FILE, "Tried to read invalid number of bits (" + std::to_string(length) + ").");
+        __throw_and_log(_LOG_FILE,
+                        "Tried to read invalid number of bits (" + std::to_string(length) + ").");
     }
 
-    int32_t out            = 0;
+    int32_t out = 0;
     int32_t bits_remaining = length;
 
     while (bits_remaining > 0) {
 
-        if (_n_bits == 0) { _byte = byte(); _n_bits = BYTE; }
+        if (_n_bits == 0) {
+            _byte = byte();
+            _n_bits = BYTE;
+        }
 
         int32_t _to_read = std::min(bits_remaining, static_cast<int32_t>(_n_bits));
 
@@ -436,16 +332,13 @@ int32_t ByteStream::bits(int32_t length) {
 
         // Update accordingly
 
-        _byte   <<= _to_read;
+        _byte <<= _to_read;
         _n_bits -= _to_read;
         bits_remaining -= _to_read;
-
     }
 
     return out;
-
 }
-
 
 void ByteStream::memcpy(uint8_t* dest, int32_t n) {
 
@@ -454,9 +347,7 @@ void ByteStream::memcpy(uint8_t* dest, int32_t n) {
     }
     std::vector<uint8_t> values = bytes(n);
     std::memcpy(dest, values.data(), n);
-
 }
-
 
 int32_t ByteStream::itf8() {
 
@@ -468,7 +359,9 @@ int32_t ByteStream::itf8() {
     // Initialize the value with the least 7 - size significant bits
 
     auto value = static_cast<int32_t>(first & ITF8_MASK[size]);
-    if (size == 0) { return value; }
+    if (size == 0) {
+        return value;
+    }
 
     // Read the appropriate number of bytes
 
@@ -487,9 +380,7 @@ int32_t ByteStream::itf8() {
     }
 
     return value;
-
 }
-
 
 int64_t ByteStream::ltf8() {
 
@@ -501,7 +392,9 @@ int64_t ByteStream::ltf8() {
     // Initialize the value with all bits
 
     auto value = static_cast<int64_t>(first);
-    if (size == 0) { return value; }
+    if (size == 0) {
+        return value;
+    }
 
     // Read the appropriate number of bytes
 
@@ -514,24 +407,14 @@ int64_t ByteStream::ltf8() {
     }
 
     return value;
-
 }
-
-
-
-
 
 //
 // DataStream
 //
 
-
-
-
-
 DataStream::DataStream(std::span<const uint8_t> data)
     : ByteStream(static_cast<int32_t>(data.size())), _data(data) {}
-
 
 uint8_t DataStream::byte() {
 
@@ -540,14 +423,13 @@ uint8_t DataStream::byte() {
     _pos++;
     _remaining--;
     return value;
-
 }
-
 
 std::vector<uint8_t> DataStream::bytes(int32_t length) {
 
     if (length <= 0 || length + _pos > _data.size()) {
-        __throw_and_log(_LOG_FILE, "Failed to get " + std::to_string(length) + " bytes from the DataStream.");
+        __throw_and_log(_LOG_FILE,
+                        "Failed to get " + std::to_string(length) + " bytes from the DataStream.");
     }
 
     std::vector<uint8_t> values(length);
@@ -557,18 +439,15 @@ std::vector<uint8_t> DataStream::bytes(int32_t length) {
     _remaining -= length;
 
     return values;
-
 }
-
 
 std::vector<uint8_t> DataStream::line(uint8_t delimiter) {
 
     std::vector<uint8_t> line;
     line.reserve(LINE_RESERVE);
 
-    int32_t pos = _find_first_occurrence<uint8_t>(
-        _data.data() + _pos, _data.data() + _data.size(), delimiter
-    );
+    int32_t pos = _find_first_occurrence<uint8_t>(_data.data() + _pos, _data.data() + _data.size(),
+                                                  delimiter);
 
     if (pos == -1) {
         // Delimiter not found: consume all remaining data
@@ -585,18 +464,15 @@ std::vector<uint8_t> DataStream::line(uint8_t delimiter) {
     }
 
     return line;
-
 }
-
 
 std::string DataStream::str(uint8_t delimiter) {
 
     std::string line;
     line.reserve(LINE_RESERVE);
 
-    int32_t pos = _find_first_occurrence<uint8_t>(
-        _data.data() + _pos, _data.data() + _data.size(), delimiter
-    );
+    int32_t pos = _find_first_occurrence<uint8_t>(_data.data() + _pos, _data.data() + _data.size(),
+                                                  delimiter);
 
     if (pos == -1) {
         // Delimiter not found: consume all remaining data
@@ -613,20 +489,11 @@ std::string DataStream::str(uint8_t delimiter) {
     }
 
     return line;
-
 }
-
-
-
-
 
 //
 // RansStream
 //
-
-
-
-
 
 static inline std::vector<uint8_t> _decompress_rans4x8(std::span<const uint8_t> data) {
 
@@ -640,13 +507,9 @@ static inline std::vector<uint8_t> _decompress_rans4x8(std::span<const uint8_t> 
     free(_out);
 
     return buffer;
-
 }
 
-
-RansStream::RansStream(std::vector<uint8_t> data)
-    : DataStream(data), _rans_data(std::move(data)) {}
-
+RansStream::RansStream(std::vector<uint8_t> data) : DataStream(data), _rans_data(std::move(data)) {}
 
 RansStream::RansStream(std::span<const uint8_t> data, int32_t raw)
     : RansStream(_decompress_rans4x8(data)) {
@@ -654,29 +517,15 @@ RansStream::RansStream(std::span<const uint8_t> data, int32_t raw)
     if (_rans_data.size() != raw) {
         __throw_and_log(_LOG_FILE, "RANS4x8 decompression failed.");
     }
-
 }
-
-
-
-
 
 //
 // ZlibStream
 //
 
-
-
-
-
 ZlibStream::ZlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer)
-    : ByteStream(raw),
-    _stream(_open_z_stream(data)),
-    _buffer(buffer),
-    _buffer_pos(_buffer.size()),
-    _buffer_end(_buffer.size()),
-    _open(true) {}
-
+    : ByteStream(raw), _stream(_open_z_stream(data)), _buffer(buffer), _buffer_pos(_buffer.size()),
+      _buffer_end(_buffer.size()), _open(true) {}
 
 ZlibStream::~ZlibStream() {
 
@@ -684,9 +533,7 @@ ZlibStream::~ZlibStream() {
         _close_z_stream(_stream);
         _open = false;
     }
-
 }
-
 
 void ZlibStream::fill() {
 
@@ -697,13 +544,13 @@ void ZlibStream::fill() {
     _read_z_stream(&_stream, _buffer);
     _buffer_end = static_cast<int32_t>(_stream.total_out);
     _buffer_pos = 0;
-
 }
-
 
 uint8_t ZlibStream::byte() {
 
-    if (_buffer_pos >= _buffer_end) { fill(); }
+    if (_buffer_pos >= _buffer_end) {
+        fill();
+    }
 
     CMUTS_DEBUG_CHECK_BOUNDS(_buffer_pos, _buffer.size(), "ZlibStream::byte() buffer overflow");
     uint8_t value = _buffer[_buffer_pos];
@@ -712,9 +559,7 @@ uint8_t ZlibStream::byte() {
     _buffer_pos++;
 
     return value;
-
 }
-
 
 std::vector<uint8_t> ZlibStream::bytes(int32_t length) {
 
@@ -723,147 +568,105 @@ std::vector<uint8_t> ZlibStream::bytes(int32_t length) {
 
     while (read < length) {
 
-        if (_buffer_pos >= _buffer_end) { fill(); }
+        if (_buffer_pos >= _buffer_end) {
+            fill();
+        }
 
         int32_t _to_read = std::min(length - read, static_cast<int32_t>(_buffer_end - _buffer_pos));
         if (_to_read <= 0) {
-            __throw_and_log(_LOG_FILE, "Invalid number of bytes (" + std::to_string(_to_read) + ") in ZlibStream.");
+            __throw_and_log(_LOG_FILE, "Invalid number of bytes (" + std::to_string(_to_read) +
+                                           ") in ZlibStream.");
         }
 
         std::memcpy(values.data() + read, _buffer.data() + _buffer_pos, _to_read);
 
-        _remaining  -= _to_read;
+        _remaining -= _to_read;
         _buffer_pos += _to_read;
-        read        += _to_read;
-
+        read += _to_read;
     }
 
     return values;
-
-
 }
-
 
 std::vector<uint8_t> ZlibStream::line(uint8_t delimiter) {
 
-    if (_buffer_pos >= _buffer_end) { fill(); }
+    if (_buffer_pos >= _buffer_end) {
+        fill();
+    }
 
     std::vector<uint8_t> line;
     line.reserve(LINE_RESERVE);
-    int32_t pos = _find_first_occurrence<uint8_t>(
-        _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
-    );
+    int32_t pos = _find_first_occurrence<uint8_t>(_buffer.data() + _buffer_pos,
+                                                  _buffer.data() + _buffer_end, delimiter);
 
     while (pos == -1 && !end()) {
 
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_end
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_end);
 
         _remaining -= (_buffer_end - _buffer_pos);
 
         fill();
-        pos = _find_first_occurrence<uint8_t>(
-            _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
-        );
-
+        pos = _find_first_occurrence<uint8_t>(_buffer.data() + _buffer_pos,
+                                              _buffer.data() + _buffer_end, delimiter);
     }
 
     if (pos == -1) {
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_end
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_end);
     } else if (pos > 0) {
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_pos + pos
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_pos + pos);
     }
 
     _buffer_pos += (pos + 1);
-    _remaining  -= (pos + 1);
+    _remaining -= (pos + 1);
 
     return line;
-
 }
-
 
 std::string ZlibStream::str(uint8_t delimiter) {
 
-    if (_buffer_pos >= _buffer_end) { fill(); }
+    if (_buffer_pos >= _buffer_end) {
+        fill();
+    }
 
     std::string line;
     line.reserve(LINE_RESERVE);
-    int32_t pos = _find_first_occurrence<uint8_t>(
-        _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
-    );
+    int32_t pos = _find_first_occurrence<uint8_t>(_buffer.data() + _buffer_pos,
+                                                  _buffer.data() + _buffer_end, delimiter);
 
     while (pos == -1 && !end()) {
 
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_end
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_end);
 
         _remaining -= (_buffer_end - _buffer_pos);
 
         fill();
-        pos = _find_first_occurrence<uint8_t>(
-            _buffer.data() + _buffer_pos, _buffer.data() + _buffer_end, delimiter
-        );
-
+        pos = _find_first_occurrence<uint8_t>(_buffer.data() + _buffer_pos,
+                                              _buffer.data() + _buffer_end, delimiter);
     }
 
     if (pos == -1) {
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_end
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_end);
     } else if (pos > 0) {
-        line.insert(
-            line.end(),
-            _buffer.begin() + _buffer_pos,
-            _buffer.begin() + _buffer_pos + pos
-        );
+        line.insert(line.end(), _buffer.begin() + _buffer_pos, _buffer.begin() + _buffer_pos + pos);
     }
 
     _buffer_pos += (pos + 1);
-    _remaining  -= (pos + 1);
+    _remaining -= (pos + 1);
 
     return line;
-
 }
-
 
 void ZlibStream::update(std::span<const uint8_t> data) {
 
-    _stream.next_in  = const_cast<uint8_t*>(data.data());
+    _stream.next_in = const_cast<uint8_t*>(data.data());
     _stream.avail_in = data.size();
-
 }
-
-
-
-
 
 //
 // BgzfFileStream
 //
 
-
-
-
-
-BgzfFileStream::BgzfFileStream(BGZF* file, int32_t size)
-    : ByteStream(size), _file(file) {}
-
+BgzfFileStream::BgzfFileStream(BGZF* file, int32_t size) : ByteStream(size), _file(file) {}
 
 void BgzfFileStream::skip(int32_t length) {
 
@@ -877,66 +680,45 @@ void BgzfFileStream::skip(int32_t length) {
     }
 
     _remaining -= length;
-
 }
-
 
 uint8_t BgzfFileStream::byte() {
 
     _remaining--;
     return _read_bgzf_single<uint8_t>(_file);
-
 }
-
 
 std::vector<uint8_t> BgzfFileStream::bytes(int32_t length) {
 
     _remaining -= length;
     return _read_bgzf(_file, length);
-
 }
-
 
 std::vector<uint8_t> BgzfFileStream::line(uint8_t delimiter) {
 
     auto line = _read_bgzf_line<std::vector<uint8_t>>(_file, delimiter);
     _remaining -= static_cast<int32_t>(line.size());
     return line;
-
 }
-
 
 std::string BgzfFileStream::str(uint8_t delimiter) {
 
     auto line = _read_bgzf_line<std::string>(_file, delimiter);
     _remaining -= static_cast<int32_t>(line.size());
     return line;
-
 }
-
-
-
 
 //
 // ZlibFileStream
 //
 
-
-
-
-
-ZlibFileStream::ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer)
-    : ZlibStream(data, raw, buffer),
-      _bgzf(file, size),
-      _bgzf_buffer(buffer),
-      _buffer_span(data),
-      _bgzf_buffer_pos(buffer),
-      _in_remaining(size) {}
-
+ZlibFileStream::ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw,
+                               int32_t buffer)
+    : ZlibStream(data, raw, buffer), _bgzf(file, size), _bgzf_buffer(buffer), _buffer_span(data),
+      _bgzf_buffer_pos(buffer), _in_remaining(size) {}
 
 ZlibFileStream::ZlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer)
     : ZlibFileStream(file, std::span<const uint8_t>(), size, raw, buffer) {}
-
 
 void ZlibFileStream::fill() {
 
@@ -949,59 +731,50 @@ void ZlibFileStream::fill() {
         update(_buffer_span);
         _in_remaining -= _to_read;
         _bgzf_buffer_pos = 0;
-
     }
 
     ZlibStream::fill();
     _bgzf_buffer_pos += static_cast<int32_t>(_stream.total_in);
-
 }
-
-
-
-
 
 //
 // Template specializations
 //
 
-
 template uint8_t _read_bgzf_single<uint8_t>(BGZF* file);
 template int32_t _read_bgzf_single<int32_t>(BGZF* file);
 
-
-
-
-
-
 namespace HTS {
-
-
-
-
 
 void _disable_logging() {
 
     hts_set_log_level(htsLogLevel::HTS_LOG_OFF);
-
 }
-
 
 base_t _from_char(char base) {
 
     switch (base) {
 
-        case A:  { return IX_A; }
-        case C:  { return IX_C; }
-        case G:  { return IX_G; }
-        case T:  { return IX_T; }
-        case U:  { return IX_U; }
-        default: { return IX_UNK; }
-
+    case A: {
+        return IX_A;
     }
-
+    case C: {
+        return IX_C;
+    }
+    case G: {
+        return IX_G;
+    }
+    case T: {
+        return IX_T;
+    }
+    case U: {
+        return IX_U;
+    }
+    default: {
+        return IX_UNK;
+    }
+    }
 }
-
 
 static inline char _str_to_char(const std::string& str) {
 
@@ -1009,31 +782,34 @@ static inline char _str_to_char(const std::string& str) {
         throw std::invalid_argument("_str_to_char requires exactly 1 character.");
     }
     return str[0];
-
 }
-
 
 base_t _from_str(const std::string& base) {
 
     return _from_char(_str_to_char(base));
-
 }
-
 
 static inline char _to_char(base_t base) {
 
     switch (base) {
 
-        case IX_A: { return A; }
-        case IX_C: { return C; }
-        case IX_G: { return G; }
-        case IX_T: { return T; }
-        default:   { return N; }
-
+    case IX_A: {
+        return A;
     }
-
+    case IX_C: {
+        return C;
+    }
+    case IX_G: {
+        return G;
+    }
+    case IX_T: {
+        return T;
+    }
+    default: {
+        return N;
+    }
+    }
 }
-
 
 std::string str(const seq_t& sequence, int32_t start, int32_t end) {
 
@@ -1043,29 +819,18 @@ std::string str(const seq_t& sequence, int32_t start, int32_t end) {
     }
 
     return str;
-
 }
 
-
-std::string str(const seq_t& sequence) { 
+std::string str(const seq_t& sequence) {
 
     auto start = static_cast<int32_t>(0);
-    auto end   = static_cast<int32_t>(sequence.size());
+    auto end = static_cast<int32_t>(sequence.size());
     return str(sequence, start, end);
-
 }
-
-
-
-
 
 //
 // Header-related utilities
 //
-
-
-
-
 
 FileType _get_filetype(BGZF* _bgzf_file) {
 
@@ -1088,11 +853,8 @@ FileType _get_filetype(BGZF* _bgzf_file) {
 
         _close_bgzf(_bgzf_file);
         __throw_and_log(_LOG_FILE, "Magic check failed -- invalid alignment file.");
-
     }
-
 }
-
 
 static inline bool _is_sorted(const std::string& str) {
 
@@ -1100,16 +862,12 @@ static inline bool _is_sorted(const std::string& str) {
     std::string value = str.substr(pos);
 
     return (value == BGZF_SORTED);
-
 }
-
 
 static inline bool _is_seq(const std::string& line) {
 
     return line.starts_with("@SQ");
-
 }
-
 
 Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool read) {
 
@@ -1119,7 +877,7 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool
     // The first line tells us whether the file is sorted
 
     std::string line = block->str();
-    header.sorted    = _is_sorted(line);
+    header.sorted = _is_sorted(line);
     ix += static_cast<int32_t>(line.length() + 1);
 
     // The next set of lines are for the reference sequences
@@ -1131,72 +889,62 @@ Header _read_sam_header(std::unique_ptr<ByteStream>& block, int32_t length, bool
 
         // Increment the number of references if relevant
 
-        if (_is_seq(line)) { header.references++; }
-        else if (header.references > 0) { break; }
-
+        if (_is_seq(line)) {
+            header.references++;
+        } else if (header.references > 0) {
+            break;
+        }
     }
 
     // Skip any remaining blank space
 
-    if (ix < length) { (void)block->skip(length - ix); }
+    if (ix < length) {
+        (void)block->skip(length - ix);
+    }
 
     return header;
-
 }
-
 
 Header _read_sam_header(std::unique_ptr<ByteStream>& block, bool read) {
 
     return _read_sam_header(block, block->remaining(), read);
-
 }
-
-
-
-
 
 //
 // CIGAR
 //
 
-
-
-
-
 static inline std::string _cigar_hts_format(CIGAR_t type) {
 
     switch (type) {
-        case CIGAR_t::MATCH: { return "M"; }
-        case CIGAR_t::INS:   { return "I"; }
-        case CIGAR_t::DEL:   { return "D"; }
-        default:             { return "?"; }
+    case CIGAR_t::MATCH: {
+        return "M";
     }
-
+    case CIGAR_t::INS: {
+        return "I";
+    }
+    case CIGAR_t::DEL: {
+        return "D";
+    }
+    default: {
+        return "?";
+    }
+    }
 }
-
-
-
-
 
 CIGAR_op::CIGAR_op(CIGAR_t type) : _type(type), _length(1) {}
 
-
 CIGAR_op::CIGAR_op(CIGAR_t type, int32_t length) : _type(type), _length(length) {}
-
 
 CIGAR_t CIGAR_op::type() const {
 
     return _type;
-
 }
-
 
 base_t CIGAR_op::last() const {
 
     return base;
-
 }
-
 
 base_t CIGAR_op::last(base_t reference) const {
 
@@ -1205,88 +953,73 @@ base_t CIGAR_op::last(base_t reference) const {
     } else {
         return base;
     }
-
 }
-
 
 int32_t CIGAR_op::length() const {
 
     return _length;
-
 }
 
 int32_t CIGAR_op::rlength() const {
 
     switch (_type) {
 
-        case CIGAR_t::MATCH:
-        case CIGAR_t::MISMATCH:
-        case CIGAR_t::DEL:
-        case CIGAR_t::SKIP: {
-            return _length;
-        }
-
-        case CIGAR_t::INS:
-        case CIGAR_t::SOFT:
-        case CIGAR_t::HARD:
-        case CIGAR_t::PAD:
-        case CIGAR_t::BACK:
-        case CIGAR_t::TERM:
-        case CIGAR_t::UNKNOWN: {
-            return 0;
-        }
-
+    case CIGAR_t::MATCH:
+    case CIGAR_t::MISMATCH:
+    case CIGAR_t::DEL:
+    case CIGAR_t::SKIP: {
+        return _length;
     }
 
+    case CIGAR_t::INS:
+    case CIGAR_t::SOFT:
+    case CIGAR_t::HARD:
+    case CIGAR_t::PAD:
+    case CIGAR_t::BACK:
+    case CIGAR_t::TERM:
+    case CIGAR_t::UNKNOWN: {
+        return 0;
+    }
+    }
 }
-
 
 int32_t CIGAR_op::qlength() const {
 
     switch (_type) {
 
-        case CIGAR_t::MATCH:
-        case CIGAR_t::MISMATCH:
-        case CIGAR_t::INS:
-        case CIGAR_t::SOFT: {
-            return _length;
-        }
-
-        case CIGAR_t::DEL:
-        case CIGAR_t::SKIP:
-        case CIGAR_t::HARD:
-        case CIGAR_t::PAD:
-        case CIGAR_t::BACK:
-        case CIGAR_t::TERM:
-        case CIGAR_t::UNKNOWN: {
-            return 0;
-        }
-
+    case CIGAR_t::MATCH:
+    case CIGAR_t::MISMATCH:
+    case CIGAR_t::INS:
+    case CIGAR_t::SOFT: {
+        return _length;
     }
 
+    case CIGAR_t::DEL:
+    case CIGAR_t::SKIP:
+    case CIGAR_t::HARD:
+    case CIGAR_t::PAD:
+    case CIGAR_t::BACK:
+    case CIGAR_t::TERM:
+    case CIGAR_t::UNKNOWN: {
+        return 0;
+    }
+    }
 }
-
 
 std::string CIGAR_op::str() const {
 
     return std::to_string(_length) + _cigar_hts_format(_type);
-
 }
-
 
 void CIGAR_op::extend(int32_t val) {
 
     _length += val;
-
 }
-
 
 bool CIGAR_op::empty() const {
 
     return _length == 0;
-
 }
-
 
 bool CIGAR_op::advance(int32_t offset) {
 
@@ -1295,9 +1028,7 @@ bool CIGAR_op::advance(int32_t offset) {
         return true;
     }
     return false;
-
 }
-
 
 std::pair<CIGAR_op, CIGAR_op> CIGAR_op::split(int32_t n) const {
 
@@ -1305,48 +1036,35 @@ std::pair<CIGAR_op, CIGAR_op> CIGAR_op::split(int32_t n) const {
     int32_t l2 = _length - l1;
 
     return {CIGAR_op(_type, l1), CIGAR_op(_type, l2)};
-
 }
-
 
 CIGAR_op CIGAR_op::match() const {
 
     return {CIGAR_t::MATCH, _length};
-
 }
-
 
 CIGAR::CIGAR(int32_t size) {
 
     _str.reserve(size);
-
 }
-
 
 bool CIGAR::empty() const {
 
     return _str.empty();
-
 }
-
 
 int32_t CIGAR::hamming() const {
 
     int32_t _hamming = 0;
     for (const auto& op : _str) {
-        if (
-            op.type() == CIGAR_t::INS ||
-            op.type() == CIGAR_t::DEL ||
-            op.type() == CIGAR_t::MISMATCH
-        ) {
+        if (op.type() == CIGAR_t::INS || op.type() == CIGAR_t::DEL ||
+            op.type() == CIGAR_t::MISMATCH) {
             _hamming += op.length();
         }
     }
 
     return _hamming;
-
 }
-
 
 int32_t CIGAR::rlength() const {
 
@@ -1356,9 +1074,7 @@ int32_t CIGAR::rlength() const {
     }
 
     return _rlength;
-
 }
-
 
 int32_t CIGAR::qlength() const {
 
@@ -1368,28 +1084,25 @@ int32_t CIGAR::qlength() const {
     }
 
     return _rlength;
-
 }
-
 
 std::string CIGAR::str() const {
 
     std::string _out_str;
     CIGAR_op prev(CIGAR_t::MATCH, 0);
 
-    for (const auto& op: _str) {
+    for (const auto& op : _str) {
 
         if (op.type() == CIGAR_t::MATCH || op.type() == CIGAR_t::MISMATCH) {
             prev.extend(op.length());
             continue;
-        } 
+        }
 
         if (!prev.empty()) {
             _out_str += prev.str();
             prev = CIGAR_op(CIGAR_t::MATCH, 0);
         }
         _out_str += op.str();
-
     }
 
     if (!prev.empty()) {
@@ -1397,36 +1110,28 @@ std::string CIGAR::str() const {
     }
 
     return _out_str;
-
 }
-
 
 void CIGAR::extend(const CIGAR_op& op) {
 
     if (size() > 0 && _str.back().type() == op.type()) {
         _str.back().extend(op.length());
         _str.back().base = op.base;
-        _str.back().sub  = op.sub;
+        _str.back().sub = op.sub;
     } else {
         _str.push_back(op);
     }
-
 }
-
 
 void CIGAR::append(const CIGAR_op& op) {
 
     _str.push_back(op);
-
 }
-
 
 int32_t CIGAR::size() const {
 
     return static_cast<int32_t>(_str.size());
-
 }
-
 
 int32_t CIGAR::bases() const {
 
@@ -1436,9 +1141,7 @@ int32_t CIGAR::bases() const {
     }
 
     return bases;
-
 }
-
 
 CIGAR CIGAR::revcol(int32_t window) const {
 
@@ -1450,76 +1153,68 @@ CIGAR CIGAR::revcol(int32_t window) const {
 
         if (op.type() == CIGAR_t::MATCH) {
             _new.append(op);
-        } 
+        }
 
         // The current OP is a mod, the previous OP was a mod
 
         else if (!_new.empty() && _new.back().type() != CIGAR_t::MATCH) {
             _new.back().extend(op.length());
-        } 
+        }
 
         // The current OP is a mod, the previous op was a match
 
         else {
             _new.append(op);
         }
-
     }
 
     return _new;
-
 }
-
 
 CIGAR_op CIGAR::back() const {
 
-    if (!_str.empty()) { return _str.back(); }
+    if (!_str.empty()) {
+        return _str.back();
+    }
     return {};
-
 }
 
-
-auto CIGAR::begin() -> decltype(_str.begin()) { return _str.begin(); }
-auto CIGAR::begin() const -> decltype(_str.begin()) { return _str.begin(); }
-auto CIGAR::end() -> decltype(_str.end()) { return _str.end(); }
-auto CIGAR::end() const -> decltype(_str.end()) { return _str.end(); }
-
-
-
-
+auto CIGAR::begin() -> decltype(_str.begin()) {
+    return _str.begin();
+}
+auto CIGAR::begin() const -> decltype(_str.begin()) {
+    return _str.begin();
+}
+auto CIGAR::end() -> decltype(_str.end()) {
+    return _str.end();
+}
+auto CIGAR::end() const -> decltype(_str.end()) {
+    return _str.end();
+}
 
 //
 // PHRED
 //
 
-
-
-
+template <typename dtype> BaseMask<dtype>::BaseMask(int32_t length) : mask(length + 1, 0) {}
 
 template <typename dtype>
-BaseMask<dtype>::BaseMask(int32_t length) : mask(length + 1, 0) {}
-
-
-template <typename dtype>
-static inline BaseMask<dtype> _get_mask(
-    std::span<const qual_t> quality,
-    qual_t min,
-    int32_t window
-) {
+static inline BaseMask<dtype> _get_mask(std::span<const qual_t> quality, qual_t min,
+                                        int32_t window) {
 
     auto length = static_cast<int32_t>(quality.size());
     int32_t bad = 0;
     window = std::min(window, length);
 
     int32_t start = 0;
-    int32_t stop  = 0;
+    int32_t stop = 0;
 
     if (length < 2 * window + 1) {
         start = length - window;
-        stop  = window + 1;
+        stop = window + 1;
     } else {
         start = window + 1;
-        stop  = length - window;
+        stop = length - window;
     }
 
     BaseMask<dtype> bm(length);
@@ -1563,9 +1258,7 @@ static inline BaseMask<dtype> _get_mask(
     }
 
     return bm;
-
 }
-
 
 static inline std::string _phred_to_str(const std::vector<qual_t>& qualities) {
 
@@ -1577,30 +1270,24 @@ static inline std::string _phred_to_str(const std::vector<qual_t>& qualities) {
     }
 
     return str;
-
 }
 
-
 PHRED::PHRED(const std::vector<qual_t>& qualities) : _qualities(qualities) {}
-
 
 qual_t PHRED::operator[](int32_t ix) const {
 
     return _qualities[ix];
-
 }
 
 std::string PHRED::str() const {
 
     return _phred_to_str(_qualities);
-
 }
-
 
 bool PHRED::check(int32_t ix, qual_t min, int32_t window) const {
 
     auto _length = static_cast<int32_t>(_qualities.size());
-    auto _zero   = static_cast<int32_t>(0);
+    auto _zero = static_cast<int32_t>(0);
 
     int32_t jx_min = std::max(ix - window, _zero);
     int32_t jx_max = std::min(ix + window + 1, _length);
@@ -1612,92 +1299,58 @@ bool PHRED::check(int32_t ix, qual_t min, int32_t window) const {
     }
 
     return quality;
-
 }
 
-
-template <typename dtype>
-BaseMask<dtype> PHRED::mask(qual_t min, int32_t window) const {
+template <typename dtype> BaseMask<dtype> PHRED::mask(qual_t min, int32_t window) const {
 
     return _get_mask<dtype>(_qualities, min, window);
-
 }
-
-
-
-
 
 //
 // AlignmentIter
 //
 
-
-
-
-
 Iterator::Iterator(int64_t reads) : _reads(reads) {}
-
 
 bool Iterator::end() const noexcept {
 
     return _curr >= _reads;
-
 }
-
 
 Alignment EmptyIterator::next() {
 
     __throw_and_log(_LOG_FILE, "Cannot get alignments from an empty iterator.");
-
 }
-
-
-
-
 
 //
 // Index
 //
 
-
-
-
-
 bool IndexBlock::empty() const {
 
     return (ptr == -1 || reads == 0);
-
 }
-
 
 void IndexBlock::tell(BGZF* _hts_bgzf) {
 
     ptr = bgzf_tell(_hts_bgzf);
-
 }
-
 
 void IndexBlock::write_ptr(std::ofstream& file) {
 
     file.write(reinterpret_cast<char*>(&ptr), sizeof(int64_t));
-
 }
-
 
 void IndexBlock::write_bad_ptr(std::ofstream& file) {
 
     int64_t _tmp_ptr = -1;
     file.write(reinterpret_cast<char*>(&_tmp_ptr), sizeof(int64_t));
-
 }
-
 
 void IndexBlock::write_reads(std::ofstream& file) {
 
     file.write(reinterpret_cast<char*>(&reads), sizeof(int64_t));
-
 }
-
 
 Index::Index(const std::string& filename, int32_t references)
     : _name(filename), _file(filename), _references(references) {
@@ -1705,14 +1358,13 @@ Index::Index(const std::string& filename, int32_t references)
     // Don't fail reads quietly
 
     _file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
 }
-
 
 IndexBlock Index::read(int32_t ix) {
 
     if (ix >= _references) {
-        __throw_and_log(_LOG_FILE, "The index " + std::to_string(ix) + " is too large for the file \"" + _name + "\".");
+        __throw_and_log(_LOG_FILE, "The index " + std::to_string(ix) +
+                                       " is too large for the file \"" + _name + "\".");
     }
 
     IndexBlock block;
@@ -1721,9 +1373,7 @@ IndexBlock Index::read(int32_t ix) {
     _file.read(reinterpret_cast<char*>(&block), sizeof(IndexBlock));
 
     return block;
-
 }
-
 
 int64_t Index::aligned() {
 
@@ -1733,9 +1383,7 @@ int64_t Index::aligned() {
     }
 
     return reads;
-
 }
-
 
 int64_t Index::unaligned() {
 
@@ -1745,107 +1393,76 @@ int64_t Index::unaligned() {
     _file.read(reinterpret_cast<char*>(&unaligned), sizeof(int64_t));
 
     return unaligned;
-
 }
-
-
-
-
 
 //
 // File
 //
 
-
-
-
-
 File::File(const std::string& name, FileType type)
     : _name(name), _type(type), _hts_bgzf(_open_bgzf(name)) {}
-
 
 File::~File() {
 
     _close_bgzf(_hts_bgzf);
-
 }
-
 
 std::string File::name() const {
 
     return _name;
-
 }
-
 
 FileType File::type() const {
 
     return _type;
 }
 
-
 int32_t File::size() const {
 
     return _references;
-
 }
-
 
 int64_t File::aligned() {
 
     return _index.aligned();
-
 }
-
 
 int64_t File::unaligned() {
 
     return _index.unaligned();
-
 }
-
 
 static inline std::unique_ptr<File> _get_file(const std::string& name) {
 
-    BGZF* file    = _open_bgzf(name);
+    BGZF* file = _open_bgzf(name);
     FileType type = _get_filetype(file);
     _close_bgzf(file);
 
     switch (type) {
 
-        case FileType::SAM: {
-            return _get_sam(name);
-        }
-
-        case FileType::BAM: {
-            return _get_bam(name);
-        }
-
-        case FileType::CRAM: {
-            return _get_cram(name);
-        }
-
+    case FileType::SAM: {
+        return _get_sam(name);
     }
 
+    case FileType::BAM: {
+        return _get_bam(name);
+    }
+
+    case FileType::CRAM: {
+        return _get_cram(name);
+    }
+    }
 }
-
-
-
-
 
 //
 // FileGroup
 //
 
-
-
-
-
 FileGroup::FileGroup(const std::vector<std::string>& filenames) {
 
     _throw_if_has_duplicate_paths(filenames);
 
-    int32_t file   = 1;
+    int32_t file = 1;
     int32_t nfiles = filenames.size();
 
     for (const auto& name : filenames) {
@@ -1863,18 +1480,13 @@ FileGroup::FileGroup(const std::vector<std::string>& filenames) {
         }
 
         file++;
-
     }
-
 }
-
 
 int32_t FileGroup::size() const {
 
     return static_cast<int32_t>(_group.size());
-
 }
-
 
 int32_t FileGroup::size(FileType type) const {
 
@@ -1884,9 +1496,7 @@ int32_t FileGroup::size(FileType type) const {
     }
 
     return _count;
-
 }
-
 
 int64_t FileGroup::aligned() {
 
@@ -1896,9 +1506,7 @@ int64_t FileGroup::aligned() {
     }
 
     return _reads;
-
 }
-
 
 int64_t FileGroup::unaligned() {
 
@@ -1908,9 +1516,7 @@ int64_t FileGroup::unaligned() {
     }
 
     return _reads;
-
 }
-
 
 int32_t FileGroup::references() const {
 
@@ -1919,150 +1525,123 @@ int32_t FileGroup::references() const {
     } else {
         return 0;
     }
-
 }
 
+auto FileGroup::begin() -> decltype(_group.begin()) {
+    return _group.begin();
+}
 
-auto FileGroup::begin() -> decltype(_group.begin()) { return _group.begin(); }
+auto FileGroup::begin() const -> decltype(_group.begin()) {
+    return _group.begin();
+}
 
+auto FileGroup::end() -> decltype(_group.end()) {
+    return _group.end();
+}
 
-auto FileGroup::begin() const -> decltype(_group.begin()) { return _group.begin(); }
-
-
-auto FileGroup::end() -> decltype(_group.end()) { return _group.end(); }
-
-
-auto FileGroup::end() const -> decltype(_group.end()) { return _group.end(); }
-
-
-
-
+auto FileGroup::end() const -> decltype(_group.end()) {
+    return _group.end();
+}
 
 //
 // Printing utilities
 //
 
-
-
-
-
 std::ostream& operator<<(std::ostream& os, FileType fileType) {
 
     switch (fileType) {
 
-        case FileType::SAM:  {
-            os << "SAM";
-            break;
-        }
+    case FileType::SAM: {
+        os << "SAM";
+        break;
+    }
 
-        case FileType::BAM:  {
-            os << "BAM";
-            break;
-        }
+    case FileType::BAM: {
+        os << "BAM";
+        break;
+    }
 
-        case FileType::CRAM: {
-            os << "CRAM";
-            break;
-        }
-
+    case FileType::CRAM: {
+        os << "CRAM";
+        break;
+    }
     }
 
     return os;
-
 }
-
 
 std::ostream& operator<<(std::ostream& os, CIGAR_t cigar) {
 
     switch (cigar) {
-        case CIGAR_t::UNKNOWN:  {
-            os << "UNKNOWN";
-            break;
-        }
-        case CIGAR_t::MATCH:    {
-            os << "MATCH";
-            break;
-        }
-        case CIGAR_t::MISMATCH: {
-            os << "MISMATCH";
-            break;
-        }
-        case CIGAR_t::DEL:      {
-            os << "DEL";
-            break;
-        }
-        case CIGAR_t::INS:      {
-            os << "INS";
-            break;
-        }
-        case CIGAR_t::SOFT:     {
-            os << "SOFT";
-            break;
-        }
-        case CIGAR_t::HARD:     {
-            os << "HARD";
-            break;
-        }
-        case CIGAR_t::SKIP:     {
-            os << "SKIP";
-            break;
-        }
-        case CIGAR_t::PAD:      {
-            os << "PAD";
-            break;
-        }
-        case CIGAR_t::BACK:     {
-            os << "BACK";
-            break;
-        }
-        case CIGAR_t::TERM:     {
-            os << "TERM";
-            break;
-        }
+    case CIGAR_t::UNKNOWN: {
+        os << "UNKNOWN";
+        break;
+    }
+    case CIGAR_t::MATCH: {
+        os << "MATCH";
+        break;
+    }
+    case CIGAR_t::MISMATCH: {
+        os << "MISMATCH";
+        break;
+    }
+    case CIGAR_t::DEL: {
+        os << "DEL";
+        break;
+    }
+    case CIGAR_t::INS: {
+        os << "INS";
+        break;
+    }
+    case CIGAR_t::SOFT: {
+        os << "SOFT";
+        break;
+    }
+    case CIGAR_t::HARD: {
+        os << "HARD";
+        break;
+    }
+    case CIGAR_t::SKIP: {
+        os << "SKIP";
+        break;
+    }
+    case CIGAR_t::PAD: {
+        os << "PAD";
+        break;
+    }
+    case CIGAR_t::BACK: {
+        os << "BACK";
+        break;
+    }
+    case CIGAR_t::TERM: {
+        os << "TERM";
+        break;
+    }
     }
 
     return os;
-
 }
-
 
 std::ostream& operator<<(std::ostream& os, const CIGAR_op& op) {
 
     os << std::left << std::setw(9) << op.type() << std::right << std::setw(4) << op.length();
 
     return os;
-
 }
-
-
 
 std::ostream& operator<<(std::ostream& os, const CIGAR& cigar) {
 
     for (const auto& op : cigar) {
-        os << op  << "\n";
+        os << op << "\n";
     }
 
     return os;
-
 }
-
-
-
-
 
 //
 // Templates
 //
 
-
-
-
 template BaseMask<float> PHRED::mask(qual_t min, int32_t window) const;
 
-
-
-
-
 } // namespace HTS
-
-

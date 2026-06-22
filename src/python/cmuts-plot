@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+
 import h5py
 import numpy as np
+
 import cmuts
 
-
-parser = argparse.ArgumentParser(
-    description="Plot reactivity profiles stored in HDF5 files"
-)
+parser = argparse.ArgumentParser(description="Plot reactivity profiles stored in HDF5 files")
 parser.add_argument(
     "--files",
     help="Path to HDF5 file(s)",
@@ -45,6 +44,7 @@ parser.add_argument(
     help="Trim this many bases from the 3' end of the reactivity data.",
 )
 
+
 def _load_reactivity(
     file: str,
     dataset: str,
@@ -52,8 +52,7 @@ def _load_reactivity(
     trim5: int = 0,
     trim3: int = 0,
 ) -> np.ndarray:
-
-    with h5py.File(file, 'r') as f:
+    with h5py.File(file, "r") as f:
         data = f[dataset]
         if data.ndim == 2:
             data = data[index]
@@ -69,7 +68,6 @@ def _load_reactivity(
 
 
 if __name__ == "__main__":
-
     args = parser.parse_args()
 
     reactivity = []

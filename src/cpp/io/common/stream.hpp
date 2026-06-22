@@ -7,39 +7,35 @@
 #include <span>
 
 extern "C" {
-    #include <htslib/bgzf.h>
-    #include <zlib.h>
+#include <htslib/bgzf.h>
+#include <zlib.h>
 }
 
 #include "types.hpp"
-
 
 //
 // ByteStream
 //
 
-
 class ByteStream {
-protected:
-
-    int32_t _size      = 0;
+  protected:
+    int32_t _size = 0;
     int32_t _remaining = 0;
 
-    uint8_t _byte   = 0;
+    uint8_t _byte = 0;
     uint8_t _n_bits = 0;
 
-public:
-
+  public:
     explicit ByteStream(int32_t size);
     virtual ~ByteStream() = default;
     ByteStream(const ByteStream&) = delete;
     ByteStream& operator=(const ByteStream&) = delete;
 
-    virtual void skip(int32_t length) {};
-    virtual uint8_t byte()                               = 0;
-    virtual std::vector<uint8_t> bytes(int32_t length)   = 0;
+    virtual void skip(int32_t length){};
+    virtual uint8_t byte() = 0;
+    virtual std::vector<uint8_t> bytes(int32_t length) = 0;
     virtual std::vector<uint8_t> line(uint8_t delimiter) = 0;
-    virtual std::string str(uint8_t delimiter = '\n')    = 0;
+    virtual std::string str(uint8_t delimiter = '\n') = 0;
 
     int32_t size() const;
     int32_t remaining() const;
@@ -49,59 +45,45 @@ public:
     void memcpy(uint8_t* dest, int32_t n);
     int32_t itf8();
     int64_t ltf8();
-
 };
-
 
 //
 // Streams from in-memory data
 //
 
-
 class DataStream : public ByteStream {
-private:
-
+  private:
     std::span<const uint8_t> _data;
     int32_t _pos = 0;
 
-public:
-
+  public:
     explicit DataStream(std::span<const uint8_t> data);
 
     uint8_t byte() override;
     std::vector<uint8_t> bytes(int32_t length) override;
     std::vector<uint8_t> line(uint8_t delimiter) override;
     std::string str(uint8_t delimiter) override;
-
-
 };
 
-
 class RansStream : public DataStream {
-private:
-
+  private:
     std::vector<uint8_t> _rans_data;
     explicit RansStream(std::vector<uint8_t> data);
 
-public:
-
+  public:
     explicit RansStream(std::span<const uint8_t> data, int32_t raw);
-
 };
 
-
 class ZlibStream : public ByteStream {
-protected:
-
+  protected:
     z_stream _stream;
     std::vector<uint8_t> _buffer;
 
     int32_t _buffer_pos = 0;
     int32_t _buffer_end = 0;
-    bool _open          = false;
+    bool _open = false;
 
-public:
-
+  public:
     ZlibStream(std::span<const uint8_t> data, int32_t raw, int32_t buffer);
     ~ZlibStream() override;
 
@@ -113,22 +95,17 @@ public:
     std::string str(uint8_t delimiter) override;
 
     void update(std::span<const uint8_t> data);
-
 };
-
 
 //
 // Streams from in-storage data
 //
 
-
 class BgzfFileStream : public ByteStream {
-private:
-
+  private:
     BGZF* _file;
 
-public:
-
+  public:
     BgzfFileStream(BGZF* file, int32_t size);
 
     void skip(int32_t length) override;
@@ -136,28 +113,23 @@ public:
     std::vector<uint8_t> bytes(int32_t length) override;
     std::vector<uint8_t> line(uint8_t delimiter) override;
     std::string str(uint8_t delimiter) override;
-
 };
 
-
 class ZlibFileStream : public ZlibStream {
-private:
-
+  private:
     BgzfFileStream _bgzf;
     std::vector<uint8_t> _bgzf_buffer;
     std::span<const uint8_t> _buffer_span;
 
     int32_t _bgzf_buffer_pos = 0;
-    int32_t _in_remaining    = 0;
+    int32_t _in_remaining = 0;
 
-public:
-
-    ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw, int32_t buffer);
+  public:
+    ZlibFileStream(BGZF* file, std::span<const uint8_t> data, int32_t size, int32_t raw,
+                   int32_t buffer);
     ZlibFileStream(BGZF* file, int32_t size, int32_t raw, int32_t buffer);
 
     void fill() override;
-
 };
-
 
 #endif

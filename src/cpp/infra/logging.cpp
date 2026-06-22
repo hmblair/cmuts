@@ -28,7 +28,6 @@ static inline void __log_trace(std::ofstream& file) {
     }
 
     free(symbols);
-
 }
 
 void __log(const std::string& filename, const std::string& message) {
@@ -42,14 +41,13 @@ void __log(const std::string& filename, const std::string& message) {
 
     file << "MESSAGE: " << message;
 
-    #ifdef MPI_BUILD
-        int rank = 0;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        file << " (process " << std::to_string(rank) << ")";
-    #endif
+#ifdef MPI_BUILD
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    file << " (process " << std::to_string(rank) << ")";
+#endif
 
     file << std::endl;
-
 }
 
 void __init_log(const std::string& filename) {
@@ -62,18 +60,18 @@ void __init_log(const std::string& filename) {
         return;
     }
 
-    #ifdef MPI_BUILD
-        int rank = 0;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        if (rank == 0) {
-    #endif
+#ifdef MPI_BUILD
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) {
+#endif
 
-    file << "--------------- " << ("cmuts v" + std::string(VERSION) + " - ") << std::ctime(&now);
+        file << "--------------- " << ("cmuts v" + std::string(VERSION) + " - ")
+             << std::ctime(&now);
 
-    #ifdef MPI_BUILD
-        }
-    #endif
-
+#ifdef MPI_BUILD
+    }
+#endif
 }
 
 [[noreturn]] void __throw_and_log(const std::string& filename, const std::string& err) {
@@ -88,15 +86,10 @@ void __init_log(const std::string& filename) {
     }
 
     throw std::runtime_error(err);
-
 }
 
-[[noreturn]] void __throw_and_log(
-    const std::string& filename,
-    const char* source_file,
-    int line,
-    const std::string& err
-) {
+[[noreturn]] void __throw_and_log(const std::string& filename, const char* source_file, int line,
+                                  const std::string& err) {
     std::ofstream file(filename, std::ios::app);
 
     if (!file) {
@@ -128,12 +121,8 @@ static double __get_elapsed_seconds() {
 }
 
 // Format a log line with all context
-static std::string __format_log_line(
-    LogLevel level,
-    const char* file,
-    int line,
-    const std::string& msg
-) {
+static std::string __format_log_line(LogLevel level, const char* file, int line,
+                                     const std::string& msg) {
     std::ostringstream oss;
 
     // Timestamp: elapsed seconds since start
@@ -143,30 +132,26 @@ static std::string __format_log_line(
     // Level
     oss << "[" << _level_names[static_cast<int>(level)] << "] ";
 
-    // MPI rank
-    #ifdef MPI_BUILD
-        int rank = 0;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        oss << "[P" << rank << "] ";
-    #endif
+// MPI rank
+#ifdef MPI_BUILD
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    oss << "[P" << rank << "] ";
+#endif
 
     // Source location (basename only for readability)
     const char* basename = file;
     for (const char* p = file; *p; ++p) {
-        if (*p == '/') basename = p + 1;
+        if (*p == '/')
+            basename = p + 1;
     }
     oss << basename << ":" << line << " - " << msg;
 
     return oss.str();
 }
 
-void __log_level(
-    const std::string& log_file,
-    LogLevel level,
-    const char* file,
-    int line,
-    const std::string& msg
-) {
+void __log_level(const std::string& log_file, LogLevel level, const char* file, int line,
+                 const std::string& msg) {
     std::string formatted = __format_log_line(level, file, line, msg);
 
     // Write to file
@@ -198,7 +183,8 @@ void init_logging_from_env() {
     if (level_env) {
         std::string level_str(level_env);
         // Convert to uppercase for comparison
-        for (auto& c : level_str) c = std::toupper(c);
+        for (auto& c : level_str)
+            c = std::toupper(c);
 
         if (level_str == "TRACE") {
             g_log_level = LogLevel::TRACE;

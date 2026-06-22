@@ -9,70 +9,64 @@
 
 #ifdef MPI_BUILD
 extern "C" {
-    #include <mpi.h>
+#include <mpi.h>
 }
 #else
 #include <chrono>
 #endif
 
 const int MINUTE = 60;
-const int HOUR   = 3600;
+const int HOUR = 3600;
 
 namespace MPI {
 
 class Timer {
-private:
-
-    bool running  = false;
+  private:
+    bool running = false;
     double _start = 0.0;
     double _total = 0.0;
 
-public:
-
+  public:
     Timer() = default;
     void start();
     void stop();
     double elapsed() const;
     std::string str() const;
-
 };
 
 struct Chunk {
 
-    int32_t low  = 0;
+    int32_t low = 0;
     int32_t high = 0;
     int32_t step = 0;
     int32_t size = 0;
-
 };
 
 class Manager {
-private:
-
+  private:
     int _rank = 0;
     int _size = 1;
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     MPI_Info _info = nullptr;
     MPI_Comm _comm = MPI_COMM_WORLD;
-    #endif
+#endif
 
     Timer timer;
 
-public:
-
+  public:
     Manager(int& argc, char**& argv);
-    Manager (const Manager&) = delete;
-    Manager& operator= (const Manager&) = delete;
+    Manager(const Manager&) = delete;
+    Manager& operator=(const Manager&) = delete;
     ~Manager();
 
     int rank() const;
     int size() const;
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     MPI_Comm comm() const;
     MPI_Info info() const;
-    #endif
+#endif
 
     int64_t reduce(const int64_t& value) const;
     int64_t broadcast(int64_t& value) const;
@@ -91,7 +85,7 @@ public:
     int32_t chunksize(int32_t size, int32_t total) const;
 
     class OutStream {
-    public:
+      public:
         OutStream(const Manager& manager) : manager(manager) {}
         ~OutStream() {
             if (manager.root() && !oss.str().empty()) {
@@ -99,22 +93,19 @@ public:
             }
         }
 
-        template <typename T>
-        OutStream& operator<<(const T& val) {
+        template <typename T> OutStream& operator<<(const T& val) {
             oss << val;
             return *this;
         }
 
-    private:
+      private:
         const Manager& manager;
         std::ostringstream oss;
     };
-    OutStream out() const {
-        return OutStream(*this);
-    }
+    OutStream out() const { return OutStream(*this); }
 
     class ErrStream {
-    public:
+      public:
         ErrStream(const Manager& manager) : manager(manager) {}
         ~ErrStream() {
             if (manager.root() && !oss.str().empty()) {
@@ -122,22 +113,18 @@ public:
             }
         }
 
-        template <typename T>
-        ErrStream& operator<<(const T& val) {
+        template <typename T> ErrStream& operator<<(const T& val) {
             oss << val;
             return *this;
         }
 
-    private:
+      private:
         const Manager& manager;
         std::ostringstream oss;
     };
-    ErrStream err() const {
-        return ErrStream(*this);
-    }
+    ErrStream err() const { return ErrStream(*this); }
 
     Chunk chunk(int32_t size, int32_t total) const;
-
 };
 
 } // namespace MPI

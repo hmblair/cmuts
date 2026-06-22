@@ -141,7 +141,7 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
     if [[ ! -z "$TRIM5" ]] && [[ ! -z "$TRIM3" ]]; then
         # Two-pass approach: both adapters required
         echo "Both adapters provided - requiring both to be trimmed"
-        
+
         # Pass 1: Trim 5' adapter, discard if not found
         cutadapt \
           --cores "$THREADS" \
@@ -150,7 +150,7 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
           -g "$TRIM5" \
           -o "$TRDIR/${BASENAME}_temp.fastq" \
           "$FILE"
-        
+
         # Pass 2: Trim 3' adapter, discard if not found
         cutadapt \
           --cores "$THREADS" \
@@ -159,10 +159,10 @@ if [[ ! -z "$TRIM5" || ! -z "$TRIM3" ]]; then
           -a "$TRIM3" \
           -o "$TRDIR/$NAME" \
           "$TRDIR/${BASENAME}_temp.fastq"
-        
+
         # Clean up temporary file
         rm "$TRDIR/${BASENAME}_temp.fastq"
-        
+
     else
         # Original single-pass approach for when only one adapter is provided
         FARGS=()

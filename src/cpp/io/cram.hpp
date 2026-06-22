@@ -7,76 +7,50 @@
 
 const int32_t FILE_ID_SIZE = 20;
 
-const int32_t SM_SIZE  = 5;
+const int32_t SM_SIZE = 5;
 const int32_t MD5_SIZE = 16;
 const int32_t KEY_SIZE = 2;
 const int32_t CRC_SIZE = 4;
 
-const int32_t CRAM_EOF_POS  = 4542278;
-const int32_t CRAM_MULTI    = -2;
-
-
-
-
+const int32_t CRAM_EOF_POS = 4542278;
+const int32_t CRAM_MULTI = -2;
 
 //
 // ITF8 and LTF8 integers
 //
 
-
-
-
-
 struct ITF8 {
 
-    int32_t size  = 1;
+    int32_t size = 1;
     int32_t value = 0;
-    int32_t read  = 1;
-
+    int32_t read = 1;
 };
-
 
 struct LTF8 {
 
-    int32_t size  = 1;
+    int32_t size = 1;
     int64_t value = 0;
-    int32_t read  = 1;
-
+    int32_t read = 1;
 };
-
 
 struct ITF8arr {
 
     int32_t size = 1;
     std::vector<int32_t> values;
-
 };
-
 
 struct LTF8arr {
 
     int32_t size = 1;
     std::vector<int64_t> values;
-
 };
 
-
-
-
-
-
 namespace HTS {
-
-
-
-
 
 struct CramHeader : public Header {
 
     int32_t version;
-
 };
-
 
 enum class ExtData_t : uint8_t {
 
@@ -111,7 +85,6 @@ enum class ExtData_t : uint8_t {
 
 };
 
-
 // The number of external data types.
 
 const int32_t AUX_DATA_SIZE = 28;
@@ -121,7 +94,6 @@ const int32_t AUX_DATA_SIZE = 28;
 
 const std::unordered_set<ExtData_t> EXT_SKIP = {ExtData_t::RN, ExtData_t::TL};
 
-
 enum class AuxDataEncoding : uint8_t {
 
     Int32,
@@ -129,7 +101,6 @@ enum class AuxDataEncoding : uint8_t {
     ByteArray
 
 };
-
 
 enum class Codec_t : uint8_t {
 
@@ -142,7 +113,6 @@ enum class Codec_t : uint8_t {
 
 };
 
-
 enum class CompressionMethod : uint8_t {
 
     None,
@@ -150,7 +120,6 @@ enum class CompressionMethod : uint8_t {
     rans4x8
 
 };
-
 
 enum class CramBlockType : uint8_t {
 
@@ -163,17 +132,9 @@ enum class CramBlockType : uint8_t {
 
 };
 
-
-
-
-
 //
 // Headers
 //
-
-
-
-
 
 struct PreservationMap {
 
@@ -182,19 +143,15 @@ struct PreservationMap {
     bool RR = true;
     uint8_t SM[SM_SIZE];
     std::vector<uint8_t> TD;
-
 };
 
-
 class Codec {
-protected:
-
+  protected:
     Codec_t _type;
     int32_t _id = -1;
     std::shared_ptr<ByteStream> _stream = nullptr;
 
-public:
-
+  public:
     explicit Codec(Codec_t type);
     Codec(Codec_t type, int32_t id);
     virtual ~Codec() = default;
@@ -207,118 +164,86 @@ public:
     virtual int32_t integer();
     virtual std::vector<uint8_t> array();
     virtual std::vector<uint8_t> array(int32_t length);
-
 };
 
-
 class ExternalCodec : public Codec {
-private:
-
-public:
-
+  private:
+  public:
     explicit ExternalCodec(int32_t id);
 
     std::vector<uint8_t> array(int32_t length) override;
-
 };
-
 
 class ByteArrayStopCodec : public Codec {
-private:
-
+  private:
     uint8_t _stop = 0;
 
-public:
-
-    explicit ByteArrayStopCodec (int32_t id, uint8_t stop);
+  public:
+    explicit ByteArrayStopCodec(int32_t id, uint8_t stop);
 
     std::vector<uint8_t> array() override;
-
 };
 
-
-class HuffmanCodec: public Codec {
-private:
-
+class HuffmanCodec : public Codec {
+  private:
     std::vector<int32_t> _alphabet;
     std::vector<int32_t> _lengths;
 
-public:
-
+  public:
     HuffmanCodec(const std::vector<int32_t>& alphabet, const std::vector<int32_t>& lengths);
 
     uint8_t byte() override;
     int32_t integer() override;
-
 };
 
-
-class BetaCodec: public Codec {
-private:
-
+class BetaCodec : public Codec {
+  private:
     int32_t _offset = 0;
     int32_t _length = 0;
 
-public:
-
+  public:
     BetaCodec(int32_t offset, int32_t length);
 
     int32_t integer() override;
-
 };
 
-
-class SubExpCodec: public Codec {
-private:
-
+class SubExpCodec : public Codec {
+  private:
     int32_t _offset = 0;
-    int32_t _order  = 0;
+    int32_t _order = 0;
 
-public:
-
+  public:
     SubExpCodec(int32_t offset, int32_t order);
 
     int32_t integer() override;
-
 };
-
 
 struct CodecMap {
 
     std::unordered_map<ExtData_t, std::shared_ptr<Codec>> map;
     std::unordered_map<int32_t, ExtData_t> externals;
-
 };
-
-
 
 //
 // CramBlock
 //
 
-
 class SubstitutionMatrix {
-private:
-
+  private:
     std::vector<std::vector<base_t>> _decoder;
 
-public:
-
+  public:
     SubstitutionMatrix() = default;
     explicit SubstitutionMatrix(uint8_t* matrix);
 
     std::vector<base_t> parse(base_t code);
-
 };
 
-
 class CramBlock {
-private:
-
+  private:
     bool _has_crc;
 
-public:
-
+  public:
     explicit CramBlock(BGZF* file, bool crc);
     explicit CramBlock(uint8_t*& _data, bool crc);
     ~CramBlock() = default;
@@ -346,8 +271,7 @@ public:
     std::vector<int32_t> itf8_arr();
     std::vector<int64_t> ltf8_arr();
 
-    template <typename dtype>
-    std::vector<dtype> array();
+    template <typename dtype> std::vector<dtype> array();
 
     int32_t length(uint8_t stop = 0);
     std::string str(int32_t length);
@@ -355,13 +279,10 @@ public:
     // Are we at the end of the block
 
     bool end() const;
-
 };
 
-
 class CramSlice {
-public:
-
+  public:
     // Load just the header, or the header and all blocks
 
     explicit CramSlice(uint8_t*& data, bool crc);
@@ -393,48 +314,33 @@ public:
     // The number of unaligned reads in the slice
 
     int64_t unaligned();
-
 };
 
-
 class CompressionHeader {
-private:
-
+  private:
     PreservationMap _map;
     CodecMap _codecs;
     SubstitutionMatrix _subs;
 
-public:
-
+  public:
     CompressionHeader() = default;
     explicit CompressionHeader(uint8_t*& data, bool crc);
 
     CodecMap codecs() const;
     SubstitutionMatrix substitution() const;
     bool delta() const;
-
 };
-
-
-
-
 
 //
 // CramContainerBase; CramContainer; CramHeaderContainer
 //
 
-
-
-
-
 class CramContainerBase {
-protected:
-
-    BGZF* _file   = nullptr;
+  protected:
+    BGZF* _file = nullptr;
     bool _has_crc = false;
 
-public:
-
+  public:
     CramContainerBase() = default;
     explicit CramContainerBase(BGZF* file, int32_t version);
 
@@ -443,16 +349,16 @@ public:
 
     // The container header as per the specification
 
-    int32_t size      = 0;
+    int32_t size = 0;
     int32_t reference = 0;
-    int32_t offset    = 0;
-    int32_t span      = 0;
-    int32_t records   = 0;
-    int64_t counter   = 0;
-    int64_t bases     = 0;
-    int32_t blocks    = 0;
+    int32_t offset = 0;
+    int32_t span = 0;
+    int32_t records = 0;
+    int64_t counter = 0;
+    int64_t bases = 0;
+    int32_t blocks = 0;
     std::vector<int32_t> landmarks;
-    int32_t crc32     = 0;
+    int32_t crc32 = 0;
 
     // Is this the EOF container
 
@@ -461,19 +367,15 @@ public:
     // Is this a multi-reference container
 
     bool multi() const;
-
 };
 
-
 class CramContainer : public CramContainerBase {
-private:
-
+  private:
     // The compression header; only present if !eof()
 
     CompressionHeader _comp;
 
-public:
-
+  public:
     CramContainer() = default;
     explicit CramContainer(BGZF* file, int32_t version);
 
@@ -501,15 +403,11 @@ public:
     SubstitutionMatrix substitution() const;
 
     bool delta() const;
-
 };
 
-
 class CramHeaderContainer : public CramContainerBase {
-private:
-
-public:
-
+  private:
+  public:
     explicit CramHeaderContainer(BGZF* file, int32_t version);
 
     void skip();
@@ -517,22 +415,13 @@ public:
     // The raw data of the container
 
     std::unique_ptr<ByteStream> stream;
-
 };
 
-
-
-
-
-
-
-
 class CramIterator : public Iterator {
-private:
-
+  private:
     // The BGZF file and version
 
-    BGZF* _file     = nullptr;
+    BGZF* _file = nullptr;
     int32_t _version = 0;
 
     // Reference to the blocks in the slice
@@ -541,7 +430,7 @@ private:
 
     // Load the next slice, which may be in the next container
 
-    int32_t _slice              = 0;
+    int32_t _slice = 0;
     int32_t _remaining_in_slice = 0;
     void _next_slice();
 
@@ -549,10 +438,10 @@ private:
 
     CIGAR _cigar;
 
-    int32_t _qpos         = 0;
+    int32_t _qpos = 0;
     int32_t _prev_qlength = 0;
-    int32_t _offset       = 0;
-    int32_t _remaining    = 0;
+    int32_t _offset = 0;
+    int32_t _remaining = 0;
 
     // Add an op to the CIGAR
 
@@ -563,8 +452,7 @@ private:
     Alignment _tmp;
     bool _use_tmp = false;
 
-public:
-
+  public:
     explicit CramIterator(BGZF* file, int32_t reads, int32_t version);
     CramIterator(CramIterator&&) = delete;
     CramIterator& operator=(CramIterator&&) = delete;
@@ -575,58 +463,31 @@ public:
     void to(int32_t reference);
     bool empty() const;
     void set(int64_t reads);
-
 };
-
-
-
-
 
 //
 // CramFile
 //
 
-
-
-
-
 class CramFile : public File {
-private:
-
+  private:
     int32_t _version = 0;
     std::shared_ptr<CramIterator> _iterator;
 
-public:
-
+  public:
     explicit CramFile(const std::string& name);
     ~CramFile() override = default;
 
     std::shared_ptr<Iterator> get(int32_t ix, bool seek) override;
-
 };
-
-
-
-
 
 //
 // Printing overloads
 //
 
-
-
-
-
 std::ostream& operator<<(std::ostream& os, const CramBlock& block);
 std::ostream& operator<<(std::ostream& os, const CramContainer& container);
 
-
-
-
-
 } // namespace HTS
-
-
-
 
 #endif

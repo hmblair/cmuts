@@ -3,148 +3,119 @@
 #include "htslib/hts.h"
 #include <stdexcept>
 
-
-
-
-
 namespace HTS {
-
-
-
-
 
 //
 // Converting to and from internal HTSlib representaitons
 //
 
-
-
-
-
 static inline base_t _base_from_hts(uint8_t base) {
 
     switch (base) {
-        case HTS_A: { return IX_A;   }
-        case HTS_C: { return IX_C;   }
-        case HTS_G: { return IX_G;   }
-        case HTS_T: { return IX_T;   }
-        default:    { return IX_UNK; }
+    case HTS_A: {
+        return IX_A;
     }
-
+    case HTS_C: {
+        return IX_C;
+    }
+    case HTS_G: {
+        return IX_G;
+    }
+    case HTS_T: {
+        return IX_T;
+    }
+    default: {
+        return IX_UNK;
+    }
+    }
 }
-
 
 static inline CIGAR_op _cigar_from_hts(uint32_t op) {
 
     int32_t length = bam_cigar_oplen(op);
-    CIGAR_t type   = CIGAR_t::UNKNOWN;
+    CIGAR_t type = CIGAR_t::UNKNOWN;
 
     switch (bam_cigar_op(op)) {
-        case BAM_CMATCH:
-        case BAM_CEQUAL: {
-            type = CIGAR_t::MATCH;
-            break;
-        }
-        case BAM_CDIFF: {
-            type = CIGAR_t::MISMATCH;
-            break;
-        }
-        case BAM_CDEL: {
-            type = CIGAR_t::DEL;
-            break;
-        }
-        case BAM_CINS: {
-            type = CIGAR_t::INS;
-            break;
-        }
-        case BAM_CSOFT_CLIP: {
-            type = CIGAR_t::SOFT;
-            break;
-        }
-        case BAM_CHARD_CLIP: {
-            type = CIGAR_t::HARD;
-            break;
-        }
-        case BAM_CREF_SKIP: {
-            type = CIGAR_t::SKIP;
-            break;
-        }
-        case BAM_CPAD: {
-            type = CIGAR_t::PAD;
-            break;
-        }
-        default: {
-            type = CIGAR_t::UNKNOWN;
-            break;
-        }
+    case BAM_CMATCH:
+    case BAM_CEQUAL: {
+        type = CIGAR_t::MATCH;
+        break;
+    }
+    case BAM_CDIFF: {
+        type = CIGAR_t::MISMATCH;
+        break;
+    }
+    case BAM_CDEL: {
+        type = CIGAR_t::DEL;
+        break;
+    }
+    case BAM_CINS: {
+        type = CIGAR_t::INS;
+        break;
+    }
+    case BAM_CSOFT_CLIP: {
+        type = CIGAR_t::SOFT;
+        break;
+    }
+    case BAM_CHARD_CLIP: {
+        type = CIGAR_t::HARD;
+        break;
+    }
+    case BAM_CREF_SKIP: {
+        type = CIGAR_t::SKIP;
+        break;
+    }
+    case BAM_CPAD: {
+        type = CIGAR_t::PAD;
+        break;
+    }
+    default: {
+        type = CIGAR_t::UNKNOWN;
+        break;
+    }
     }
 
     return {type, length};
-
 }
-
 
 static inline base_t _bam_base(bam1_t* _hts_aln, int32_t ix) {
 
-    uint8_t* _query   = bam_get_seq(_hts_aln);
+    uint8_t* _query = bam_get_seq(_hts_aln);
     uint8_t _hts_base = bam_seqi(_query, ix);
 
     return _base_from_hts(_hts_base);
-
 }
-
-
-
-
 
 //
 // MD tag
 //
 
-
-
-
-
 static inline bool _is_digit(const std::string& tag, int32_t pos) {
 
-    return (
-	pos < static_cast<int32_t>(tag.size()) &&
-	static_cast<bool>(std::isdigit(tag[pos]))
-    );
-
+    return (pos < static_cast<int32_t>(tag.size()) && static_cast<bool>(std::isdigit(tag[pos])));
 }
-
 
 static inline bool _is_alpha(const std::string& tag, int32_t pos) {
 
-    return (
-        pos < static_cast<int32_t>(tag.size()) &&
-        static_cast<bool>(std::isalpha(tag[pos]))
-    );
-
+    return (pos < static_cast<int32_t>(tag.size()) && static_cast<bool>(std::isalpha(tag[pos])));
 }
-
 
 static inline bool _is_deletion(const std::string& tag, int32_t pos) {
 
     return pos < static_cast<int32_t>(tag.size()) && tag[pos] == MD_DEL;
-
 }
-
 
 static inline bool _is_null(const std::string& tag, int32_t pos) {
 
     return pos < static_cast<int32_t>(tag.size()) && tag[pos] == MD_NULL;
-
 }
-
 
 static inline void _skip_null(const std::string& tag, int32_t& pos) {
 
-    if (_is_null(tag, pos)) { pos++; }
-
+    if (_is_null(tag, pos)) {
+        pos++;
+    }
 }
-
 
 static inline int32_t _count_matches(const std::string& tag, int32_t& pos) {
 
@@ -157,9 +128,7 @@ static inline int32_t _count_matches(const std::string& tag, int32_t& pos) {
     }
 
     return _matches;
-
 }
-
 
 static inline int32_t _count_mismatches(const std::string& tag, int32_t& pos, base_t& base) {
 
@@ -172,9 +141,7 @@ static inline int32_t _count_mismatches(const std::string& tag, int32_t& pos, ba
     }
 
     return _mismatches;
-
 }
-
 
 static inline int32_t _count_deletions(const std::string& tag, int32_t& pos) {
 
@@ -187,9 +154,7 @@ static inline int32_t _count_deletions(const std::string& tag, int32_t& pos) {
 
     _skip_null(tag, pos);
     return _deletions;
-
 }
-
 
 static inline CIGAR_t _md_type(const std::string& tag, int32_t pos) {
 
@@ -202,91 +167,81 @@ static inline CIGAR_t _md_type(const std::string& tag, int32_t pos) {
     } else {
         return CIGAR_t::UNKNOWN;
     }
-
 }
-
 
 MD_tag::MD_tag(const std::string& tag) : _tag(tag) {
 
     _skip_null(_tag, pos);
-
 }
-
 
 std::string MD_tag::str() const {
 
     return _tag;
-
 }
-
 
 void MD_tag::update() {
 
-    CIGAR_t type  = _md_type(_tag, pos);
+    CIGAR_t type = _md_type(_tag, pos);
     int32_t count = 0;
-    base_t base   = IX_UNK;
+    base_t base = IX_UNK;
 
     switch (type) {
 
-        case CIGAR_t::MATCH: {
-            count = _count_matches(_tag, pos);
-            break;
-        }
+    case CIGAR_t::MATCH: {
+        count = _count_matches(_tag, pos);
+        break;
+    }
 
-        case CIGAR_t::MISMATCH: {
-            count = _count_mismatches(_tag, pos, base);
-            break;
-        }
+    case CIGAR_t::MISMATCH: {
+        count = _count_mismatches(_tag, pos, base);
+        break;
+    }
 
-        case CIGAR_t::DEL: {
-            count = _count_deletions(_tag, pos);
-            break;
-        }
+    case CIGAR_t::DEL: {
+        count = _count_deletions(_tag, pos);
+        break;
+    }
 
-        default: {
-            __throw_and_log(_LOG_FILE, "Unknown MD tag operation \"" + std::to_string(_tag[pos]) + "\" at tag position " + std::to_string(pos) + ". The tag is " + _tag + ".");
-        }
-
+    default: {
+        __throw_and_log(_LOG_FILE, "Unknown MD tag operation \"" + std::to_string(_tag[pos]) +
+                                       "\" at tag position " + std::to_string(pos) +
+                                       ". The tag is " + _tag + ".");
+    }
     }
 
     curr = CIGAR_op(type, count);
     curr.base = base;
-
 }
-
 
 CIGAR_op MD_tag::advance() {
 
     // If the current op is empty, then move to the next op
-    if (curr.empty()) { update(); }
+    if (curr.empty()) {
+        update();
+    }
 
     // Return the current op and set it to be empty
     CIGAR_op _tmp = curr;
     curr = CIGAR_op();
     return _tmp;
-
 }
-
 
 CIGAR_op MD_tag::advance(int32_t max) {
 
     // If the current op is empty, then move to the next op
-    if (curr.empty()) { update(); }
+    if (curr.empty()) {
+        update();
+    }
 
     // Split the op based on the requested maximum size;
     // return the first half and store the second half
     std::pair<CIGAR_op, CIGAR_op> pair = curr.split(max);
     curr = pair.second;
     return pair.first;
-
 }
 
-
-static inline CIGAR _get_cigar_core(
-    std::span<const uint32_t> hts_cigar,
-    const std::string& md_tag_str,
-    bam1_t* _hts_aln
-) {
+static inline CIGAR _get_cigar_core(std::span<const uint32_t> hts_cigar,
+                                    const std::string& md_tag_str, bam1_t* _hts_aln) {
 
     int32_t qpos = 0;
 
@@ -327,7 +282,6 @@ static inline CIGAR _get_cigar_core(
                 cigar.append(_md_cig);
                 remaining -= _md_cig.length();
                 qpos++;
-
             }
 
         }
@@ -349,27 +303,15 @@ static inline CIGAR _get_cigar_core(
 
             cigar.append(op);
             qpos++;
-
         }
-
-
     }
 
     return cigar;
-
 }
-
-
-
-
 
 //
 // BAM-related functions
 //
-
-
-
-
 
 static inline bam1_t* _open_aln() {
 
@@ -382,9 +324,7 @@ static inline bam1_t* _open_aln() {
 
     _hts_aln->core.tid = -1;
     return _hts_aln;
-
 }
-
 
 static inline void _close_aln(bam1_t*& _hts_aln) {
 
@@ -392,54 +332,40 @@ static inline void _close_aln(bam1_t*& _hts_aln) {
         bam_destroy1(_hts_aln);
         _hts_aln = nullptr;
     }
-
 }
-
 
 static inline void _read_bam(BGZF* _hts_bgzf, bam1_t* _hts_aln) {
 
     if (bam_read1(_hts_bgzf, _hts_aln) < 0) {
         __throw_and_log(_LOG_FILE, "The alignment ended prematurely.");
     }
-
 }
-
 
 static inline bool _bam_aligned(bam1_t* _hts_aln) {
 
     return _hts_aln->core.tid >= 0;
-
 }
-
 
 static inline bool _bam_primary(bam1_t* _hts_aln) {
 
     int32_t mask = 0x100;
     return !static_cast<bool>(_hts_aln->core.flag & mask);
-
 }
-
 
 static inline int32_t _bam_length(bam1_t* _hts_aln) {
 
     return _hts_aln->core.l_qseq;
-
 }
-
 
 static inline int32_t _bam_offset(bam1_t* _hts_aln) {
 
     return _hts_aln->core.pos;
-
 }
-
 
 static inline qual_t _bam_mapq(bam1_t* _hts_aln) {
 
     return _hts_aln->core.qual;
-
 }
-
 
 static inline std::string _bam_md(bam1_t* _hts_aln) {
 
@@ -450,9 +376,7 @@ static inline std::string _bam_md(bam1_t* _hts_aln) {
     char* tag = bam_aux2Z(md_ptr);
 
     return {tag, strlen(tag)};
-
 }
-
 
 static inline std::span<const uint32_t> _bam_cigar_str(bam1_t* _hts_aln) {
 
@@ -463,17 +387,13 @@ static inline std::span<const uint32_t> _bam_cigar_str(bam1_t* _hts_aln) {
     hts_pos_t length = _hts_aln->core.n_cigar;
 
     return {raw_str, raw_str + length};
-
 }
-
 
 static inline CIGAR _bam_cigar(bam1_t* _hts_aln) {
     std::string _md_tag = _bam_md(_hts_aln);
     std::span<const uint32_t> _cigar_str = _bam_cigar_str(_hts_aln);
     return _get_cigar_core(_cigar_str, _md_tag, _hts_aln);
-
 }
-
 
 static inline PHRED _bam_phred(bam1_t* _hts_aln) {
 
@@ -481,40 +401,31 @@ static inline PHRED _bam_phred(bam1_t* _hts_aln) {
     int32_t length = _bam_length(_hts_aln);
     std::vector<qual_t> scores = {_quality, _quality + length};
     return PHRED(scores);
-
 }
-
 
 BamIterator::BamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads)
     : Iterator(reads), _hts_bgzf(_hts_bgzf), _hts_aln(_hts_aln) {}
 
-
 BamIterator::BamIterator(BamIterator&& other) noexcept
-    : Iterator(other._reads),
-      _hts_bgzf(other._hts_bgzf),
-      _hts_aln(other._hts_aln) {
+    : Iterator(other._reads), _hts_bgzf(other._hts_bgzf), _hts_aln(other._hts_aln) {
 
     other._hts_bgzf = nullptr;
-    other._hts_aln  = nullptr;
-
+    other._hts_aln = nullptr;
 }
-
 
 BamIterator& BamIterator::operator=(BamIterator&& other) noexcept {
 
     if (this != &other) {
         _hts_bgzf = other._hts_bgzf;
-        _hts_aln  = other._hts_aln;
+        _hts_aln = other._hts_aln;
         _reads = other._reads;
         _curr = other._curr;
         other._hts_bgzf = nullptr;
-        other._hts_aln  = nullptr;
+        other._hts_aln = nullptr;
     }
 
     return *this;
-
 }
-
 
 Alignment BamIterator::next() {
 
@@ -523,30 +434,21 @@ Alignment BamIterator::next() {
 
     Alignment aln;
 
-    aln.aligned  = _bam_aligned(_hts_aln);
-    aln.primary  = _bam_primary(_hts_aln);
+    aln.aligned = _bam_aligned(_hts_aln);
+    aln.primary = _bam_primary(_hts_aln);
     aln.reversed = bam_is_rev(_hts_aln);
-    aln.mapq     = _bam_mapq(_hts_aln);
-    aln.length   = _bam_length(_hts_aln);
-    aln.offset   = _bam_offset(_hts_aln);
-    aln.cigar    = _bam_cigar(_hts_aln);
-    aln.phred    = _bam_phred(_hts_aln);
+    aln.mapq = _bam_mapq(_hts_aln);
+    aln.length = _bam_length(_hts_aln);
+    aln.offset = _bam_offset(_hts_aln);
+    aln.cigar = _bam_cigar(_hts_aln);
+    aln.phred = _bam_phred(_hts_aln);
 
     return aln;
-
 }
-
-
-
-
 
 //
 // BamFile
 //
-
-
-
-
 
 static inline Header _read_bam_header(BGZF* _bgzf_file) {
 
@@ -580,15 +482,10 @@ static inline Header _read_bam_header(BGZF* _bgzf_file) {
     }
 
     return data;
-
 }
 
-
-static inline void _build_bam_index(
-    BGZF* _bgzf_file,
-    const std::string& filename,
-    int32_t references
-) {
+static inline void _build_bam_index(BGZF* _bgzf_file, const std::string& filename,
+                                    int32_t references) {
 
     _throw_if_exists(filename);
     std::ofstream outfile(filename);
@@ -630,11 +527,9 @@ static inline void _build_bam_index(
         } else {
 
             block.reads++;
-
         }
 
         block.tell(_bgzf_file);
-
     }
 
     block.write_reads(outfile);
@@ -651,12 +546,9 @@ static inline void _build_bam_index(
 
     outfile.write(reinterpret_cast<char*>(&unaligned), sizeof(int64_t));
     outfile.close();
-
 }
 
-
-BamFile::BamFile(const std::string& name)
-    : File(name, FileType::BAM), _hts_aln(_open_aln()) {
+BamFile::BamFile(const std::string& name) : File(name, FileType::BAM), _hts_aln(_open_aln()) {
 
     Header header = _read_bam_header(_hts_bgzf);
     _references = header.references;
@@ -673,51 +565,34 @@ BamFile::BamFile(const std::string& name)
 
     _index = Index(_index_name, _references);
     __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");
-
 }
-
 
 BamFile::~BamFile() {
 
     _close_aln(_hts_aln);
-
 }
-
 
 std::shared_ptr<Iterator> BamFile::get(int32_t ix, bool seek) {
 
     IndexBlock block = _index.read(ix);
-    if (seek) { _seek_bgzf(_hts_bgzf, block.ptr); }
+    if (seek) {
+        _seek_bgzf(_hts_bgzf, block.ptr);
+    }
     return std::make_shared<BamIterator>(_hts_bgzf, _hts_aln, block.reads);
-
 }
-
-
-
-
 
 //
 // From common.hpp
 //
 
-
-
-
-
 std::unique_ptr<File> _get_sam(const std::string& name) {
 
     return std::make_unique<BamFile>(name);
-
 }
-
 
 std::unique_ptr<File> _get_bam(const std::string& name) {
 
     return std::make_unique<BamFile>(name);
-
 }
-
-
-
 
 } // namespace HTS

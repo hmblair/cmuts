@@ -25,13 +25,13 @@ Mutex lock(const std::string& name) {
     }
 
     return mutex;
-
 }
 
 bool check(const std::string& name) {
 
     int fd = open(name.c_str(), O_RDONLY);
-    if (fd == -1) return false;
+    if (fd == -1)
+        return false;
 
     bool locked = (flock(fd, LOCK_EX | LOCK_NB) == -1);
     if (!locked) {
@@ -40,13 +40,13 @@ bool check(const std::string& name) {
     close(fd);
 
     return locked;
-
 }
 
 bool wait(const std::string& name) {
 
     int fd = open(name.c_str(), O_RDONLY);
-    if (fd == -1) return false;
+    if (fd == -1)
+        return false;
 
     // Block until we can acquire the lock, then release immediately
     bool was_locked = (flock(fd, LOCK_EX) == 0);
@@ -56,7 +56,6 @@ bool wait(const std::string& name) {
     close(fd);
 
     return was_locked;
-
 }
 
 } // namespace cmuts::mutex

@@ -11,40 +11,39 @@ static bool is_tty() {
 }
 
 static inline int32_t ceil_div(int32_t x, int32_t y) {
-    return x/y + (x % y != 0);
+    return x / y + (x % y != 0);
 }
 static inline int32_t round_up_to_multiple(int32_t x, int32_t y) {
     return ceil_div(x, y) * y;
 }
 
 std::string SPACE = " ";
-std::string DIV   = "─";
+std::string DIV = "─";
 
 static inline std::string __repeat(const std::string& str, size_t count) {
 
     std::string result;
     result.reserve(str.size() * count);
-    for (size_t ix = 0; ix < count; ++ix) { result += str; }
+    for (size_t ix = 0; ix < count; ++ix) {
+        result += str;
+    }
     return result;
-
 }
 
 static inline std::string divider() {
 
     return __repeat(SPACE, 6) + __repeat(DIV, 35);
-
 }
-
 
 // Timer
 
 static inline double __time() {
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     return MPI_Wtime();
-    #else
+#else
     auto tp = std::chrono::high_resolution_clock::now();
     return std::chrono::duration<double>(tp.time_since_epoch()).count();
-    #endif
+#endif
 }
 
 static inline std::string _time_string(double elapsed) {
@@ -55,11 +54,9 @@ static inline std::string _time_string(double elapsed) {
     int seconds = _seconds % MINUTE;
 
     std::stringstream ss;
-    ss << std::setfill('0') << std::setw(2) << hours << ":"
-       << std::setfill('0') << std::setw(2) << minutes << ":"
-       << std::setfill('0') << std::setw(2) << seconds;
+    ss << std::setfill('0') << std::setw(2) << hours << ":" << std::setfill('0') << std::setw(2)
+       << minutes << ":" << std::setfill('0') << std::setw(2) << seconds;
     return ss.str();
-
 }
 
 void Timer::start() {
@@ -68,7 +65,6 @@ void Timer::start() {
         _start = __time();
         running = true;
     }
-
 }
 
 void Timer::stop() {
@@ -77,7 +73,6 @@ void Timer::stop() {
         _total += __time() - _start;
         running = false;
     }
-
 }
 
 double Timer::elapsed() const {
@@ -86,13 +81,11 @@ double Timer::elapsed() const {
         return _total + (__time() - _start);
     }
     return _total;
-
 }
 
 std::string Timer::str() const {
 
     return _time_string(elapsed());
-
 }
 
 // Manager
@@ -115,43 +108,49 @@ static inline void _init_thread(int& argc, char**& argv) {
 
 Manager::Manager(int& argc, char**& argv) {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     __set_backing_dir();
     _init_thread(argc, argv);
     MPI_Comm_rank(_comm, &_rank);
     MPI_Comm_size(_comm, &_size);
     MPI_Info_create(&_info);
-    #endif
+#endif
 
     timer.start();
-
 }
 
 Manager::~Manager() {
 
     timer.stop();
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     MPI_Finalize();
-    #endif
-
+#endif
 }
 
-int Manager::rank() const { return _rank; }
+int Manager::rank() const {
+    return _rank;
+}
 
-int Manager::size() const { return _size; }
+int Manager::size() const {
+    return _size;
+}
 
 #ifdef MPI_BUILD
 
-MPI_Comm Manager::comm() const { return _comm; }
+MPI_Comm Manager::comm() const {
+    return _comm;
+}
 
-MPI_Info Manager::info() const { return _info; }
+MPI_Info Manager::info() const {
+    return _info;
+}
 
 #endif
 
 int64_t Manager::reduce(const int64_t& value) const {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
 
     CMUTS_TRACE("MPI_Reduce: entering, value=" + std::to_string(value));
     int64_t _value = 0;
@@ -161,19 +160,20 @@ int64_t Manager::reduce(const int64_t& value) const {
     CMUTS_TRACE("MPI_Reduce: done, result=" + std::to_string(_value));
     return _value;
 
-    #else
+#else
 
     return value;
 
-    #endif
-
+#endif
 }
 
 bool Manager::any(bool value) const {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
 
-    if (null()) { return value; }
+    if (null()) {
+        return value;
+    }
 
     CMUTS_TRACE("MPI_Allreduce(any): entering, local=" + std::to_string(value));
     int local = value ? 1 : 0;
@@ -182,19 +182,20 @@ bool Manager::any(bool value) const {
     CMUTS_TRACE("MPI_Allreduce(any): done, result=" + std::to_string(result != 0));
     return result != 0;
 
-    #else
+#else
 
     return value;
 
-    #endif
-
+#endif
 }
 
 bool Manager::all(bool value) const {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
 
-    if (null()) { return value; }
+    if (null()) {
+        return value;
+    }
 
     CMUTS_TRACE("MPI_Allreduce(all): entering, local=" + std::to_string(value));
     int local = value ? 1 : 0;
@@ -203,48 +204,49 @@ bool Manager::all(bool value) const {
     CMUTS_TRACE("MPI_Allreduce(all): done, result=" + std::to_string(result != 0));
     return result != 0;
 
-    #else
+#else
 
     return value;
 
-    #endif
-
+#endif
 }
 
-bool Manager::root() const { return _rank == 0; }
+bool Manager::root() const {
+    return _rank == 0;
+}
 
 bool Manager::null() const {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
 
     return _comm == MPI_COMM_NULL;
 
-    #else
+#else
 
     return false;
 
-    #endif
-
+#endif
 }
 
 void Manager::barrier(bool debug) const {
 
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
 
     CMUTS_TRACE("MPI_Barrier: entering");
-    if (!null()) { MPI_Barrier(_comm); }
+    if (!null()) {
+        MPI_Barrier(_comm);
+    }
     CMUTS_TRACE("MPI_Barrier: done");
 
     // Legacy debug output (deprecated, use CMUTS_LOG_STDERR=1 instead)
     (void)debug;
 
-    #else
+#else
 
     (void)debug;
     return;
 
-    #endif
-
+#endif
 }
 
 void Manager::remove(const std::string& name) const {
@@ -253,19 +255,21 @@ void Manager::remove(const std::string& name) const {
         std::filesystem::remove(name);
     }
     barrier();
-
 }
 
-double Manager::time() const { return timer.elapsed(); }
+double Manager::time() const {
+    return timer.elapsed();
+}
 
-std::string Manager::time_str() const { return timer.str(); }
+std::string Manager::time_str() const {
+    return timer.str();
+}
 
 void Manager::up(int lines) const {
 
     if (root() && is_tty()) {
         std::cout << "\033[" + std::to_string(lines) + "A";
     }
-
 }
 
 void Manager::down(int lines) const {
@@ -275,34 +279,32 @@ void Manager::down(int lines) const {
             std::cout << "\n";
         }
     }
-
 }
 
 void Manager::divide() const {
 
-    if (root()) { std::cout << divider() << "\n"; }
-
+    if (root()) {
+        std::cout << divider() << "\n";
+    }
 }
 
 int32_t Manager::chunksize(int32_t curr_size, int32_t total) const {
 
     int32_t opt = std::min(curr_size, total / _size);
-    auto _one   = static_cast<int32_t>(1);
+    auto _one = static_cast<int32_t>(1);
     return std::max(opt, _one);
-
 }
 
 Chunk Manager::chunk(int32_t _size, int32_t _total) const {
 
     Chunk chunk;
 
-    chunk.low  = _size * rank();
+    chunk.low = _size * rank();
     chunk.high = round_up_to_multiple(_total, _size * size());
     chunk.step = _size * size();
     chunk.size = _size;
 
     return chunk;
-
 }
 
 } // namespace MPI

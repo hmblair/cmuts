@@ -10,21 +10,19 @@
 #include "generated/cmuts_args.hpp"
 
 static inline bool __mpi_build() {
-    #ifdef MPI_BUILD
+#ifdef MPI_BUILD
     return true;
-    #else
+#else
     return false;
-    #endif
+#endif
 }
 
 class cmutsProgram : public Program {
-public:
+  public:
     CMUTSPROGRAM_ARG_MEMBERS
 
     cmutsProgram()
-        : Program(CMUTSPROGRAM_PROGRAM_NAME, CMUTSPROGRAM_PROGRAM_VERSION),
-          CMUTSPROGRAM_ARG_INIT
-    {}
+        : Program(CMUTSPROGRAM_PROGRAM_NAME, CMUTSPROGRAM_PROGRAM_VERSION), CMUTSPROGRAM_ARG_INIT {}
 };
 
 #endif
