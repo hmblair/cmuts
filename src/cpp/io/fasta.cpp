@@ -107,6 +107,10 @@ static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, i
     int32_t bytes = _bytes_from_seq(length);
     seq_t binary(bytes);
 
+    // Clear any failbit/eofbit left over from header parsing, which reads
+    // past the end of the data region on short files and would otherwise
+    // turn the seek and read below into silent no-ops.
+    file.clear();
     file.seekg(offset);
     file.read(reinterpret_cast<char*>(binary.data()), bytes * sizeof(base_t));
 
@@ -368,7 +372,8 @@ template <typename dtype>
 static inline void _fasta_to_hdf5(
     BinaryFASTA& fasta,
     HDF5::File& hdf5,
-    const MPI::Manager& mpi
+    const MPI::Manager& mpi,
+    const std::array<base_t, BASES>& tokens
 ) {
 
     HDF5::Memspace<dtype, FASTA_DATASET_SIZE> memspace = __memspace<dtype>(fasta, hdf5);
@@ -382,7 +387,10 @@ static inline void _fasta_to_hdf5(
 
             view_t<dtype, FASTA_DATASET_SIZE> arr = memspace.view(jx);
             seq_t sequence = fasta.sequence(ix + jx);
-            std::copy(sequence.begin(), sequence.end(), arr.begin());
+            std::transform(
+                sequence.begin(), sequence.end(), arr.begin(),
+                [&](base_t base) { return static_cast<dtype>(tokens[base]); }
+            );
 
         }
 
@@ -493,8 +501,8 @@ int32_t BinaryFASTA::longest() const {
 }
 
 
-void BinaryFASTA::hdf5(HDF5::File& hdf5, const MPI::Manager& mpi) {
+void BinaryFASTA::hdf5(HDF5::File& hdf5, const MPI::Manager& mpi, const std::array<base_t, BASES>& tokens) {
 
-    _fasta_to_hdf5<base_t>(*this, hdf5, mpi);
+    _fasta_to_hdf5<base_t>(*this, hdf5, mpi, tokens);
 
 }

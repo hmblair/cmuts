@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `cmuts core --token-map` flag for assigning custom non-negative integer tokens to A, C, G, U in the `--tokenize` output (e.g. `--token-map 4,5,6,7`). Defaults to `0,1,2,3`; T and U share the fourth value
+
+### Changed
+
+- Renamed `cmuts normalize` flags `--clip-low`/`--clip-high` to `--clip-below`/`--clip-above` (breaking)
+- Renamed `plot_cumulative_reads` to `plot_reads_per_block` (breaking)
+
+### Fixed
+
+- `cmuts core --tokenize` no longer writes all-zero tokens for reference sequences shorter than four bases (a leftover stream-error flag from header parsing turned the binary FASTA read into a silent no-op)
+- `cmuts core --tokenize` now exits non-zero when tokenization fails, such as on an invalid `--token-map`
+
 ## [1.4.9] - 2026-05-08
 
 ### Added
@@ -24,10 +40,20 @@
 - `cmuts normalize --groups <toml>` flag accepting a TOML file with `[[group]]` entries (`name`, `mod`, optional `nomod`)
 - `cmuts normalize --independent-norm` flag to disable cross-group pooling
 - Multi-group integration tests for the `cmuts normalize` CLI
+- Plotly plotting backend (`cmuts.visualize.plotly`) for interactive web displays, including profile, pairwise heatmap, and examples plots
+- `--vmin`/`--vmax` clipping flags on `cmuts-visualize`
 
 ### Changed
 
 - `cmuts-normalize` script is now a thin shim over `python -m cmuts.normalize`; the implementation lives in `cmuts/normalize/__main__.py`
+- Pairwise Plotly heatmaps now enforce a 1:1 aspect ratio with cell outlines, hover text, and constrained layout
+
+### Fixed
+
+- `cmuts-visualize` CLI no longer fails on missing arguments
+- HDF5 dataset-not-found errors now report the dataset name and available keys
+- Build no longer fails when `setuptools-scm` cannot determine a version (fallback version added)
+- GitHub Actions workflows updated to Node 24-ready action versions
 
 ## [1.4.6] - 2026-03-17
 

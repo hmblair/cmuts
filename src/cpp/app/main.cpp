@@ -1,6 +1,40 @@
 #include "app/main.hpp"
 
 #include <unistd.h>
+#include <array>
+#include <limits>
+#include <sstream>
+
+// Parse a "--token-map" string of comma-separated integers into per-base
+// output tokens for A, C, G, U (in order). T and U share the fourth slot.
+// An empty string yields the identity mapping 0, 1, 2, 3.
+static inline std::array<base_t, BASES> __parse_token_map(const std::string& spec) {
+
+    std::array<base_t, BASES> tokens = {IX_A, IX_C, IX_G, IX_U};
+    if (spec.empty()) { return tokens; }
+
+    std::stringstream ss(spec);
+    std::string item;
+    int32_t i = 0;
+    while (std::getline(ss, item, ',')) {
+        if (i >= BASES) {
+            throw std::invalid_argument("--token-map expects exactly 4 integers (A,C,G,U).");
+        }
+        int64_t val = std::stoll(item);
+        if (val < 0) {
+            throw std::invalid_argument("--token-map tokens must be non-negative; got \"" + item + "\".");
+        }
+        if (val > std::numeric_limits<base_t>::max()) {
+            throw std::invalid_argument("--token-map value \"" + item + "\" is out of range for the sequence dtype.");
+        }
+        tokens[i++] = static_cast<base_t>(val);
+    }
+    if (i != BASES) {
+        throw std::invalid_argument("--token-map expects exactly 4 integers (A,C,G,U).");
+    }
+    return tokens;
+
+}
 
 static inline void _print_title(const MPI::Manager& mpi) {
 
@@ -11,24 +45,29 @@ static inline void _print_title(const MPI::Manager& mpi) {
 }
 
 
-static inline void __write_sequences(
+static inline bool __write_sequences(
     BinaryFASTA& fasta,
     HDF5::File& hdf5,
-    const MPI::Manager& mpi
+    const MPI::Manager& mpi,
+    const std::string& token_map
 ) {
 
     mpi.down();
 
     if (!hdf5.exist(FASTA_DATASET)) {
         try {
-            fasta.hdf5(hdf5, mpi);
+            fasta.hdf5(hdf5, mpi, __parse_token_map(token_map));
             mpi.out() << "        Tokenized " << fasta.size() << " sequences.\n";
+            return true;
         } catch (const std::exception& e) {
             mpi.err() << "Error: " << e.what() << "\n";
+            return false;
         }
     } else {
         mpi.err() << "WARNING: The file \"" << hdf5.name() << "\" already contains the dataset \"" << FASTA_DATASET << "\". No tokenization can be done.\n";
     }
+
+    return true;
 
 }
 
@@ -176,7 +215,9 @@ int main(int argc, char** argv) {
     size_t total = opt.files.value().size();
     if (total == 0) {
         if (opt.tokenize) {
-            __write_sequences(fasta, hdf5, mpi);
+            bool ok = __write_sequences(fasta, hdf5, mpi, opt.token_map);
+            mpi.down();
+            return ok ? EXIT_SUCCESS : EXIT_FAILURE;
         } else {
             mpi.out() << "        Nothing to do.\n";
         }
@@ -275,10 +316,11 @@ int main(int argc, char** argv) {
         stats.body();
     }
 
+    bool tokenize_ok = true;
     if (processed == 0) {
         __cleanup(mpi, opt);
     } else if (opt.tokenize) {
-        __write_sequences(fasta, hdf5, mpi);
+        tokenize_ok = __write_sequences(fasta, hdf5, mpi, opt.token_map);
     }
 
     mpi.down();
@@ -287,6 +329,6 @@ int main(int argc, char** argv) {
         mpi.err() << "WARNING: only " << processed << " of " << files.size() << " files were processed.\n";
     }
 
-    return EXIT_SUCCESS;
+    return tokenize_ok ? EXIT_SUCCESS : EXIT_FAILURE;
 
 }

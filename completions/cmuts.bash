@@ -45,7 +45,7 @@ _cmuts() {
             esac
             case "$cur" in
                 -*)
-                    COMPREPLY=($(compgen -W "-o -f -c -v --output --fasta --overwrite --rebuild --compression --print-every --verbose --pairwise --tokenize --min-mapq --min-phred --min-length --max-length --max-hamming --secondary --downsample --ignore-bases --max-indel-length --quality-window --collapse --chunk-size --no-mismatches --no-insertions --no-deletions --no-reverse --only-reverse --uniform-spread --no-spread --disable-ambiguous --no-match-filter --no-insertion-filter --no-deletion-filter --threads --help" -- "$cur"))
+                    COMPREPLY=($(compgen -W "-o -f -c -v --output --fasta --overwrite --rebuild --compression --print-every --verbose --pairwise --tokenize --token-map --min-mapq --min-phred --min-length --max-length --max-hamming --secondary --downsample --ignore-bases --max-indel-length --quality-window --collapse --chunk-size --no-mismatches --no-insertions --no-deletions --no-reverse --only-reverse --uniform-spread --no-spread --disable-ambiguous --no-match-filter --no-insertion-filter --no-deletion-filter --threads --help" -- "$cur"))
                     ;;
                 *)
                     _filedir '@(sam|bam|cram)'

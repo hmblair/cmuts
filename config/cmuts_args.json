@@ -86,6 +86,14 @@
           "short": "",
           "long": "--tokenize",
           "help": "Tokenize the reference sequences."
+        },
+        {
+          "name": "token_map",
+          "type": "string",
+          "short": "",
+          "long": "--token-map",
+          "help": "Comma-separated non-negative integer tokens for A,C,G,U in order, used by --tokenize (e.g. \"4,5,6,7\"). T and U share the fourth value. Defaults to 0,1,2,3.",
+          "default": ""
         }
       ]
     },

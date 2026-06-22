@@ -50,7 +50,7 @@ will create an HDF5 file `$OUTPUT` with the structure
         └── counts-1d
 ```
 
-and both `IN1` and `IN2` are datasets as described above. 
+and both `IN1` and `IN2` are datasets as described above.
 
 ### Pairwise Modification Counting
 
@@ -112,6 +112,8 @@ will create an HDF5 file `$OUTPUT` with the structure
 **`--pairwise`** : Compute pairwise modification counts.
 
 **`--tokenize`** : Tokenize the reference sequences.
+
+**`--token-map`** : Comma-separated non-negative integer tokens for A,C,G,U in order, used by --tokenize (e.g. "4,5,6,7"). T and U share the fourth value. Defaults to 0,1,2,3.
 
 
 ### Filtering

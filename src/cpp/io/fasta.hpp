@@ -6,6 +6,8 @@
 #include "infra/mpi.hpp"
 #include "infra/mutex.hpp"
 
+#include <array>
+
 // Indices of the bases in binary sequences
 
 const uint8_t BIN_A   = 0x0;
@@ -103,7 +105,7 @@ public:
     seq_t sequence(int32_t ix);
     int32_t longest() const;
 
-    void hdf5(HDF5::File& hdf5, const MPI::Manager& mpi);
+    void hdf5(HDF5::File& hdf5, const MPI::Manager& mpi, const std::array<base_t, BASES>& tokens);
 
 };
 
