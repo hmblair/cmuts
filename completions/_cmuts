@@ -112,8 +112,8 @@ _cmuts() {
                         '--group[Output group name]: :' \
                         '(-o --out)'{-o,--out}'[Output HDF5 file]: :_files -g "*.h5"' \
                         '--overwrite[Overwrite existing file]' \
-                        '--clip-low[Clip negative reactivity values]' \
-                        '--clip-high[Clip reactivity values above 1]' \
+                        '--clip-below[Clip reactivity values below threshold]: :' \
+                        '--clip-above[Clip reactivity values above threshold]: :' \
                         "--blank-5p[NaN out bases on 5' end]: :" \
                         "--blank-3p[NaN out bases on 3' end]: :" \
                         '--blank-cutoff[Min reads for position]: :' \
