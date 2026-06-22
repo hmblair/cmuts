@@ -248,7 +248,7 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
   cmuts normalize \
     -o "$PROFILES" \
     --mod "$MOD_DS" \
-    --clip-low \
+    --clip-below 0 \
     "$COUNTS"
 done
 ```

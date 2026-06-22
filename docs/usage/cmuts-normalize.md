@@ -55,9 +55,9 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 - `raw`: No normalization
 - `outlier`: 2-8% outlier-based normalization
 
-**`--clip-low`** : Clip negative reactivity values
+**`--clip-below`** : Clip reactivity values below this threshold (e.g. 0)
 
-**`--clip-high`** : Clip reactivity values above 1
+**`--clip-above`** : Clip reactivity values above this threshold (e.g. 1)
 
 **`--blank-5p`** : NaN out this many bases on the 5' end (default: 0)
 

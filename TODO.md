@@ -57,8 +57,8 @@ Counting:
 
 Normalization:
   --norm METHOD             ubr|outlier|raw (default: ubr)
-  --clip-low                Clamp negatives to 0
-  --clip-high               Cap at 1.0
+  --clip-below THRESH       Clip reactivity values below this threshold (e.g. 0)
+  --clip-above THRESH       Clip reactivity values above this threshold (e.g. 1)
   --blank-5p N              NaN out N 5' terminal bases
   --blank-3p N              NaN out N 3' terminal bases
   --blank-cutoff N          Min reads per position (default: 10)
