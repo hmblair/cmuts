@@ -1,9 +1,22 @@
 
 The functionality of `cmuts` is distributed among several subprograms. All accept the `--log` argument to redirect their outputs to a log file.
 
-```bash
-cmuts [--log LOGFILE] {align|core|normalize|visualize|test}
+<!-- BEGIN AUTO-GENERATED USAGE -->
+```text
+Usage: cmuts [--log LOGFILE] <command> [options]
+
+Commands:
+  align       Trim, demultiplex, and align FASTQ/BAM reads to a reference FASTA
+  core        Count mutations, insertions, and deletions in aligned reads
+  generate    Create synthetic test data for validating the pipeline
+  normalize   Compute normalized reactivity profiles from core counts
+  plot        Plot reactivity profiles from HDF5 files
+  visualize   Overlay a reactivity profile onto a 3D RNA structure
+  test        Run the integration test suite
+
+Run 'cmuts <command> -h' for command-specific options.
 ```
+<!-- END AUTO-GENERATED USAGE -->
 
 The main `cmuts` pipeline comprises the three subprograms
 

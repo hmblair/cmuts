@@ -132,6 +132,10 @@ python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
   ${SCRIPT_DIR}/config/tests_args.json \
   ${SCRIPT_DIR}/docs/usage/cmuts-generate.md
 
+# Sync the top-level usage doc with the cmuts dispatcher's print-usage
+PATH="${BIN_DIR}:$PATH" cmuts -h | python3 ${SCRIPT_DIR}/scripts/generate_usage.py \
+  ${SCRIPT_DIR}/docs/usage/cmuts.md
+
 if command -v uv >/dev/null 2>&1; then
   uv pip install .
 elif command -v pip3 >/dev/null 2>&1; then
