@@ -1,3 +1,8 @@
+# Only run hooks on first-party source. This keeps vendored dependencies
+# (deps/, htscodecs/), build output (site/), and data files untouched, and
+# matches the scope CI checks.
+files: ^src/
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -22,11 +27,14 @@ repos:
       - id: mypy
         files: ^src/python/cmuts/
         args: [--ignore-missing-imports]
-        additional_dependencies: [numpy, scipy, h5py, dask]
+        # numpy>=2.2 ships stubs using 3.12+ `type` syntax, which mypy rejects
+        # under python_version=3.9; pin stubs to a compatible release.
+        additional_dependencies: ["numpy<2.2", scipy, h5py, dask]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v17.0.6
     hooks:
       - id: clang-format
+        files: ^src/cpp/
         types_or: [c++, c]
         args: ['-style=file', '-fallback-style=Google']

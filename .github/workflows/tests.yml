@@ -17,17 +17,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install linting tools
-        run: pip install ruff mypy
-
-      - name: Run ruff check
-        run: ruff check src/python/cmuts
-
-      - name: Run ruff format check
-        run: ruff format --check src/python/cmuts
-
-      - name: Run mypy
-        run: mypy src/python/cmuts
+      # Run the same pre-commit hooks (and pinned tool versions) used locally,
+      # so formatting/linting can never drift between local commits and CI.
+      - uses: pre-commit/action@v3.0.1
 
   test-python:
     runs-on: ubuntu-latest
