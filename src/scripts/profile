@@ -1,504 +1,490 @@
-#!/bin/bash
-
-# set -euo pipefail
-
-# Check if dependencies are installed
-command -v samtools >/dev/null 2>&1 || { echo >&2 "Samtools is required but it's not installed. Exiting."; exit 1; }
-
-__time() {
-    # Use GNU time (gtime on macOS via homebrew, time on Linux)
-    # Write timing to a temp file; suppress command stdout/stderr.
-    local tmpfile=$(mktemp)
-    if command -v gtime &>/dev/null; then
-        gtime --format "%e %M" -o "$tmpfile" "$@" >/dev/null 2>&1
-    elif command -v time &>/dev/null; then
-        command time --format "%e %M" -o "$tmpfile" "$@" >/dev/null 2>&1
-    else
-        echo "Error: GNU time not found. Install with 'brew install gnu-time' (macOS) or ensure 'time' is installed (Linux)." >&2
-        rm -f "$tmpfile"
-        exit 1
-    fi
-    cat "$tmpfile"
-    rm -f "$tmpfile"
-}
-
-generate() {
-    local REFERENCES=$1
-    local QUERIES=$2
-    local LENGTH=$3
-    local OUTPUT=$4
-    local MIN_MAPQ=$5
-    local MIN_PHRED=$6
-    local MIN_LENGTH=$7
-    local MAX_LENGTH=$8
-    local MAX_INDEL=$9
-    local WINDOW=${10}
-    local COLLAPSE=${11}
-    local THREADS=${12}
-
-    local BASE="aln_${REFERENCES}_${QUERIES}_${LENGTH}"
-    local FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
-
-    if [ ! -f ${BASE}.bam ]; then
-
-        cmuts generate \
-            --length ${LENGTH} \
-            --queries ${QUERIES} \
-            --references ${REFERENCES} \
-            --out-fasta ${FASTA} \
-            -o ${BASE} \
-            --out-h5 ${OUTPUT} \
-            --min-mapq ${MIN_MAPQ} \
-            --min-phred ${MIN_PHRED} \
-            --min-length ${MIN_LENGTH} \
-            --max-length ${MAX_LENGTH} \
-            --max-indel-length ${MAX_INDEL} \
-            --quality-window ${WINDOW} \
-            --collapse ${COLLAPSE} \
-            --bam --cram --sam
-
-    fi
-}
-
-profile() {
-    local RUNS=$1
-    local FASTA=$2
-    local OUTPUT=$3
-    local MIN_MAPQ=$4
-    local MIN_PHRED=$5
-    local WINDOW=$6
-    local MIN_LENGTH=$7
-    local MAX_LENGTH=$8
-    local MAX_INDEL=$9
-    local BAM=${10}
-    local RF_DIR=${11}
-    local THREADS=${12}
-    local USE_CRAM=${13}
-
-    # Formats to benchmark for cmuts and rf-count. CRAM is added alongside BAM
-    # only when --cram is passed, so a single run reports both side by side.
-    local FORMATS=("bam")
-    if [[ $USE_CRAM -eq 1 ]]; then
-        FORMATS+=("cram")
-    fi
-
-    for FMT in "${FORMATS[@]}"; do
-
-        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.${FMT}"
-
-        min_time=""
-        min_mem=""
-
-        for ((i=0; i<${RUNS}; i++)); do
-
-            result=$(__time cmuts core \
-                --fasta ${FASTA} \
-                --output ${OUTPUT} \
-                --min-mapq ${MIN_MAPQ} \
-                --min-phred ${MIN_PHRED} \
-                --quality-window ${WINDOW} \
-                --min-length ${MIN_LENGTH} \
-                --max-length ${MAX_LENGTH} \
-                --max-indel-length ${MAX_INDEL} \
-                --threads ${THREADS} \
-                --overwrite \
-                ${FILE})
-
-            rm -rf ${CMUTS_H5}
-
-            exec_time=$(echo $result | cut -d' ' -f1)
-            mem_usage=$(echo $result | cut -d' ' -f2)
-
-            if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-                min_time=$exec_time
-            fi
-
-            if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-                min_mem=$mem_usage
-            fi
-
-        done
-
-        min_mem=$(echo "scale=2; $min_mem / 1024" | bc)
-
-        echo "   cmuts [${FMT}]:"
-        echo "    Execution time:    $min_time seconds"
-        echo "    Peak memory usage: $min_mem MB"
-
-    done
-
-    # rf-count and shapemapper2 read only BAM/SAM, so they are benchmarked once
-    # on the BAM (not per format). The cost of using a CRAM with them is this BAM
-    # runtime plus a one-off samtools conversion, timed in the CRAM block below.
-    local BAMFILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.bam"
-
-    rf_time=""
-    if command -v rf-count &>/dev/null; then
-
-        min_time=""
-        min_mem=""
-
-        for ((i=0; i<${RUNS}; i++)); do
-
-            rm -rf ${RF_DIR}
-            mkdir ${RF_DIR}
-            cd ${RF_DIR}
-
-            result=$(__time rf-count -m \
-                -wt ${THREADS} \
-                -f ../${FASTA} \
-                --fast \
-                --eval-surrounding \
-                --no-cov-low-qual \
-                --no-discard-duplicates \
-                --right-deletion \
-                --collapse-consecutive \
-                --max-collapse-distance $((COLLAPSE - 1)) \
-                --max-edit-distance 1.0 \
-                --map-quality ${MIN_MAPQ} \
-                --min-quality ${MIN_PHRED} \
-                --discard-shorter ${MIN_LENGTH} \
-                --max-deletion-len ${MAX_INDEL} \
-                --median-quality 0 \
-                ../${BAMFILE})
-
-            cd ..
-
-            exec_time=$(echo $result | cut -d' ' -f1)
-            mem_usage=$(echo $result | cut -d' ' -f2)
-
-            if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-                min_time=$exec_time
-            fi
-
-            if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-                min_mem=$mem_usage
-            fi
-
-        done
-
-        rf_time=$min_time
-        min_mem=$(echo "scale=2; $min_mem / 1024" | bc)
-
-        echo "   rf-count [bam]:"
-        echo "    Execution time:    $min_time seconds"
-        echo "    Peak memory usage: $min_mem MB"
-
-    fi
-
-    sm_time=""
-
-    if [[ -n "$SM_DIR" ]]; then
-
-        local SM_PARSER="${SM_DIR}/internals/bin/shapemapper_mutation_parser"
-        local SM_COUNTER="${SM_DIR}/internals/bin/shapemapper_mutation_counter"
-        local SM_PARSED="_sm_parsed.mut"
-        local SM_COUNTS="_sm_counts.txt"
-        local SAM_RAW="aln_${REFERENCES}_${QUERIES}_${LENGTH}.sam"
-        local SAM_FILE="_sm_input.sam"
-
-        samtools view -h -F 4 ${SAM_RAW} > ${SAM_FILE}
-
-        min_time=""
-        min_mem=""
-
-        for ((i=0; i<${RUNS}; i++)); do
-
-            rm -f ${SM_PARSED} ${SM_COUNTS}
-
-            result=$(__time bash -c "\
-                ${SM_PARSER} \
-                    -i ${SAM_FILE} \
-                    -o ${SM_PARSED} \
-                    --input_is_unpaired \
-                    -m ${MIN_MAPQ} && \
-                ${SM_COUNTER} \
-                    -i ${SM_PARSED} \
-                    -c ${SM_COUNTS} \
-                    -n ${LENGTH} \
-                    --warn_on_no_mapped")
-
-            exec_time=$(echo $result | cut -d' ' -f1)
-            mem_usage=$(echo $result | cut -d' ' -f2)
-
-            if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-                min_time=$exec_time
-            fi
-
-            if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-                min_mem=$mem_usage
-            fi
-
-        done
-
-        rm -f ${SM_PARSED} ${SM_COUNTS} ${SAM_FILE}
-
-        sm_time=$min_time
-        min_mem=$(echo "scale=2; $min_mem / 1024" | bc)
-
-        echo "   shapemapper2 [sam]:"
-        echo "    Execution time:    $min_time seconds"
-        echo "    Peak memory usage: $min_mem MB"
-
-    fi
-
-    # CRAM cost for the BAM/SAM-only tools: time the one-off samtools conversion
-    # and add it to the tool's runtime. The tools are NOT re-run on CRAM (that
-    # would just repeat the BAM timing). Peak memory is not additive across the
-    # sequential convert-then-run steps, so only the time is summed.
-    if [[ $USE_CRAM -eq 1 ]]; then
-
-        local CRAM="aln_${REFERENCES}_${QUERIES}_${LENGTH}.cram"
-        samtools faidx ${FASTA} 2>/dev/null
-
-        if [[ -n "$rf_time" ]]; then
-
-            min_time=""
-            min_mem=""
-
-            for ((i=0; i<${RUNS}; i++)); do
-
-                rm -f _cram_to_bam.bam
-                result=$(__time samtools view -@ ${THREADS} -T ${FASTA} -b -o _cram_to_bam.bam ${CRAM})
-
-                exec_time=$(echo $result | cut -d' ' -f1)
-                mem_usage=$(echo $result | cut -d' ' -f2)
-
-                if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-                    min_time=$exec_time
-                fi
-
-                if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-                    min_mem=$mem_usage
-                fi
-
-            done
-
-            rm -f _cram_to_bam.bam
-
-            conv_mem=$(echo "scale=2; $min_mem / 1024" | bc)
-            rf_cram=$(echo "$min_time + $rf_time" | bc)
-
-            echo "   samtools cram->bam:"
-            echo "    Execution time:    $min_time seconds"
-            echo "    Peak memory usage: $conv_mem MB"
-            echo "   rf-count [cram] (= cram->bam + bam run):"
-            echo "    Execution time:    $rf_cram seconds"
-
-        fi
-
-        if [[ -n "$sm_time" ]]; then
-
-            min_time=""
-            min_mem=""
-
-            for ((i=0; i<${RUNS}; i++)); do
-
-                rm -f _cram_to_sam.sam
-                result=$(__time bash -c "samtools view -h -F 4 -T ${FASTA} ${CRAM} > _cram_to_sam.sam")
-
-                exec_time=$(echo $result | cut -d' ' -f1)
-                mem_usage=$(echo $result | cut -d' ' -f2)
-
-                if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-                    min_time=$exec_time
-                fi
-
-                if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-                    min_mem=$mem_usage
-                fi
-
-            done
-
-            rm -f _cram_to_sam.sam
-
-            conv_mem=$(echo "scale=2; $min_mem / 1024" | bc)
-            sm_cram=$(echo "$min_time + $sm_time" | bc)
-
-            echo "   samtools cram->sam:"
-            echo "    Execution time:    $min_time seconds"
-            echo "    Peak memory usage: $conv_mem MB"
-            echo "   shapemapper2 [cram] (= cram->sam + run):"
-            echo "    Execution time:    $sm_cram seconds"
-
-        fi
-
-    fi
-
-}
-
-RUNS=1
-THREADS=1
-
-QUERIES_SET=false
-REFERENCES_SET=false
-LENGTHS_SET=false
-USE_CRAM=0
-SM_DIR=""
-
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --runs) shift
-                RUNS=${1:-1}
-                ;;
-        --threads) shift
-                   THREADS=${1:-1}
-                   ;;
-        --queries) QUERIES_SET=true
-                   ;;
-        --references) REFERENCES_SET=true
-                      ;;
-        --lengths) LENGTHS_SET=true
-                   ;;
-        --cram) USE_CRAM=1   # also benchmark CRAM alongside BAM
-                ;;
-        --shapemapper-dir) shift
-                           SM_DIR=${1:-""}
-                           ;;
-        *) echo "Unknown option: $1"
-           exit 1
-           ;;
-    esac
-    shift
-done
-
-if [[ -n "$SM_DIR" ]]; then
-    [[ -x "${SM_DIR}/internals/bin/shapemapper_mutation_parser" ]] || { echo >&2 "shapemapper_mutation_parser not found in ${SM_DIR}/internals/bin/. Exiting."; exit 1; }
-    [[ -x "${SM_DIR}/internals/bin/shapemapper_mutation_counter" ]] || { echo >&2 "shapemapper_mutation_counter not found in ${SM_DIR}/internals/bin/. Exiting."; exit 1; }
-fi
-
-SCRIPT_DIR=$(pwd)
-CASES_DIR=${SCRIPT_DIR}"/.cases"
-mkdir -p ${CASES_DIR}
-
-MIN_MAPQ=20
-MIN_PHRED=20
-WINDOW=2
-MIN_LENGTH=2
-MAX_INDEL=10
-COLLAPSE=2
-
-EXP_H5="expected.h5"
-CMUTS_H5="cmuts.h5"
-RF_DIR="_rf_count"
-
-
-pushd ${CASES_DIR} > /dev/null
-
-
-
-#
-# Profile based on query count
-#
-
-
-
-if ${QUERIES_SET}; then
-
-    LENGTH=200
-    MAX_LENGTH=$((2 * LENGTH))
-    REFERENCES=1024
-
-    echo ""
-    echo " ─────────────────────────────"
-    echo "   THREADS:          $THREADS"
-    echo "   REFERENCES:       $REFERENCES"
-    echo "   REFERENCE LENGTH: $LENGTH"
-    echo " ─────────────────────────────"
-
-
-    for QUERIES in $((10 ** 2)) $((10 ** 4)) $((10 ** 6)); do
-
-        echo "   QUERIES:          $QUERIES"
-        echo " ─────────────────────────────"
-
-        FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
-
-        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
-
-        echo " ─────────────────────────────"
-
-    done
-
-fi
-
-
-
-#
-# Profile based on reference count
-#
-
-
-
-if ${REFERENCES_SET}; then
-
-    LENGTH=200
-    MAX_LENGTH=$((2 * LENGTH))
-    QUERIES=1024
-
-    echo ""
-    echo " ─────────────────────────────"
-    echo "   THREADS:          $THREADS"
-    echo "   QUERIES:          $QUERIES"
-    echo "   REFERENCE LENGTH: $LENGTH"
-    echo " ─────────────────────────────"
-
-
-    for REFERENCES in $((10 ** 1)) $((10 ** 2)) $((10 ** 3)) $((10 ** 4)) $((10 ** 5)); do
-
-        echo "   REFERENCES:       $REFERENCES"
-        echo " ─────────────────────────────"
-
-        FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
-
-        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
-
-        echo " ─────────────────────────────"
-
-    done
-
-fi
-
-
-
-#
-# Profile based on reference length
-#
-
-
-
-if ${LENGTHS_SET}; then
-
-    REFERENCES=1024
-    QUERIES=1024
-
-    echo ""
-    echo " ─────────────────────────────"
-    echo "   THREADS:          $THREADS"
-    echo "   QUERIES:          $QUERIES"
-    echo "   REFERENCES:       $REFERENCES"
-    echo " ─────────────────────────────"
-
-
-    for LENGTH in $((10 ** 1)) $((10 ** 2)) $((10 ** 3)) $((10 ** 4)); do
-
-        echo "   REFERENCE LENGTH: $LENGTH"
-        echo " ─────────────────────────────"
-
-        FASTA="seq_${REFERENCES}_${QUERIES}_${LENGTH}.fasta"
-        MAX_LENGTH=$((2 * LENGTH))
-
-        generate "${REFERENCES}" "${QUERIES}" "${LENGTH}" "${EXP_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "${WINDOW}" "${COLLAPSE}" "${THREADS}"
-        profile "${RUNS}" "${FASTA}" "${CMUTS_H5}" "${MIN_MAPQ}" "${MIN_PHRED}" "${WINDOW}" "${MIN_LENGTH}" "${MAX_LENGTH}" "${MAX_INDEL}" "" "${RF_DIR}" "${THREADS}" "${USE_CRAM}"
-
-        echo " ─────────────────────────────"
-
-    done
-
-fi
-
-
-
-popd > /dev/null
+#!/usr/bin/env python3
+"""Benchmark cmuts core against rf-count and shapemapper2.
+
+Measures wall-clock time and peak memory for cmuts core, rf-count
+(RNAFramework), and the shapemapper2 mutation parser/counter, across three
+sweeps: number of queries, number of references, and reference length.
+
+cmuts reads BAM and CRAM natively, so both formats are benchmarked when --cram
+is passed. rf-count and shapemapper2 read only BAM/SAM; their CRAM cost is the
+BAM/SAM runtime plus a one-off samtools conversion (timed separately and added),
+so the tools are never run twice.
+
+Synthetic data is generated with `cmuts generate` and cached under ./.cases.
+Results are printed and appended to a CSV (--output). Plotting is left to the
+figure sources, which can read the CSV.
+
+Hamish M. Blair, 2026
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+# Fixed quality/collapse parameters, matching the historical bash harness.
+MIN_MAPQ = 20
+MIN_PHRED = 20
+WINDOW = 2
+MIN_LENGTH = 2
+MAX_INDEL = 10
+COLLAPSE = 2
+
+EXP_H5 = "expected.h5"  # cmuts generate ground-truth counts (unused downstream)
+CMUTS_H5 = "cmuts.h5"  # cmuts core output, removed after each run
+RF_DIR = "_rf_count"  # rf-count writes here; recreated each run
+
+SEP = " ─────────────────────────────"
+
+
+def _gnu_time_bin() -> str:
+    """Locate GNU time (gtime on macOS, /usr/bin/time on Linux)."""
+    for cand in ("gtime", "/usr/bin/time"):
+        path = cand if cand.startswith("/") else shutil.which(cand)
+        if not path or not Path(path).exists():
+            continue
+        try:
+            probe = subprocess.run(
+                [path, "--format", "%e", "true"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            continue
+        if probe.returncode == 0:
+            return path
+    sys.exit(
+        "Error: GNU time not found. Install with 'brew install gnu-time' (macOS) "
+        "or ensure GNU 'time' is installed (Linux)."
+    )
+
+
+TIME_BIN = ""  # set in main once samtools/time are confirmed available
+
+
+def measure(cmd, runs, *, cwd=None, shell_script=None, pre=None):
+    """Run a command `runs` times under GNU time; return (min_time_s, min_mem_mb).
+
+    Time and memory minima are taken independently (as in the original harness).
+    `pre` is an untimed callback run before each iteration (e.g. to clear output).
+    `shell_script` runs a string via `bash -c` instead of an argv list.
+    """
+    best_t = None
+    best_m = None
+    for _ in range(runs):
+        if pre is not None:
+            pre()
+        fd, tmp = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            inner = ["bash", "-c", shell_script] if shell_script is not None else list(cmd)
+            subprocess.run(
+                [TIME_BIN, "--format", "%e %M", "-o", tmp, *inner],
+                cwd=cwd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            fields = Path(tmp).read_text().split()
+            t = float(fields[0])
+            mem_mb = float(fields[1]) / 1024
+        finally:
+            os.unlink(tmp)
+        if best_t is None or t < best_t:
+            best_t = t
+        if best_m is None or mem_mb < best_m:
+            best_m = mem_mb
+    return best_t, best_m
+
+
+@dataclass
+class Case:
+    mode: str
+    references: int
+    queries: int
+    length: int
+    threads: int
+
+    @property
+    def base(self) -> str:
+        return f"aln_{self.references}_{self.queries}_{self.length}"
+
+    @property
+    def fasta(self) -> str:
+        return f"seq_{self.references}_{self.queries}_{self.length}.fasta"
+
+    @property
+    def max_length(self) -> int:
+        return 2 * self.length
+
+
+@dataclass
+class Result:
+    case: Case
+    tool: str
+    fmt: str
+    time_s: float
+    mem_mb: float | None  # None for convert+run sums (memory is not additive)
+
+
+def _print_tool(label: str, time_s: float, mem_mb: float | None = None) -> None:
+    print(f"   {label}:")
+    print(f"    Execution time:    {time_s:.2f} seconds")
+    if mem_mb is not None:
+        print(f"    Peak memory usage: {mem_mb:.2f} MB")
+
+
+def generate(case: Case) -> None:
+    """Generate synthetic BAM/CRAM/SAM + reference FASTA, unless already cached."""
+    if Path(f"{case.base}.bam").exists():
+        return
+    subprocess.run(
+        [
+            "cmuts",
+            "generate",
+            "--length",
+            str(case.length),
+            "--queries",
+            str(case.queries),
+            "--references",
+            str(case.references),
+            "--out-fasta",
+            case.fasta,
+            "-o",
+            case.base,
+            "--out-h5",
+            EXP_H5,
+            "--min-mapq",
+            str(MIN_MAPQ),
+            "--min-phred",
+            str(MIN_PHRED),
+            "--min-length",
+            str(MIN_LENGTH),
+            "--max-length",
+            str(case.max_length),
+            "--max-indel-length",
+            str(MAX_INDEL),
+            "--quality-window",
+            str(WINDOW),
+            "--collapse",
+            str(COLLAPSE),
+            "--bam",
+            "--cram",
+            "--sam",
+        ],
+        check=True,
+    )
+
+
+def _bench_cmuts(case: Case, fmt: str, runs: int) -> Result:
+    cmd = [
+        "cmuts",
+        "core",
+        "--fasta",
+        case.fasta,
+        "--output",
+        CMUTS_H5,
+        "--min-mapq",
+        str(MIN_MAPQ),
+        "--min-phred",
+        str(MIN_PHRED),
+        "--quality-window",
+        str(WINDOW),
+        "--min-length",
+        str(MIN_LENGTH),
+        "--max-length",
+        str(case.max_length),
+        "--max-indel-length",
+        str(MAX_INDEL),
+        "--threads",
+        str(case.threads),
+        "--overwrite",
+        f"{case.base}.{fmt}",
+    ]
+    t, m = measure(cmd, runs, pre=lambda: shutil.rmtree(CMUTS_H5, ignore_errors=True))
+    shutil.rmtree(CMUTS_H5, ignore_errors=True)
+    _print_tool(f"cmuts [{fmt}]", t, m)
+    return Result(case, "cmuts", fmt, t, m)
+
+
+def _bench_rf_count(case: Case, runs: int) -> Result:
+    def reset() -> None:
+        shutil.rmtree(RF_DIR, ignore_errors=True)
+        os.mkdir(RF_DIR)
+
+    cmd = [
+        "rf-count",
+        "-m",
+        "-wt",
+        str(case.threads),
+        "-f",
+        f"../{case.fasta}",
+        "--fast",
+        "--eval-surrounding",
+        "--no-cov-low-qual",
+        "--no-discard-duplicates",
+        "--right-deletion",
+        "--collapse-consecutive",
+        "--max-collapse-distance",
+        str(COLLAPSE - 1),
+        "--max-edit-distance",
+        "1.0",
+        "--map-quality",
+        str(MIN_MAPQ),
+        "--min-quality",
+        str(MIN_PHRED),
+        "--discard-shorter",
+        str(MIN_LENGTH),
+        "--max-deletion-len",
+        str(MAX_INDEL),
+        "--median-quality",
+        "0",
+        f"../{case.base}.bam",
+    ]
+    t, m = measure(cmd, runs, cwd=RF_DIR, pre=reset)
+    _print_tool("rf-count [bam]", t, m)
+    return Result(case, "rf-count", "bam", t, m)
+
+
+def _bench_shapemapper(case: Case, sm_dir: str, runs: int) -> Result:
+    parser = f"{sm_dir}/internals/bin/shapemapper_mutation_parser"
+    counter = f"{sm_dir}/internals/bin/shapemapper_mutation_counter"
+    parsed = "_sm_parsed.mut"
+    counts = "_sm_counts.txt"
+    sam_in = "_sm_input.sam"
+
+    # Drop unmapped reads up front (untimed), matching the input rf-count/cmuts see.
+    with open(sam_in, "w") as fh:
+        subprocess.run(
+            ["samtools", "view", "-h", "-F", "4", f"{case.base}.sam"],
+            stdout=fh,
+            check=True,
+        )
+
+    script = (
+        f"{parser} -i {sam_in} -o {parsed} --input_is_unpaired -m {MIN_MAPQ} && "
+        f"{counter} -i {parsed} -c {counts} -n {case.length} --warn_on_no_mapped"
+    )
+
+    def reset() -> None:
+        for f in (parsed, counts):
+            Path(f).unlink(missing_ok=True)
+
+    t, m = measure([], runs, shell_script=script, pre=reset)
+    for f in (parsed, counts, sam_in):
+        Path(f).unlink(missing_ok=True)
+    _print_tool("shapemapper2 [sam]", t, m)
+    return Result(case, "shapemapper2", "sam", t, m)
+
+
+def _bench_cram_costs(
+    case: Case, runs: int, rf_time: float | None, sm_time: float | None
+) -> list[Result]:
+    """Time the one-off samtools CRAM conversion for the BAM/SAM-only tools and
+    report it added to each tool's runtime. The tools are not re-run."""
+    results: list[Result] = []
+    cram = f"{case.base}.cram"
+    subprocess.run(
+        ["samtools", "faidx", case.fasta],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    if rf_time is not None:
+        bam_out = "_cram_to_bam.bam"
+        cmd = [
+            "samtools",
+            "view",
+            "-@",
+            str(case.threads),
+            "-T",
+            case.fasta,
+            "-b",
+            "-o",
+            bam_out,
+            cram,
+        ]
+        ct, cm = measure(cmd, runs, pre=lambda: Path(bam_out).unlink(missing_ok=True))
+        Path(bam_out).unlink(missing_ok=True)
+        _print_tool("samtools cram->bam", ct, cm)
+        _print_tool("rf-count [cram] (= cram->bam + bam run)", ct + rf_time)
+        results.append(Result(case, "samtools", "cram->bam", ct, cm))
+        results.append(Result(case, "rf-count", "cram", ct + rf_time, None))
+
+    if sm_time is not None:
+        sam_out = "_cram_to_sam.sam"
+        script = f"samtools view -h -F 4 -T {case.fasta} {cram} > {sam_out}"
+        ct, cm = measure(
+            [],
+            runs,
+            shell_script=script,
+            pre=lambda: Path(sam_out).unlink(missing_ok=True),
+        )
+        Path(sam_out).unlink(missing_ok=True)
+        _print_tool("samtools cram->sam", ct, cm)
+        _print_tool("shapemapper2 [cram] (= cram->sam + run)", ct + sm_time)
+        results.append(Result(case, "samtools", "cram->sam", ct, cm))
+        results.append(Result(case, "shapemapper2", "cram", ct + sm_time, None))
+
+    return results
+
+
+def profile(case: Case, runs: int, use_cram: bool, sm_dir: str) -> list[Result]:
+    results: list[Result] = []
+
+    # cmuts reads BAM and CRAM natively, so benchmark every requested format.
+    for fmt in ["bam"] + (["cram"] if use_cram else []):
+        results.append(_bench_cmuts(case, fmt, runs))
+
+    # rf-count and shapemapper2 run once on BAM/SAM.
+    rf_time = None
+    if shutil.which("rf-count"):
+        rf = _bench_rf_count(case, runs)
+        rf_time = rf.time_s
+        results.append(rf)
+
+    sm_time = None
+    if sm_dir:
+        sm = _bench_shapemapper(case, sm_dir, runs)
+        sm_time = sm.time_s
+        results.append(sm)
+
+    if use_cram:
+        results += _bench_cram_costs(case, runs, rf_time, sm_time)
+
+    return results
+
+
+# Sweep definitions: (mode, swept label, values, fixed-header lines, case factory).
+def _sweeps(threads: int):
+    return [
+        (
+            "queries",
+            "QUERIES",
+            [10**2, 10**4, 10**6],
+            [("REFERENCES", 1024), ("REFERENCE LENGTH", 200)],
+            lambda v: Case("queries", 1024, v, 200, threads),
+        ),
+        (
+            "references",
+            "REFERENCES",
+            [10**1, 10**2, 10**3, 10**4, 10**5],
+            [("QUERIES", 1024), ("REFERENCE LENGTH", 200)],
+            lambda v: Case("references", v, 1024, 200, threads),
+        ),
+        (
+            "lengths",
+            "REFERENCE LENGTH",
+            [10**1, 10**2, 10**3, 10**4],
+            [("QUERIES", 1024), ("REFERENCES", 1024)],
+            lambda v: Case("lengths", 1024, 1024, v, threads),
+        ),
+    ]
+
+
+def _run_sweep(spec, args, all_rows: list[Result]) -> None:
+    mode, var_label, values, header, make_case = spec
+    print()
+    print(SEP)
+    print(f"   {'THREADS:':<18}{args.threads}")
+    for label, val in header:
+        print(f"   {label + ':':<18}{val}")
+    print(SEP)
+    for v in values:
+        print(f"   {var_label + ':':<18}{v}")
+        print(SEP)
+        case = make_case(v)
+        generate(case)
+        all_rows.extend(profile(case, args.runs, args.cram, args.shapemapper_dir))
+        print(SEP)
+
+
+def _write_csv(path: Path, rows: list[Result], runs: int) -> None:
+    new = not path.exists() or path.stat().st_size == 0
+    with path.open("a", newline="") as fh:
+        w = csv.writer(fh)
+        if new:
+            w.writerow(
+                [
+                    "mode",
+                    "tool",
+                    "format",
+                    "threads",
+                    "references",
+                    "queries",
+                    "length",
+                    "runs",
+                    "time_s",
+                    "mem_mb",
+                ]
+            )
+        for r in rows:
+            w.writerow(
+                [
+                    r.case.mode,
+                    r.tool,
+                    r.fmt,
+                    r.case.threads,
+                    r.case.references,
+                    r.case.queries,
+                    r.case.length,
+                    runs,
+                    f"{r.time_s:.4f}",
+                    "" if r.mem_mb is None else f"{r.mem_mb:.2f}",
+                ]
+            )
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--runs", type=int, default=1, help="Iterations per measurement (min is kept)")
+    p.add_argument("--threads", type=int, default=1, help="Threads for cmuts/rf-count")
+    p.add_argument("--queries", action="store_true", help="Sweep number of queries")
+    p.add_argument("--references", action="store_true", help="Sweep number of references")
+    p.add_argument("--lengths", action="store_true", help="Sweep reference length")
+    p.add_argument("--cram", action="store_true", help="Also benchmark CRAM alongside BAM")
+    p.add_argument("--shapemapper-dir", default="", metavar="DIR", help="ShapeMapper2 install dir")
+    p.add_argument("--output", default="profile-results.csv", help="CSV results path (appended)")
+    args = p.parse_args()
+
+    if not shutil.which("samtools"):
+        sys.exit("Samtools is required but it's not installed. Exiting.")
+    if args.shapemapper_dir:
+        for tool in ("shapemapper_mutation_parser", "shapemapper_mutation_counter"):
+            if not os.access(f"{args.shapemapper_dir}/internals/bin/{tool}", os.X_OK):
+                sys.exit(f"{tool} not found in {args.shapemapper_dir}/internals/bin/. Exiting.")
+
+    global TIME_BIN
+    TIME_BIN = _gnu_time_bin()
+
+    enabled = {"queries": args.queries, "references": args.references, "lengths": args.lengths}
+    selected = [s for s in _sweeps(args.threads) if enabled[s[0]]]
+    if not selected:
+        sys.exit("Nothing to do: pass at least one of --queries, --references, --lengths.")
+
+    output = Path(args.output).resolve()
+    cases_dir = Path.cwd() / ".cases"
+    cases_dir.mkdir(exist_ok=True)
+
+    all_rows: list[Result] = []
+    prev = Path.cwd()
+    os.chdir(cases_dir)
+    try:
+        for spec in selected:
+            _run_sweep(spec, args, all_rows)
+    finally:
+        os.chdir(prev)
+
+    _write_csv(output, all_rows, args.runs)
+    print()
+    print(f"Wrote {len(all_rows)} rows to {output}")
+
+
+if __name__ == "__main__":
+    main()
