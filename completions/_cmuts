@@ -119,8 +119,6 @@ _cmuts() {
                         '--blank-cutoff[Min reads for position]: :' \
                         '--norm-independent[Normalize each profile separately]' \
                         '--norm[Normalization method]: :(ubr raw outlier)' \
-                        '--norm-cutoff[Min reads for normalization]: :' \
-                        '--norm-percentile[Normalization percentile]: :' \
                         '--no-insertions[Exclude insertions from reactivity]' \
                         '--no-deletions[Exclude deletions from reactivity]' \
                         '--sig[Significance level]: :' \

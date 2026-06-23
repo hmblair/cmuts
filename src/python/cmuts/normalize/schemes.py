@@ -55,25 +55,40 @@ def _get_norm_raw(
     return np.ones(1, dtype=data.reactivity.dtype)
 
 
+# UBR (upper-bound reference) normalization parameters.
+_UBR_READ_CUTOFF = 500  # per-reference read floor for "high-coverage" positions
+_UBR_PERCENTILE = 90  # reactivity percentile used as the normalization factor
+
+
+def _ubr_high_coverage(data: ProbingData) -> np.ndarray:
+    """Reactivity values at masked, high-coverage positions of one dataset."""
+    mask = np.asarray(data.mask)
+    reads = np.asarray(data.reads)
+    reactivity = np.asarray(data.reactivity)
+    good_pos = mask & (reads > _UBR_READ_CUTOFF)[:, None]
+    return reactivity[good_pos]
+
+
+def _ubr_norm(datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+    """UBR factor: the percentile of high-coverage reactivity pooled across one
+    or more datasets. Falls back to no normalization when no position clears the
+    coverage floor.
+    """
+    vals = [v for v in (_ubr_high_coverage(d) for d in datasets) if v.size]
+    if not vals:
+        return _get_norm_raw(datasets[0], opts)
+    pooled = np.concatenate([v.flatten() for v in vals])
+    return np.asarray(np.percentile(pooled, _UBR_PERCENTILE))
+
+
 def _get_norm_percentile(
     data: ProbingData,
     opts: Opts,
 ) -> np.ndarray:
-    """UBR percentile normalization.
-
-    Uses the 90th percentile of high-coverage positions as the
-    normalization factor.
+    """UBR percentile normalization: the 90th percentile of high-coverage
+    positions, computed as a single dataset pooled through :func:`_ubr_norm`.
     """
-    READ_CUTOFF = 100
-    PERCENTILE = 90
-
-    _good_pos = data.mask & (data.reads > READ_CUTOFF)[:, None]
-    high_reactivity = data.reactivity[_good_pos]
-
-    if not high_reactivity.size:
-        return _get_norm_raw(data, opts)
-
-    return np.asarray(np.percentile(high_reactivity.flatten(), PERCENTILE))
+    return _ubr_norm([data], opts)
 
 
 def _get_norm_outlier(
@@ -160,24 +175,7 @@ def pooled_norm(
         return _get_norm_raw(datasets[0], opts)
 
     if scheme == NormScheme.UBR:
-        READ_CUTOFF = 100
-        PERCENTILE = 90
-
-        all_vals: list[np.ndarray] = []
-        for data in datasets:
-            mask = np.asarray(data.mask)
-            reads = np.asarray(data.reads)
-            reactivity = np.asarray(data.reactivity)
-            good_pos = mask & (reads > READ_CUTOFF)[:, None]
-            vals = reactivity[good_pos]
-            if vals.size:
-                all_vals.append(vals)
-
-        if not all_vals:
-            return _get_norm_raw(datasets[0], opts)
-
-        pooled = np.concatenate(all_vals).flatten()
-        return np.asarray(np.percentile(pooled, PERCENTILE))
+        return _ubr_norm(datasets, opts)
 
     if scheme == NormScheme.OUTLIER:
         norms = [_get_norm_outlier(data, opts) for data in datasets]

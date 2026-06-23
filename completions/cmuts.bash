@@ -114,7 +114,7 @@ _cmuts() {
             esac
             case "$cur" in
                 -*)
-                    COMPREPLY=($(compgen -W "--mod --nomod --fasta --group -o --out --overwrite --clip-below --clip-above --blank-5p --blank-3p --blank-cutoff --norm-independent --norm --norm-cutoff --norm-percentile --no-insertions --no-deletions --sig --help" -- "$cur"))
+                    COMPREPLY=($(compgen -W "--mod --nomod --fasta --group -o --out --overwrite --clip-below --clip-above --blank-5p --blank-3p --blank-cutoff --norm-independent --norm --no-insertions --no-deletions --sig --help" -- "$cur"))
                     ;;
                 *)
                     _filedir h5

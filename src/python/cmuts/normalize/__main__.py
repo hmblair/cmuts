@@ -109,18 +109,6 @@ parser.add_argument(
     default="ubr",
 )
 parser.add_argument(
-    "--norm-cutoff",
-    help="References with at least this many reads are used for normalization.",
-    type=int,
-    default=500,
-)
-parser.add_argument(
-    "--norm-percentile",
-    help="The reactivity percentile to use for normalization.",
-    type=int,
-    default=90,
-)
-parser.add_argument(
     "--no-insertions",
     help="Do not use insertions to compute the reactivity profile.",
     action="store_true",
