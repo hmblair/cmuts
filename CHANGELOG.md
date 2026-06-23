@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.4.10] - 2026-06-22
 
 ### Added
 
@@ -10,9 +10,12 @@
 
 - Renamed `cmuts normalize` flags `--clip-low`/`--clip-high` to `--clip-below`/`--clip-above` (breaking)
 - Renamed `plot_cumulative_reads` to `plot_reads_per_block` (breaking)
+- `cmuts core --downsample` now caps the number of reads that *pass* the quality filters per reference, rather than the number of reads read from the file. This bounds usable depth and avoids over-processing references
+- `cmuts -h` now lists the subcommands with one-line descriptions, and `cmuts test -h` shows the test-runner options (previously the test options were shown under the top-level help)
 
 ### Fixed
 
+- `cmuts core` now decodes CRAM files written by real aligners (e.g. Ultima `sorter`). The hand-rolled CRAM decoder previously aborted such files with "Invalid read length" or "reference position exceeds reference length": it never decoded multi-symbol Huffman codes (it returned a constant and consumed no bits) and read the per-record fields out of CRAM-spec order. Canonical Huffman decoding is now implemented and the fields are read in spec order. Records that use CRAM features cmuts does not decode (core-coded mate or auxiliary-tag data) now fail cleanly instead of silently mis-decoding
 - `cmuts core --tokenize` no longer writes all-zero tokens for reference sequences shorter than four bases (a leftover stream-error flag from header parsing turned the binary FASTA read into a silent no-op)
 - `cmuts core --tokenize` now exits non-zero when tokenization fails, such as on an invalid `--token-map`
 
