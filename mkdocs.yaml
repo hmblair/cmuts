@@ -44,6 +44,7 @@ nav:
     - cmuts generate: usage/cmuts-generate.md
     - cmuts test: usage/cmuts-test.md
     - Examples: usage/examples.md
+  - Benchmarks: benchmarks.md
 
 plugins:
   - search
