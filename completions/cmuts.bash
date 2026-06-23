@@ -36,7 +36,7 @@ _shtab_cmuts_align___barcodes_COMPGEN=_shtab_compgen_files
 _shtab_cmuts_align___pairs_COMPGEN=_shtab_compgen_files
 
 _shtab_cmuts_pos_0_choices=('core' 'generate' 'normalize' 'plot' 'visualize' 'align' 'test')
-_shtab_cmuts_normalize___norm_choices=('ubr' 'raw' 'outlier')
+_shtab_cmuts_normalize___norm_choices=('raw' 'ubr' 'outlier')
 
 _shtab_cmuts_pos_0_nargs=A...
 _shtab_cmuts__h_nargs=0

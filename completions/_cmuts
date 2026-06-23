@@ -125,7 +125,7 @@ _shtab_cmuts_normalize_options=(
   "--blank-5p[NaN out this many bases on the 5\' end.]:blank_5p:"
   "--blank-3p[NaN out this many bases on the 3\' end.]:blank_3p:"
   "--blank-cutoff[NaN out any positions with less than this many reads.]:blank_cutoff:"
-  "--norm[Normalization method\: ubr (90th percentile), raw (none), outlier (2-8\%).]:norm:(ubr raw outlier)"
+  "--norm[Normalization method\: ubr (90th percentile), raw (none), outlier (2-8\%).]:norm:(raw ubr outlier)"
   "--no-insertions[Do not use insertions to compute the reactivity profile.]"
   "--no-deletions[Do not use deletions to compute the reactivity profile.]"
   "--sig[The significance level for correlation plots.]:sig:"

@@ -8,7 +8,6 @@ Key Classes:
     ProbingData: Container for reactivity profiles, errors, and quality metrics.
     Opts: Configuration options for reactivity computation.
     DataGroups: Specifies HDF5 group paths for modified/unmodified conditions.
-    NormScheme: Enumeration of normalization methods (RAW, UBR, OUTLIER).
 
 Key Functions:
     compute_reactivity: Transform mutation counts to normalized reactivity.
@@ -43,7 +42,7 @@ from .internal import (
     compute_reactivity,
     save_groups,
 )
-from .normalize import NormScheme, pooled_norm
+from .normalize import Scheme, get_norm, pooled_norm, register, scheme_names
 
 # Output formatting
 from .output import (
@@ -59,13 +58,16 @@ __all__ = [
     "DataGroups",
     "Group",
     "GroupResult",
-    "NormScheme",
     "Opts",
     "ProbingData",
+    "Scheme",
     "compute_reactivities",
     "compute_reactivity",
+    "get_norm",
     "pooled_norm",
+    "register",
     "save_groups",
+    "scheme_names",
     "stats",
     "subtitle",
     "title",

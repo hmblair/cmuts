@@ -1,17 +1,19 @@
 """Normalization schemes for reactivity profiles.
 
-This module provides different normalization methods for converting raw
-mutation rates into normalized reactivity values.
+A scheme converts raw mutation rates into a reactivity scale factor. Schemes are
+small classes registered in a ``name -> instance`` table; both the CLI ``--norm``
+choices and the dispatch read from it, so adding a scheme is a single localized
+change (subclass :class:`Scheme`, decorate with :func:`register`).
 
-Normalization Schemes:
-    RAW: No normalization, raw mutation rates
-    UBR: Upper-bound reference percentile normalization (default)
-    OUTLIER: 2-8% outlier-based normalization
+Built-in schemes:
+    raw     : no normalization
+    ubr     : upper-bound reference -- 90th percentile of high-coverage positions
+    outlier : 2-8% outlier-based, per-reference normalization
 """
 
 from __future__ import annotations
 
-from enum import Enum
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,44 +22,84 @@ if TYPE_CHECKING:
     from ..internal import Opts, ProbingData
 
 __all__ = [
-    "NormScheme",
+    "Scheme",
     "get_norm",
     "pooled_norm",
+    "register",
+    "scheme_names",
 ]
-
-
-class NormScheme(Enum):
-    """Normalization scheme for reactivity values."""
-
-    RAW = 0
-    UBR = 1
-    OUTLIER = 2
-
-
-def _get_norm_scheme(norm: str) -> NormScheme:
-    """Determine normalization scheme from string."""
-    norm_lower = norm.lower()
-    if norm_lower == "raw":
-        return NormScheme.RAW
-    if norm_lower == "ubr":
-        return NormScheme.UBR
-    if norm_lower == "outlier":
-        return NormScheme.OUTLIER
-
-    raise ValueError(f"Unknown normalization scheme: {norm}. Use 'ubr', 'raw', or 'outlier'.")
-
-
-def _get_norm_raw(
-    data: ProbingData,
-    opts: Opts,
-) -> np.ndarray:
-    """No normalization."""
-    return np.ones(1, dtype=data.reactivity.dtype)
 
 
 # UBR (upper-bound reference) normalization parameters.
 _UBR_READ_CUTOFF = 500  # per-reference read floor for "high-coverage" positions
 _UBR_PERCENTILE = 90  # reactivity percentile used as the normalization factor
+
+
+# ---------------------------------------------------------------------------
+# Scheme base class and registry
+# ---------------------------------------------------------------------------
+
+
+class Scheme(ABC):
+    """A normalization scheme: maps probing data to a reactivity scale factor.
+
+    Subclasses set ``name`` and implement :meth:`single`. The default
+    :meth:`pooled` averages each group's factor, which is correct for
+    per-reference and constant schemes; override it when groups must share a
+    factor computed jointly (e.g. UBR pools raw values before the percentile).
+    """
+
+    name: str
+
+    @abstractmethod
+    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
+        """Normalization factor for one dataset."""
+
+    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+        """Shared factor across groups (default: average the per-group factors)."""
+        return np.mean([self.single(d, opts) for d in datasets], axis=0)
+
+
+_SCHEMES: dict[str, Scheme] = {}
+
+
+def register(scheme_cls: type[Scheme]) -> type[Scheme]:
+    """Class decorator: register an instance of ``scheme_cls`` under its name."""
+    instance = scheme_cls()
+    _SCHEMES[instance.name] = instance
+    return scheme_cls
+
+
+def scheme_names() -> list[str]:
+    """Names of all registered schemes (drives the CLI ``--norm`` choices)."""
+    return list(_SCHEMES)
+
+
+def _resolve(name: str) -> Scheme:
+    try:
+        return _SCHEMES[name.lower()]
+    except KeyError:
+        raise ValueError(
+            f"Unknown normalization scheme: {name}. Use one of {scheme_names()}."
+        ) from None
+
+
+# ---------------------------------------------------------------------------
+# Built-in schemes
+# ---------------------------------------------------------------------------
+
+
+@register
+class RawScheme(Scheme):
+    """No normalization."""
+
+    name = "raw"
+
+    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
+        return np.ones(1, dtype=np.asarray(data.reactivity).dtype)
+
+    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+        return self.single(datasets[0], opts)
 
 
 def _ubr_high_coverage(data: ProbingData) -> np.ndarray:
@@ -69,116 +111,69 @@ def _ubr_high_coverage(data: ProbingData) -> np.ndarray:
     return reactivity[good_pos]
 
 
-def _ubr_norm(datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-    """UBR factor: the percentile of high-coverage reactivity pooled across one
-    or more datasets. Falls back to no normalization when no position clears the
+@register
+class UBRScheme(Scheme):
+    """Upper-bound reference: the percentile of high-coverage reactivity pooled
+    across datasets. Falls back to no normalization when no position clears the
     coverage floor.
     """
-    vals = [v for v in (_ubr_high_coverage(d) for d in datasets) if v.size]
-    if not vals:
-        return _get_norm_raw(datasets[0], opts)
-    pooled = np.concatenate([v.flatten() for v in vals])
-    return np.asarray(np.percentile(pooled, _UBR_PERCENTILE))
+
+    name = "ubr"
+
+    def _norm(self, datasets: list[ProbingData]) -> np.ndarray:
+        vals = [v for v in (_ubr_high_coverage(d) for d in datasets) if v.size]
+        if not vals:
+            return np.ones(1, dtype=np.asarray(datasets[0].reactivity).dtype)
+        pooled = np.concatenate([v.flatten() for v in vals])
+        return np.asarray(np.percentile(pooled, _UBR_PERCENTILE))
+
+    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
+        return self._norm([data])
+
+    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+        return self._norm(datasets)
 
 
-def _get_norm_percentile(
-    data: ProbingData,
-    opts: Opts,
-) -> np.ndarray:
-    """UBR percentile normalization: the 90th percentile of high-coverage
-    positions, computed as a single dataset pooled through :func:`_ubr_norm`.
-    """
-    return _ubr_norm([data], opts)
-
-
-def _get_norm_outlier(
-    data: ProbingData,
-    opts: Opts,
-) -> np.ndarray:
-    """2-8% Normalization.
-
-    From top 10%, ignore top 2% and divide by average of remaining 8%.
+@register
+class OutlierScheme(Scheme):
+    """2-8% normalization: from the top 10%, drop the top 2% and divide by the
+    mean of the remaining 8%. Produces a per-reference factor.
     """
 
-    def norm_1d(
-        arr: np.ndarray,
-        low: float = 0.02,
-        high: float = 0.1,
-    ) -> float:
-        arr = arr[~np.isnan(arr)]
+    name = "outlier"
 
-        p2 = max(1, round(len(arr) * low) - 1)
-        p10 = max(1, round(len(arr) * high) - 1)
+    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
+        def norm_1d(arr: np.ndarray, low: float = 0.02, high: float = 0.1) -> float:
+            arr = arr[~np.isnan(arr)]
+            p2 = max(1, round(len(arr) * low) - 1)
+            p10 = max(1, round(len(arr) * high) - 1)
+            sarr = np.sort(arr)[::-1]
+            if sarr.size == 0:
+                return 1.0
+            return float(np.mean(sarr[p2 : p10 + 1]))
 
-        sarr = np.sort(arr)[::-1]
-        if sarr.size == 0:
-            m: float = 1.0
-        else:
-            m = float(np.mean(sarr[p2 : p10 + 1]))
-
-        return m
-
-    return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)[:, None]
+        return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)[:, None]
 
 
-def get_norm(
-    data: ProbingData,
-    opts: Opts,
-) -> np.ndarray:
-    """Get normalization factor based on options.
-
-    Args:
-        data: ProbingData containing reactivity values
-        opts: Options specifying normalization scheme
-
-    Returns:
-        Normalization factor(s) as numpy array
-    """
-    scheme = _get_norm_scheme(opts.norm)
-
-    if scheme == NormScheme.RAW:
-        return _get_norm_raw(data, opts)
-    if scheme == NormScheme.UBR:
-        return _get_norm_percentile(data, opts)
-    if scheme == NormScheme.OUTLIER:
-        return _get_norm_outlier(data, opts)
-
-    raise ValueError(f"Invalid normalization scheme {scheme}.")
+# ---------------------------------------------------------------------------
+# Public dispatch API
+# ---------------------------------------------------------------------------
 
 
-def pooled_norm(
-    datasets: list[ProbingData],
-    opts: Opts,
-) -> np.ndarray:
-    """Compute a single normalization factor pooled across multiple datasets.
+def get_norm(data: ProbingData, opts: Opts) -> np.ndarray:
+    """Normalization factor for a single dataset under ``opts.norm``."""
+    return _resolve(opts.norm).single(data, opts)
+
+
+def pooled_norm(datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+    """Shared normalization factor across datasets under ``opts.norm``.
 
     Used to make reactivities directly comparable across experimental groups.
-    For UBR, pools high-coverage reactivity values across all datasets and takes
-    the percentile. For OUTLIER, averages the per-reference factors across
-    datasets. For RAW, returns ones.
-
-    Args:
-        datasets: List of computed ProbingData objects (one per group).
-        opts: Options specifying normalization scheme.
-
-    Returns:
-        Shared normalization factor as a numpy array.
+    Empty input yields ones; a single dataset is equivalent to :func:`get_norm`.
     """
     if not datasets:
         return np.ones(1, dtype=np.float64)
+    scheme = _resolve(opts.norm)
     if len(datasets) == 1:
-        return get_norm(datasets[0], opts)
-
-    scheme = _get_norm_scheme(opts.norm)
-
-    if scheme == NormScheme.RAW:
-        return _get_norm_raw(datasets[0], opts)
-
-    if scheme == NormScheme.UBR:
-        return _ubr_norm(datasets, opts)
-
-    if scheme == NormScheme.OUTLIER:
-        norms = [_get_norm_outlier(data, opts) for data in datasets]
-        return np.mean(norms, axis=0)
-
-    raise ValueError(f"Invalid normalization scheme {scheme}.")
+        return scheme.single(datasets[0], opts)
+    return scheme.pooled(datasets, opts)

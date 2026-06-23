@@ -9,7 +9,6 @@ Data Structures:
     ProbingData: Primary container holding reactivity, error, SNR, and pairwise metrics.
     Opts: Configuration dataclass with normalization options (cutoff, blank regions, etc.).
     DataGroups: Paths to HDF5 groups containing count data.
-    NormScheme: Enum for normalization methods (RAW, UBR percentile, OUTLIER 2-8%).
     Datasets: String constants for HDF5 dataset names.
 
 Key Functions:
