@@ -267,8 +267,18 @@ def _bench_shapemapper(case: Case, sm_dir: str, runs: int) -> Result:
             check=True,
         )
 
+    # ShapeMapper's prebuilt binaries link against the boost shipped in its
+    # vendored conda env. Put that on LD_LIBRARY_PATH for these binaries only:
+    # exporting it process-wide shadows system libs (libattr/libacl) and breaks
+    # samtools/coreutils, so it is scoped inside this bash invocation.
+    libdir = f"{sm_dir}/internals/thirdparty/miniconda/envs/shapemapper_make/lib"
+    ld = (
+        f'export LD_LIBRARY_PATH="{libdir}:${{LD_LIBRARY_PATH:-}}"; '
+        if Path(libdir).is_dir()
+        else ""
+    )
     script = (
-        f"{parser} -i {sam_in} -o {parsed} --input_is_unpaired -m {MIN_MAPQ} && "
+        f"{ld}{parser} -i {sam_in} -o {parsed} --input_is_unpaired -m {MIN_MAPQ} && "
         f"{counter} -i {parsed} -c {counts} -n {case.length} --warn_on_no_mapped"
     )
 
