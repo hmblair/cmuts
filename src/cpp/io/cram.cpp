@@ -568,7 +568,26 @@ ByteArrayStopCodec::ByteArrayStopCodec(int32_t id, uint8_t stop)
 
 HuffmanCodec::HuffmanCodec(const std::vector<int32_t>& alphabet,
                            const std::vector<int32_t>& lengths)
-    : Codec(Codec_t::Huffman), _alphabet(alphabet), _lengths(lengths) {}
+    : Codec(Codec_t::Huffman), _alphabet(alphabet), _lengths(lengths) {
+
+    // Build canonical Huffman codes: sort symbols by (code length, symbol),
+    // then assign codes incrementally, left-shifting when the length grows.
+    std::vector<std::pair<int32_t, int32_t>> pairs;  // (length, symbol)
+    pairs.reserve(alphabet.size());
+    for (size_t i = 0; i < alphabet.size(); i++) {
+        pairs.emplace_back(lengths[i], alphabet[i]);
+    }
+    std::sort(pairs.begin(), pairs.end());
+
+    int32_t code = 0;
+    int32_t prev = 0;
+    for (const auto& [len, sym] : pairs) {
+        code <<= (len - prev);
+        _codes.push_back({len, code, sym});
+        code++;
+        prev = len;
+    }
+}
 
 BetaCodec::BetaCodec(int32_t offset, int32_t length)
     : Codec(Codec_t::Beta), _offset(offset), _length(length) {}
@@ -620,12 +639,32 @@ std::vector<uint8_t> ByteArrayStopCodec::array() {
 
 uint8_t HuffmanCodec::byte() {
 
-    return static_cast<uint8_t>(_alphabet[0]);
+    return static_cast<uint8_t>(integer());
 }
 
 int32_t HuffmanCodec::integer() {
 
-    return _alphabet[0];
+    // A single-symbol code is implicit and consumes no bits.
+    if (_codes.size() <= 1) {
+        return _alphabet.empty() ? 0 : _alphabet[0];
+    }
+
+    // Read bits MSB-first, matching the canonical code against known codes.
+    int32_t code = 0;
+    int32_t len = 0;
+    while (len <= 32) {
+        code = (code << 1) | static_cast<int32_t>(_stream->bits(1));
+        len++;
+        for (const auto& c : _codes) {
+            if (c.length > len) {
+                break;  // codes are sorted by length
+            }
+            if (c.length == len && c.code == code) {
+                return c.symbol;
+            }
+        }
+    }
+    __throw_and_log(_LOG_FILE, "Huffman decode failed (no matching code).");
 }
 
 int32_t BetaCodec::integer() {
@@ -1389,23 +1428,21 @@ void CramIterator::_next_slice() {
 
 void CramIterator::_next_op() {
 
-    // The FP file tells us the delta in the query position of the
-    // feature, relative to the previous feature. It uses one-based indexing
-    // (i.e. the first position in the read has jump = 1) which we need to
-    // account for.
+    // Read feature records store FP before FC (CRAM spec section 10.6 data
+    // series table; note the DecodeFeature pseudocode lists them in the other
+    // order, but the reference implementation and the table agree on FP, FC).
 
+    // The FP field tells us the delta in the query position of the feature,
+    // relative to the previous feature. It uses one-based indexing (i.e. the
+    // first position in the read has jump = 1), which we account for.
     int32_t jump = at(ExtData_t::FP)->integer();
     if (_cigar.empty()) {
         jump--;
     }
 
-    // Since matches are not stored in CRAM files, we need to determine if there
-    // have been any matches since the previous read feature.
-
-    // We can compute this by noting that the jump is given by the number
-    // of matches plus the length of the query sequence consumed by the
-    // previous op.
-
+    // Since matches are not stored in CRAM files, we determine how many there
+    // have been since the previous feature: the jump minus the query sequence
+    // consumed by the previous op.
     int32_t matches = jump - _prev_qlength;
     if (matches > 0) {
         CIGAR_op match(CIGAR_t::MATCH, matches);
@@ -1413,9 +1450,8 @@ void CramIterator::_next_op() {
         _qpos += matches;
     }
 
-    // The FC field tells us the read feature type, which we use to generate
-    // the corresponding CIGAR op
-
+    // The FC field tells us the read feature type, which we use to generate the
+    // corresponding CIGAR op.
     uint8_t fc = at(ExtData_t::FC)->byte();
     ExtData_t type = _fc_to_enum(fc);
     CIGAR_op op = _op_from_fc_enum(type, *this);
@@ -1474,21 +1510,48 @@ Alignment CramIterator::next() {
     bool primary = !(bf & 0x100);
     bool reversed = static_cast<bool>(bf & 0x10);
 
-    // The FN field tells us the number of read features. In the case that there
-    // is only one query, the FN field is not present, so we use the length of the
-    // FC stream instead.
+    // Read the per-record fields in CRAM spec order (BF, CF, [RI], RL, AP, RG,
+    // [names], [mate], [tags], FN, ...). CF and RG are not used here but must be
+    // consumed so the shared core bitstream stays aligned.
+    int32_t cf = at(ExtData_t::CF)->integer();
+
+    // cmuts does not decode the mate (CRAM spec section 10.4) or auxiliary tag
+    // (section 10.5) records. Skipping a field is only safe when it does not
+    // consume bits from the shared core bitstream; if a skipped, used field is
+    // core-coded, the bitstream desyncs. Detect that and fail cleanly rather
+    // than silently mis-decode. (Externally-coded mate/tag fields, as written by
+    // samtools here, are harmless and decode correctly.)
+    const auto& codec_map = _container.slice(_slice).codecs.map;
+    auto core_coded = [&codec_map](ExtData_t series) {
+        auto it = codec_map.find(series);
+        return it != codec_map.end() && it->second->reads_core_bits();
+    };
+    if ((cf & 0x2) && (core_coded(ExtData_t::MF) || core_coded(ExtData_t::NS) ||
+                       core_coded(ExtData_t::NP) || core_coded(ExtData_t::TS))) {
+        __throw_and_log(_LOG_FILE, "CRAM detached mate records are not supported.");
+    }
+    if ((cf & 0x4) && core_coded(ExtData_t::NF)) {
+        __throw_and_log(_LOG_FILE, "CRAM mate-downstream records are not supported.");
+    }
+    if (core_coded(ExtData_t::TL)) {
+        __throw_and_log(_LOG_FILE, "CRAM core-coded auxiliary tags are not supported.");
+    }
+
+    int32_t length = at(ExtData_t::RL)->integer();
+    if (length <= 0) {
+        __throw_and_log(_LOG_FILE, "Invalid read length (" + std::to_string(length) + ").");
+    }
+
+    int32_t ap = at(ExtData_t::AP)->integer();
+    if (_container.delta()) {
+        _offset += ap;
+    } else {
+        _offset = ap - 1;
+    }
+
+    at(ExtData_t::RG)->integer();
 
     _remaining = at(ExtData_t::FN)->integer();
-
-    // The AP field tells us the (delta of the) alignment offset. In the case that
-    // there is only one query, the AP field is not present, and we defer to the
-    // slice header's value.
-
-    if (_container.delta()) {
-        _offset += at(ExtData_t::AP)->integer();
-    } else {
-        _offset = at(ExtData_t::AP)->integer() - 1;
-    }
 
     _cigar = CIGAR(CIGAR_RESERVE);
     _qpos = 0;
@@ -1499,17 +1562,8 @@ Alignment CramIterator::next() {
     }
 
     // If there is a match at the end of the read, it is not accounted for
-    // by jumps in the read features, so we need to access the read length
-    // to determine whether it exists.
-
-    // The read length is stored in the RL field. If there is only one
-    // query, the RL field is not present, and we use the length of
-    // the QS field instead.
-
-    int32_t length = at(ExtData_t::RL)->integer();
-    if (length <= 0) {
-        __throw_and_log(_LOG_FILE, "Invalid read length (" + std::to_string(length) + ").");
-    }
+    // by jumps in the read features, so we use the read length (RL, read
+    // above in spec order) to determine whether it exists.
 
     int32_t matches = length - _qpos;
     if (matches > 0) {

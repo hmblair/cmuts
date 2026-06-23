@@ -160,6 +160,11 @@ class Codec {
     int32_t id() const;
     void attach(const std::shared_ptr<ByteStream>& stream);
 
+    // Whether decoding a value consumes bits from the shared core bitstream.
+    // True only for bit codecs that actually read bits (so a constant
+    // single-symbol Huffman, which reads none, returns false).
+    virtual bool reads_core_bits() const { return false; }
+
     virtual uint8_t byte();
     virtual int32_t integer();
     virtual std::vector<uint8_t> array();
@@ -189,9 +194,18 @@ class HuffmanCodec : public Codec {
     std::vector<int32_t> _alphabet;
     std::vector<int32_t> _lengths;
 
+    // Canonical Huffman codes, sorted by (length, symbol).
+    struct Code {
+        int32_t length;
+        int32_t code;
+        int32_t symbol;
+    };
+    std::vector<Code> _codes;
+
   public:
     HuffmanCodec(const std::vector<int32_t>& alphabet, const std::vector<int32_t>& lengths);
 
+    bool reads_core_bits() const override { return _codes.size() > 1; }
     uint8_t byte() override;
     int32_t integer() override;
 };
@@ -204,6 +218,7 @@ class BetaCodec : public Codec {
   public:
     BetaCodec(int32_t offset, int32_t length);
 
+    bool reads_core_bits() const override { return _length > 0; }
     int32_t integer() override;
 };
 
@@ -215,6 +230,7 @@ class SubExpCodec : public Codec {
   public:
     SubExpCodec(int32_t offset, int32_t order);
 
+    bool reads_core_bits() const override { return true; }
     int32_t integer() override;
 };
 
