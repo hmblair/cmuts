@@ -12,6 +12,8 @@ import plotly.graph_objects as go
 
 from cmuts.internal import ProbingData
 
+from . import _transforms
+
 # Styling constants matching the matplotlib versions
 FONT_FAMILY = "Helvetica"
 LABEL_SIZE = 14
@@ -94,10 +96,6 @@ def _add_band(
             hoverinfo="skip",
         )
     )
-
-
-def _symlog(x: np.ndarray, linthresh: float) -> np.ndarray:
-    return np.sign(x) * np.log10(1.0 + np.abs(x) / linthresh)
 
 
 # ---------------------------------------------------------------------------
@@ -198,9 +196,7 @@ def plot_heatmap(heatmap: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_read_hist(reads: np.ndarray, name: str = "") -> go.Figure:
-    reads = np.asarray(reads)
-    with np.errstate(divide="ignore"):
-        lr = np.where(reads == 0, -1, np.log10(reads))
+    lr = _transforms.read_log_depth(reads)
 
     counts, bin_edges = np.histogram(lr, bins=100)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
@@ -234,11 +230,7 @@ def plot_reads_per_block(reads: np.ndarray, name: str = "", nblocks: int = 100) 
     arithmetic mean of per-reference read counts inside that block. No
     sorting is applied, so spatial trends along the FASTA are preserved.
     """
-    reads = np.asarray(reads)
-    nblocks = max(min(nblocks, reads.shape[0]), 1)
-    block = max(reads.shape[0] // nblocks, 1)
-    reads = reads[: nblocks * block]
-    means = reads.reshape(nblocks, block).mean(1)
+    means = _transforms.reads_per_block(reads, nblocks)
 
     title = f"Mean reads per reference bin ({name})" if name else "Mean reads per reference bin"
     fig = go.Figure()
@@ -249,10 +241,7 @@ def plot_reads_per_block(reads: np.ndarray, name: str = "", nblocks: int = 100) 
 
 
 def plot_termination(term: np.ndarray, name: str = "") -> go.Figure:
-    term = np.asarray(term).copy()
-    quot = term.sum(axis=1)[:, None]
-    term = np.divide(term, quot, where=(quot > 0), out=term)
-    term = np.mean(term, axis=0)
+    term = _transforms.termination_density(term)
 
     title = f"Termination by position ({name})" if name else "Termination by position"
     fig = go.Figure()
@@ -385,9 +374,7 @@ def plot_examples(
 
 
 def plot_coverage(coverage: np.ndarray, reads: np.ndarray, name: str = "") -> go.Figure:
-    coverage = np.asarray(coverage)
-    reads = np.asarray(reads)
-    data = coverage / reads.mean()
+    data = _transforms.coverage_fraction(coverage, reads)
 
     title = f"Coverage by position ({name})" if name else "Coverage by position"
     fig = go.Figure()
@@ -408,7 +395,7 @@ def plot_variance(values: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_pairwise_coverage(values: np.ndarray, name: str = "") -> go.Figure:
-    vlow = max(float(values.min()), 1e-4)
+    vlow = _transforms.pairwise_coverage_bounds(values).vlow
     with np.errstate(divide="ignore"):
         log_values = np.log10(np.clip(values, vlow, 1.0))
 
@@ -428,10 +415,9 @@ def plot_pairwise_coverage(values: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_correlation(values: np.ndarray, name: str = "") -> go.Figure:
-    vhigh = 1.0
-    linthresh = 1e-3 * vhigh
-    transformed = _symlog(values, linthresh)
-    t_max = _symlog(np.array([vhigh]), linthresh)[0]
+    linthresh = _transforms.CORRELATION_LINTHRESH
+    transformed = _transforms.symlog(values, linthresh)
+    t_max = _transforms.symlog(np.array([1.0]), linthresh)[0]
 
     title = f"Correlation ({name})" if name else "Correlation"
     fig = go.Figure(
@@ -443,7 +429,8 @@ def plot_correlation(values: np.ndarray, name: str = "") -> go.Figure:
             colorbar={
                 "title": "Pairwise Correlation",
                 "tickvals": [
-                    _symlog(np.array([v]), linthresh)[0] for v in [-1, -0.1, -0.01, 0, 0.01, 0.1, 1]
+                    _transforms.symlog(np.array([v]), linthresh)[0]
+                    for v in [-1, -0.1, -0.01, 0, 0.01, 0.1, 1]
                 ],
                 "ticktext": ["-1", "-0.1", "-0.01", "0", "0.01", "0.1", "1"],
             },
@@ -455,9 +442,7 @@ def plot_correlation(values: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_mi(values: np.ndarray, name: str = "") -> go.Figure:
-    mask = ~np.isnan(values)
-    vlow: float = max(float(np.percentile(values[mask], 95)), 1e-6)
-    vhigh: float = max(float(np.percentile(values[mask], 99)), 1e-6)
+    vlow, vhigh = _transforms.mi_bounds(values)
 
     with np.errstate(divide="ignore"):
         log_values = np.log10(np.clip(values, vlow, vhigh))

@@ -11,6 +11,8 @@ from matplotlib.colors import LogNorm, SymLogNorm
 
 from cmuts.internal import ProbingData
 
+from . import _transforms
+
 # Type alias for arrays that can be either numpy or dask
 ArrayType = Union[np.ndarray, da.Array]
 
@@ -118,9 +120,7 @@ def _plot_heatmap(heatmap: ArrayType, name: str, dir: str = FIGURES) -> None:
 
 
 def _plot_read_hist(reads: ArrayType, name: str, dir: str = FIGURES) -> None:
-    reads = np.asarray(reads)
-    with np.errstate(divide="ignore"):
-        lr = np.where(reads == 0, -1, np.log10(reads))
+    lr = _transforms.read_log_depth(reads)
 
     hist_result = plt.hist(lr, bins=100)
     counts: np.ndarray = np.asarray(hist_result[0])
@@ -145,11 +145,7 @@ def _plot_reads_per_block(
     """Plot mean reads per reference, references split into a fixed
     number of equal-sized blocks in their FASTA order.
     """
-    reads = np.asarray(reads)
-    nblocks = max(min(nblocks, reads.shape[0]), 1)
-    block = max(reads.shape[0] // nblocks, 1)
-    reads = reads[: nblocks * block]
-    means = reads.reshape(nblocks, block).mean(1)
+    means = _transforms.reads_per_block(reads, nblocks)
 
     _line_plot(means)
     _title("Mean reads per reference bin", name)
@@ -161,15 +157,7 @@ def _plot_reads_per_block(
 
 
 def _plot_termination(term: ArrayType, name: str, dir: str = FIGURES) -> None:
-    term = np.asarray(term)
-    quot = term.sum(axis=1)[:, None]
-    term = np.divide(
-        term,
-        quot,
-        where=(quot > 0),
-        out=term,
-    )
-    term = np.mean(term, axis=0)
+    term = _transforms.termination_density(term)
 
     _line_plot(term)
     plt.ylim(0, 1.05)
@@ -273,9 +261,7 @@ def _plot_examples(
 
 
 def _plot_coverage(coverage: ArrayType, reads: ArrayType, name: str, dir: str = FIGURES) -> None:
-    coverage = np.asarray(coverage)
-    reads = np.asarray(reads)
-    _line_plot(coverage / reads.mean())
+    _line_plot(_transforms.coverage_fraction(coverage, reads))
     plt.ylim(0, 1.05)
 
     _title("Coverage by position", name)
@@ -298,8 +284,7 @@ def _plot_variance(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
 
 
 def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
-    vlow = max(values.min(), 1e-4)
-    vhigh = 1
+    vlow, vhigh = _transforms.pairwise_coverage_bounds(values)
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 
     _matrix_plot(values, norm, "Pairwise Correlation")
@@ -313,8 +298,7 @@ def _plot_pairwise_coverage(values: np.ndarray, name: str, dir: str = FIGURES) -
 
 
 def _plot_correlation(values: np.ndarray, name: str, dir: str = FIGURES) -> None:
-    vhigh = 1
-    norm = SymLogNorm(linthresh=1e-3 * vhigh, vmin=-vhigh, vmax=vhigh)
+    norm = SymLogNorm(linthresh=_transforms.CORRELATION_LINTHRESH, vmin=-1, vmax=1)
 
     _matrix_plot(values, norm, "Pairwise Correlation", cmap="PiYG")
 
@@ -338,12 +322,7 @@ def _plot_mi(
     name: str,
     dir: str = FIGURES,
 ) -> None:
-    mask = ~np.isnan(values)
-    vlow: float = float(np.percentile(values[mask], 95))
-    vhigh: float = float(np.percentile(values[mask], 99))
-
-    vlow = max(vlow, 1e-6)
-    vhigh = max(vhigh, 1e-6)
+    vlow, vhigh = _transforms.mi_bounds(values)
 
     norm = LogNorm(vmin=vlow, vmax=vhigh)
 

@@ -1,0 +1,82 @@
+"""Pure-numpy data preparation shared by the matplotlib and plotly backends.
+
+Every plot is "compute the array(s) to draw, then draw them". The compute half
+is identical across the two backends, so it lives here -- numpy in, numpy out,
+no matplotlib/plotly imports -- and both renderers call it. This keeps the two
+backends from drifting on the math and makes the transforms unit-testable on
+their own.
+"""
+
+from __future__ import annotations
+
+from typing import NamedTuple
+
+import numpy as np
+import numpy.typing as npt
+
+# Correlation matrices use a symmetric-log colour scale around zero.
+CORRELATION_LINTHRESH = 1e-3
+
+
+def termination_density(term: npt.ArrayLike) -> np.ndarray:
+    """Mean per-position termination density: row-normalize each reference's
+    termination counts, then average over references.
+    """
+    term = np.asarray(term, dtype=float).copy()
+    quot = term.sum(axis=1)[:, None]
+    term = np.divide(term, quot, where=(quot > 0), out=term)
+    return np.mean(term, axis=0)
+
+
+def reads_per_block(reads: npt.ArrayLike, nblocks: int = 100) -> np.ndarray:
+    """Mean reads per reference, references grouped into ``nblocks`` equal-size
+    blocks in FASTA order (no sorting; preserves any spatial trend).
+    """
+    reads = np.asarray(reads)
+    nblocks = max(min(nblocks, reads.shape[0]), 1)
+    block = max(reads.shape[0] // nblocks, 1)
+    reads = reads[: nblocks * block]
+    return reads.reshape(nblocks, block).mean(1)
+
+
+def coverage_fraction(coverage: npt.ArrayLike, reads: npt.ArrayLike) -> np.ndarray:
+    """Per-position coverage as a fraction of the mean read depth."""
+    return np.asarray(coverage) / np.asarray(reads).mean()
+
+
+def read_log_depth(reads: npt.ArrayLike) -> np.ndarray:
+    """log10 read depth per reference; zero-read references map to -1."""
+    reads = np.asarray(reads)
+    with np.errstate(divide="ignore"):
+        return np.where(reads == 0, -1, np.log10(reads))
+
+
+def symlog(x: npt.ArrayLike, linthresh: float = CORRELATION_LINTHRESH) -> np.ndarray:
+    """Symmetric log: ``sign(x) * log10(1 + |x| / linthresh)``."""
+    x = np.asarray(x)
+    return np.sign(x) * np.log10(1.0 + np.abs(x) / linthresh)
+
+
+# Colour-scale bounds for the log-scaled matrix plots. matplotlib applies them
+# via a Norm; plotly applies log10 by hand -- only the bounds are shared.
+# A NamedTuple so callers can either unpack ``vlow, vhigh`` or use ``.vlow``.
+class LogBounds(NamedTuple):
+    vlow: float
+    vhigh: float
+
+
+def mi_bounds(values: npt.ArrayLike) -> LogBounds:
+    """Colour bounds for a mutual-information matrix: the 95th/99th percentile
+    of the non-NaN entries, each floored at 1e-6.
+    """
+    values = np.asarray(values)
+    mask = ~np.isnan(values)
+    return LogBounds(
+        max(float(np.percentile(values[mask], 95)), 1e-6),
+        max(float(np.percentile(values[mask], 99)), 1e-6),
+    )
+
+
+def pairwise_coverage_bounds(values: npt.ArrayLike) -> LogBounds:
+    """Colour bounds for a pairwise-coverage matrix: [max(min, 1e-4), 1]."""
+    return LogBounds(max(float(np.asarray(values).min()), 1e-4), 1.0)
