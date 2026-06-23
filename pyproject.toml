@@ -41,6 +41,9 @@ dependencies = [
 hf = [
     "plotly>=5.0",
 ]
+completions = [
+    "shtab>=1.6.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",

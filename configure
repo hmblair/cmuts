@@ -137,9 +137,9 @@ PATH="${BIN_DIR}:$PATH" cmuts -h | python3 ${SCRIPT_DIR}/scripts/generate_usage.
   ${SCRIPT_DIR}/docs/usage/cmuts.md
 
 if command -v uv >/dev/null 2>&1; then
-  uv pip install .
+  uv pip install ".[completions]"
 elif command -v pip3 >/dev/null 2>&1; then
-  pip3 install .
+  pip3 install ".[completions]"
 else
   echo "Warning: neither uv nor pip3 found, skipping Python package install"
 fi
