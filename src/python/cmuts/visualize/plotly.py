@@ -477,6 +477,15 @@ def plot_mi(values: np.ndarray, name: str = "") -> go.Figure:
     return fig
 
 
+# Parameters of the SNR-vs-read-depth projection (plot_snr_scaling).
+_SNR_DEPTH_MIN = 0.1  # relative-depth axis lower bound (0.1x current depth)
+_SNR_DEPTH_MAX = 10.0  # relative-depth axis upper bound (10x current depth)
+_SNR_DEPTH_POINTS = 1000  # samples along the relative-depth axis
+_SNR_PARETO_SPLITS = 200  # mod/nomod read-allocation fractions for the pareto frontier
+_SNR_PARETO_CHUNK = 500  # depth points per chunk (bounds the pareto loop's memory)
+_SNR_PRIOR = 0.001  # Beta prior on the mutation rate; sets the per-position variance floor
+
+
 def plot_snr_scaling(
     mod: ProbingData,
     nomod: Optional[ProbingData],
@@ -488,7 +497,7 @@ def plot_snr_scaling(
     mod_err = np.asarray(mod.error)
     mod_reads = float(np.asarray(mod.reads).max())
 
-    prior = 0.001
+    prior = _SNR_PRIOR
     mod_err2 = np.maximum(mod_err**2, prior * (1 - prior) / mod_reads)
 
     if nomod is not None:
@@ -527,7 +536,7 @@ def plot_snr_scaling(
         start = max(nz[0] - 1, 0) if len(nz) > 0 else 0
         return slice(start, None)
 
-    xi = np.geomspace(0.1, 10, 10000)
+    xi = np.geomspace(_SNR_DEPTH_MIN, _SNR_DEPTH_MAX, _SNR_DEPTH_POINTS)
     fig = go.Figure()
 
     if nomod is not None:
@@ -569,9 +578,9 @@ def plot_snr_scaling(
             float(np.nanmax(snr_mod + sem_mod)), float(np.nanmax(snr_nomod + sem_nomod))
         )
 
-        fracs = np.linspace(0.01, 0.99, 200)
+        fracs = np.linspace(0.01, 0.99, _SNR_PARETO_SPLITS)
         snr_pareto = np.empty(len(xi))
-        chunk = 500
+        chunk = _SNR_PARETO_CHUNK
         for i in range(0, len(xi), chunk):
             xi_c = xi[i : i + chunk]
             ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
