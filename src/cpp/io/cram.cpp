@@ -572,7 +572,7 @@ HuffmanCodec::HuffmanCodec(const std::vector<int32_t>& alphabet,
 
     // Build canonical Huffman codes: sort symbols by (code length, symbol),
     // then assign codes incrementally, left-shifting when the length grows.
-    std::vector<std::pair<int32_t, int32_t>> pairs;  // (length, symbol)
+    std::vector<std::pair<int32_t, int32_t>> pairs; // (length, symbol)
     pairs.reserve(alphabet.size());
     for (size_t i = 0; i < alphabet.size(); i++) {
         pairs.emplace_back(lengths[i], alphabet[i]);
@@ -657,7 +657,7 @@ int32_t HuffmanCodec::integer() {
         len++;
         for (const auto& c : _codes) {
             if (c.length > len) {
-                break;  // codes are sorted by length
+                break; // codes are sorted by length
             }
             if (c.length == len && c.code == code) {
                 return c.symbol;
