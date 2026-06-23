@@ -612,34 +612,43 @@ class ProbingData:
         self.error /= norm_arr
         self.norm = norm_arr
 
+    def datasets(self: ProbingData) -> dict[str, np.ndarray]:
+        """Per-group HDF5 datasets (name -> array).
+
+        The single source of which datasets persist; both :meth:`save` and
+        :func:`save_groups` use it, so they cannot drift. Optional fields are
+        included only when set. Sequences are file-level and handled separately.
+        """
+        data: dict[str, np.ndarray] = {
+            Datasets.REACTIVITY: np.asarray(self.reactivity),
+            Datasets.READS: np.asarray(self.reads),
+            Datasets.ERROR: np.asarray(self.error),
+            Datasets.SNR: np.asarray(self.snr),
+            Datasets.HEATMAP: np.asarray(self.heatmap),
+            Datasets.COVERAGE: np.asarray(self.coverage),
+            Datasets.TERMINATIONS: np.asarray(self.terminations),
+        }
+        for key, value in (
+            (Datasets.NORM, self.norm),
+            (Datasets.MI, self.mi),
+            (Datasets.COV, self.covariance),
+            (Datasets.PAIRWISE_SNR, self.pairwise_snr),
+        ):
+            if value is not None:
+                data[key] = np.asarray(value)
+        return data
+
     def save(
         self: ProbingData,
         group: str,
         file: str,
     ) -> None:
-        data = {
-            group + "/" + Datasets.REACTIVITY: da.from_array(self.reactivity),
-            group + "/" + Datasets.READS: da.from_array(self.reads),
-            group + "/" + Datasets.NORM: da.from_array(self.norm),
-            group + "/" + Datasets.ERROR: da.from_array(self.error),
-            group + "/" + Datasets.SNR: da.from_array(self.snr),
-            group + "/" + Datasets.HEATMAP: da.from_array(self.heatmap),
-            group + "/" + Datasets.COVERAGE: da.from_array(self.coverage),
-            group + "/" + Datasets.TERMINATIONS: da.from_array(self.terminations),
+        data: dict[str, da.Array] = {
+            (f"{group}/{key}" if group else key): da.from_array(arr)
+            for key, arr in self.datasets().items()
         }
-
-        if self.mi is not None:
-            data[group + "/" + Datasets.MI] = da.from_array(self.mi)
-
-        if self.covariance is not None:
-            data[group + "/" + Datasets.COV] = da.from_array(self.covariance)
-
-        if self.pairwise_snr is not None:
-            data[group + "/" + Datasets.PAIRWISE_SNR] = da.from_array(self.pairwise_snr)
-
         if self.sequences is not None:
             data[Datasets.SEQUENCE] = da.from_array(self.sequences)
-
         da.to_hdf5(file, data)
 
     @classmethod
@@ -1099,21 +1108,8 @@ def save_groups(
     with h5py.File(path, "w") as f:
         for name, data in results:
             grp = f if name == "" else f.create_group(name)
-            grp.create_dataset(Datasets.REACTIVITY, data=np.asarray(data.reactivity))
-            grp.create_dataset(Datasets.READS, data=np.asarray(data.reads))
-            grp.create_dataset(Datasets.ERROR, data=np.asarray(data.error))
-            grp.create_dataset(Datasets.SNR, data=np.asarray(data.snr))
-            grp.create_dataset(Datasets.HEATMAP, data=np.asarray(data.heatmap))
-            grp.create_dataset(Datasets.COVERAGE, data=np.asarray(data.coverage))
-            grp.create_dataset(Datasets.TERMINATIONS, data=np.asarray(data.terminations))
-            if data.norm is not None:
-                grp.create_dataset(Datasets.NORM, data=np.asarray(data.norm))
-            if data.mi is not None:
-                grp.create_dataset(Datasets.MI, data=np.asarray(data.mi))
-            if data.covariance is not None:
-                grp.create_dataset(Datasets.COV, data=np.asarray(data.covariance))
-            if data.pairwise_snr is not None:
-                grp.create_dataset(Datasets.PAIRWISE_SNR, data=np.asarray(data.pairwise_snr))
+            for key, arr in data.datasets().items():
+                grp.create_dataset(key, data=arr)
 
         if results and results[0][1].sequences is not None:
             f.create_dataset(Datasets.SEQUENCE, data=np.asarray(results[0][1].sequences))
