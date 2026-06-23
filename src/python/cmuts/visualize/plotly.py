@@ -72,6 +72,30 @@ def _line_trace(
     )
 
 
+def _add_band(
+    fig: go.Figure,
+    x: np.ndarray,
+    lower: np.ndarray,
+    upper: np.ndarray,
+    fillcolor: str,
+) -> None:
+    """Shade the region between ``lower`` and ``upper``: an invisible lower
+    trace followed by an upper trace that fills down to it (``fill="tonexty"``).
+    """
+    fig.add_trace(go.Scatter(x=x, y=lower, line={"width": 0}, showlegend=False, hoverinfo="skip"))
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=upper,
+            fill="tonexty",
+            fillcolor=fillcolor,
+            line={"width": 0},
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+
 def _symlog(x: np.ndarray, linthresh: float) -> np.ndarray:
     return np.sign(x) * np.log10(1.0 + np.abs(x) / linthresh)
 
@@ -147,6 +171,10 @@ def plot_heatmap(heatmap: np.ndarray, name: str = "") -> go.Figure:
                 layer="above",
             )
 
+    # Intentionally not using _base_layout: heatmaps need square cells
+    # (yaxis scaleanchor + constrain "domain"), a reversed y-axis, and fixed
+    # sizing that the shared line-plot layout does not provide. Keep in sync
+    # with _base_layout's font sizing by hand if the base style changes.
     fig.update_layout(
         font={"family": FONT_FAMILY},
         title={"text": title, "font": {"size": TITLE_SIZE}},
@@ -509,26 +537,7 @@ def plot_snr_scaling(
         s = _trim_leading_zeros(snr_mod)
         xi_s = xi[s]
 
-        fig.add_trace(
-            go.Scatter(
-                x=xi_s,
-                y=(snr_mod - sem_mod)[s],
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=xi_s,
-                y=(snr_mod + sem_mod)[s],
-                fill="tonexty",
-                fillcolor=_rgba(_RDPU_070, 0.2),
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
+        _add_band(fig, xi_s, (snr_mod - sem_mod)[s], (snr_mod + sem_mod)[s], _rgba(_RDPU_070, 0.2))
         fig.add_trace(
             go.Scatter(
                 x=xi_s,
@@ -544,25 +553,8 @@ def plot_snr_scaling(
         s = _trim_leading_zeros(snr_nomod)
         xi_s = xi[s]
 
-        fig.add_trace(
-            go.Scatter(
-                x=xi_s,
-                y=(snr_nomod - sem_nomod)[s],
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=xi_s,
-                y=(snr_nomod + sem_nomod)[s],
-                fill="tonexty",
-                fillcolor=_rgba(_PUBU_070, 0.2),
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
+        _add_band(
+            fig, xi_s, (snr_nomod - sem_nomod)[s], (snr_nomod + sem_nomod)[s], _rgba(_PUBU_070, 0.2)
         )
         fig.add_trace(
             go.Scatter(
@@ -593,26 +585,7 @@ def plot_snr_scaling(
         pareto_upper = snr_pareto + sem_pareto
         y_top = curve_max * 1.1
 
-        fig.add_trace(
-            go.Scatter(
-                x=xi,
-                y=pareto_upper,
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=xi,
-                y=np.full_like(xi, y_top),
-                fill="tonexty",
-                fillcolor="rgba(200, 200, 200, 0.3)",
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
+        _add_band(fig, xi, pareto_upper, np.full_like(xi, y_top), "rgba(200, 200, 200, 0.3)")
         fig.add_trace(
             go.Scatter(
                 x=xi,
@@ -626,26 +599,7 @@ def plot_snr_scaling(
         snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
         sem_mod = _snr_band(snr_mod)
 
-        fig.add_trace(
-            go.Scatter(
-                x=xi,
-                y=(snr_mod - sem_mod),
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=xi,
-                y=(snr_mod + sem_mod),
-                fill="tonexty",
-                fillcolor=_rgba(_RDPU_070, 0.2),
-                line={"width": 0},
-                showlegend=False,
-                hoverinfo="skip",
-            )
-        )
+        _add_band(fig, xi, snr_mod - sem_mod, snr_mod + sem_mod, _rgba(_RDPU_070, 0.2))
         fig.add_trace(
             go.Scatter(
                 x=xi,
