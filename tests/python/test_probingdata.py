@@ -12,7 +12,7 @@ import h5py
 import numpy as np
 import pytest
 
-from cmuts.internal import ProbingData
+from cmuts.internal import ProbingData, save_groups
 
 pytestmark = pytest.mark.no_external_dependencies
 
@@ -49,6 +49,19 @@ def test_save_load_preserves_plot_inputs(tmp_path):
 
     for field in ("reactivity", "reads", "error", "snr", "heatmap", "coverage", "terminations"):
         assert np.allclose(getattr(loaded, field), getattr(pd, field)), field
+
+
+def test_save_groups_is_lossless(tmp_path):
+    """The multi-group writer used by `cmuts normalize` must also persist
+    coverage/terminations so `cmuts plot` can read them back."""
+    pd = _make()
+    out = tmp_path / "profiles.h5"
+    save_groups(str(out), [("g1", pd)])
+    with h5py.File(out, "r") as f:
+        assert {"coverage", "terminations"} <= set(f["g1"].keys())
+        loaded = ProbingData.load("g1", f)
+    assert np.allclose(loaded.coverage, pd.coverage)
+    assert np.allclose(loaded.terminations, pd.terminations)
 
 
 def test_load_falls_back_for_legacy_files(tmp_path):

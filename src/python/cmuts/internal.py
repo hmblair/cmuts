@@ -970,6 +970,8 @@ def save_groups(
             grp.create_dataset(Datasets.ERROR, data=np.asarray(data.error))
             grp.create_dataset(Datasets.SNR, data=np.asarray(data.snr))
             grp.create_dataset(Datasets.HEATMAP, data=np.asarray(data.heatmap))
+            grp.create_dataset(Datasets.COVERAGE, data=np.asarray(data.coverage))
+            grp.create_dataset(Datasets.TERMINATIONS, data=np.asarray(data.terminations))
             if data.norm is not None:
                 grp.create_dataset(Datasets.NORM, data=np.asarray(data.norm))
             if data.mi is not None:
