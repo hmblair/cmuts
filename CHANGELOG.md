@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.11] - 2026-06-23
+
+### Changed
+
+- Plotting is decoupled from normalization (breaking). `cmuts normalize` now only computes: it writes the reactivity HDF5 (a complete record of the plottable data) and prints statistics, but no longer generates figures. Run `cmuts plot <reactivity.h5>` to render them — `cmuts normalize` followed by `cmuts plot` reproduces the previous behavior
+- `cmuts plot` now renders the full figure set (profiles, heatmap, coverage, termination, mutual information, SNR-vs-depth, ...) from a reactivity HDF5, across all groups (breaking). Its interface is now `cmuts plot <file.h5> [--group NAME] [-o DIR]`, replacing the previous reactivity-overlay-only mode
+- Removed `cmuts normalize --norm-cutoff` and `--norm-percentile` (breaking). They were parsed but never applied; the UBR scheme uses a 500-read coverage floor and the 90th percentile (the documented defaults)
+- Removed the public `NormScheme` enum (breaking). Normalization schemes are now a registry from which the `--norm` choices are derived, so adding a scheme is a single registered class
+
+### Fixed
+
+- `cmuts normalize` could be OOM-killed on reference-heavy datasets: the SNR-vs-read-depth plot materialized a `(grid × references × positions)` array (tens of GB at 10,000 grid points across thousands of references). The SNR curves are now computed once in the data layer with a memory-bounded reduction and a 1,000-point grid, and saved into the HDF5 for the plotter to render
+- Shell completions for `normalize`, `plot`, and `visualize` had drifted from the actual CLIs (they offered a nonexistent `--norm-independent`, and omitted `--groups` and several `cmuts visualize` flags). Completions are now generated from the argparse parsers via shtab, so they stay in sync
+- The reactivity HDF5 now stores per-position coverage and termination densities (previously reconstructed or zeroed on load), so `cmuts plot` reproduces the coverage and termination figures faithfully
+
 ## [1.4.10] - 2026-06-22
 
 ### Added
