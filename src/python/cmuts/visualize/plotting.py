@@ -120,16 +120,11 @@ def _plot_heatmap(heatmap: ArrayType, name: str, dir: str = FIGURES) -> None:
 
 
 def _plot_read_hist(reads: ArrayType, name: str, dir: str = FIGURES) -> None:
-    lr = _transforms.read_log_depth(reads)
-
-    hist_result = plt.hist(lr, bins=100)
-    counts: np.ndarray = np.asarray(hist_result[0])
-    patches = hist_result[2]
+    centers, counts, normed = _transforms.read_histogram(reads)
+    width = float(centers[1] - centers[0]) if len(centers) > 1 else 1.0
+    cmap = plt.get_cmap("RdPu")
+    plt.bar(centers, counts, width=width, color=[cmap(v) for v in normed])
     plt.grid(axis="y", alpha=0.5)
-
-    norm = plt.Normalize(float(counts.min()), float(counts.max()))
-    for count, patch in zip(counts, patches):  # type: ignore[arg-type]
-        patch.set_facecolor(plt.get_cmap("RdPu")(norm(count)))
 
     _title("Read distribution", name)
     _xlabel("log10 Read Depth")

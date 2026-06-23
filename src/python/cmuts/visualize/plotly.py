@@ -196,16 +196,7 @@ def plot_heatmap(heatmap: np.ndarray, name: str = "") -> go.Figure:
 
 
 def plot_read_hist(reads: np.ndarray, name: str = "") -> go.Figure:
-    lr = _transforms.read_log_depth(reads)
-
-    counts, bin_edges = np.histogram(lr, bins=100)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-
-    cmin, cmax = float(counts.min()), float(counts.max())
-    if cmax == cmin:
-        normed = np.zeros_like(counts, dtype=float)
-    else:
-        normed = (counts - cmin) / (cmax - cmin)
+    bin_centers, counts, normed = _transforms.read_histogram(reads)
     colors = [pc.sample_colorscale("RdPu", [float(v)])[0] for v in normed]
 
     title = f"Read distribution ({name})" if name else "Read distribution"

@@ -51,6 +51,25 @@ def read_log_depth(reads: npt.ArrayLike) -> np.ndarray:
         return np.where(reads == 0, -1, np.log10(reads))
 
 
+def read_histogram(
+    reads: npt.ArrayLike, bins: int = 100
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Histogram of log10 read depth.
+
+    Returns ``(bin_centers, counts, normalized)``, where ``normalized`` rescales
+    the counts to [0, 1] for per-bar colouring (zeros when all counts are equal).
+    Each backend draws and colours from these; only the binning is shared.
+    """
+    counts, edges = np.histogram(read_log_depth(reads), bins=bins)
+    centers = (edges[:-1] + edges[1:]) / 2
+    cmin, cmax = float(counts.min()), float(counts.max())
+    if cmax == cmin:
+        normalized = np.zeros_like(counts, dtype=float)
+    else:
+        normalized = (counts - cmin) / (cmax - cmin)
+    return centers, counts, normalized
+
+
 def symlog(x: npt.ArrayLike, linthresh: float = CORRELATION_LINTHRESH) -> np.ndarray:
     """Symmetric log: ``sign(x) * log10(1 + |x| / linthresh)``."""
     x = np.asarray(x)
