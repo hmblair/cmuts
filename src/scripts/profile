@@ -75,84 +75,36 @@ profile() {
     local THREADS=${12}
     local USE_CRAM=${13}
 
-    min_time=""
-    min_mem=""
-
+    # Formats to benchmark for cmuts and rf-count. CRAM is added alongside BAM
+    # only when --cram is passed, so a single run reports both side by side.
+    local FORMATS=("bam")
     if [[ $USE_CRAM -eq 1 ]]; then
-        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.cram"
-    else
-        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.bam"
+        FORMATS+=("cram")
     fi
 
+    for FMT in "${FORMATS[@]}"; do
 
-    for ((i=0; i<${RUNS}; i++)); do
-
-        result=$(__time cmuts core \
-            --fasta ${FASTA} \
-            --output ${OUTPUT} \
-            --min-mapq ${MIN_MAPQ} \
-            --min-phred ${MIN_PHRED} \
-            --quality-window ${WINDOW} \
-            --min-length ${MIN_LENGTH} \
-            --max-length ${MAX_LENGTH} \
-            --max-indel-length ${MAX_INDEL} \
-            --threads ${THREADS} \
-            --overwrite \
-            ${FILE})
-
-        rm -rf ${CMUTS_H5}
-
-        exec_time=$(echo $result | cut -d' ' -f1)
-        mem_usage=$(echo $result | cut -d' ' -f2)
-
-        if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
-            min_time=$exec_time
-        fi
-
-        if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
-            min_mem=$mem_usage
-        fi
-
-
-    done
-
-    FACTOR="/ 1024"
-    min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
-
-    echo "   cmuts:"
-    echo "    Execution time:    $min_time seconds"
-    echo "    Peak memory usage: $min_mem MB"
-
-    if command -v rf-count &>/dev/null; then
+        FILE="aln_${REFERENCES}_${QUERIES}_${LENGTH}.${FMT}"
 
         min_time=""
         min_mem=""
 
         for ((i=0; i<${RUNS}; i++)); do
 
-            rm -rf ${RF_DIR}
-            mkdir ${RF_DIR}
-            cd ${RF_DIR}
+            result=$(__time cmuts core \
+                --fasta ${FASTA} \
+                --output ${OUTPUT} \
+                --min-mapq ${MIN_MAPQ} \
+                --min-phred ${MIN_PHRED} \
+                --quality-window ${WINDOW} \
+                --min-length ${MIN_LENGTH} \
+                --max-length ${MAX_LENGTH} \
+                --max-indel-length ${MAX_INDEL} \
+                --threads ${THREADS} \
+                --overwrite \
+                ${FILE})
 
-            result=$(__time rf-count -m \
-                -wt ${THREADS} \
-                -f ../${FASTA} \
-                --fast \
-                --eval-surrounding \
-                --no-cov-low-qual \
-                --no-discard-duplicates \
-                --right-deletion \
-                --collapse-consecutive \
-                --max-collapse-distance $((COLLAPSE - 1)) \
-                --max-edit-distance 1.0 \
-                --map-quality ${MIN_MAPQ} \
-                --min-quality ${MIN_PHRED} \
-                --discard-shorter ${MIN_LENGTH} \
-                --max-deletion-len ${MAX_INDEL} \
-                --median-quality 0 \
-                ../${FILE})
-
-            cd ..
+            rm -rf ${CMUTS_H5}
 
             exec_time=$(echo $result | cut -d' ' -f1)
             mem_usage=$(echo $result | cut -d' ' -f2)
@@ -167,14 +119,65 @@ profile() {
 
         done
 
-        FACTOR=" / 1024"
-        min_mem=$(echo "scale=2; $min_mem $FACTOR" | bc)
+        min_mem=$(echo "scale=2; $min_mem / 1024" | bc)
 
-        echo "   rf-count:"
+        echo "   cmuts [${FMT}]:"
         echo "    Execution time:    $min_time seconds"
         echo "    Peak memory usage: $min_mem MB"
 
-    fi
+        if command -v rf-count &>/dev/null; then
+
+            min_time=""
+            min_mem=""
+
+            for ((i=0; i<${RUNS}; i++)); do
+
+                rm -rf ${RF_DIR}
+                mkdir ${RF_DIR}
+                cd ${RF_DIR}
+
+                result=$(__time rf-count -m \
+                    -wt ${THREADS} \
+                    -f ../${FASTA} \
+                    --fast \
+                    --eval-surrounding \
+                    --no-cov-low-qual \
+                    --no-discard-duplicates \
+                    --right-deletion \
+                    --collapse-consecutive \
+                    --max-collapse-distance $((COLLAPSE - 1)) \
+                    --max-edit-distance 1.0 \
+                    --map-quality ${MIN_MAPQ} \
+                    --min-quality ${MIN_PHRED} \
+                    --discard-shorter ${MIN_LENGTH} \
+                    --max-deletion-len ${MAX_INDEL} \
+                    --median-quality 0 \
+                    ../${FILE})
+
+                cd ..
+
+                exec_time=$(echo $result | cut -d' ' -f1)
+                mem_usage=$(echo $result | cut -d' ' -f2)
+
+                if [[ -z "$min_time" || $(echo "$exec_time < $min_time" | bc -l) -eq 1 ]]; then
+                    min_time=$exec_time
+                fi
+
+                if [[ -z "$min_mem" || "$mem_usage" -lt "$min_mem" ]]; then
+                    min_mem=$mem_usage
+                fi
+
+            done
+
+            min_mem=$(echo "scale=2; $min_mem / 1024" | bc)
+
+            echo "   rf-count [${FMT}]:"
+            echo "    Execution time:    $min_time seconds"
+            echo "    Peak memory usage: $min_mem MB"
+
+        fi
+
+    done
 
     if [[ -n "$SM_DIR" ]]; then
 
@@ -255,7 +258,7 @@ while [[ "$#" -gt 0 ]]; do
                       ;;
         --lengths) LENGTHS_SET=true
                    ;;
-        --cram) USE_CRAM=1
+        --cram) USE_CRAM=1   # also benchmark CRAM alongside BAM
                 ;;
         --shapemapper-dir) shift
                            SM_DIR=${1:-""}
