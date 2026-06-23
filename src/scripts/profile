@@ -85,17 +85,27 @@ def measure(cmd, runs, *, cwd=None, shell_script=None, pre=None):
         os.close(fd)
         try:
             inner = ["bash", "-c", shell_script] if shell_script is not None else list(cmd)
-            subprocess.run(
+            proc = subprocess.run(
                 [TIME_BIN, "--format", "%e %M", "-o", tmp, *inner],
                 cwd=cwd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            fields = Path(tmp).read_text().split()
-            t = float(fields[0])
-            mem_mb = float(fields[1]) / 1024
+            raw = Path(tmp).read_text()
         finally:
             os.unlink(tmp)
+        # GNU time exits with the wrapped command's status; on failure it writes a
+        # diagnostic line instead of the "%e %M" numbers. Record NaN so one failed
+        # point is visible in the CSV without aborting the whole sweep.
+        try:
+            if proc.returncode != 0:
+                raise ValueError(f"exit {proc.returncode}")
+            fields = raw.split()
+            t = float(fields[0])
+            mem_mb = float(fields[1]) / 1024
+        except (ValueError, IndexError) as e:
+            sys.stderr.write(f"  [warn] measurement failed ({e}): {' '.join(inner)[:120]}\n")
+            return float("nan"), float("nan")
         if best_t is None or t < best_t:
             best_t = t
         if best_m is None or mem_mb < best_m:
@@ -372,28 +382,29 @@ def profile(case: Case, runs: int, use_cram: bool, sm_dir: str) -> list[Result]:
 
 
 # Sweep definitions: (mode, swept label, values, fixed-header lines, case factory).
-def _sweeps(threads: int):
+# The case factory takes (swept value, thread count).
+def _sweeps():
     return [
         (
             "queries",
             "QUERIES",
             [10**2, 10**4, 10**6],
             [("REFERENCES", 1024), ("REFERENCE LENGTH", 200)],
-            lambda v: Case("queries", 1024, v, 200, threads),
+            lambda v, t: Case("queries", 1024, v, 200, t),
         ),
         (
             "references",
             "REFERENCES",
             [10**1, 10**2, 10**3, 10**4, 10**5],
             [("QUERIES", 1024), ("REFERENCE LENGTH", 200)],
-            lambda v: Case("references", v, 1024, 200, threads),
+            lambda v, t: Case("references", v, 1024, 200, t),
         ),
         (
             "lengths",
             "REFERENCE LENGTH",
             [10**1, 10**2, 10**3, 10**4],
             [("QUERIES", 1024), ("REFERENCES", 1024)],
-            lambda v: Case("lengths", 1024, 1024, v, threads),
+            lambda v, t: Case("lengths", 1024, 1024, v, t),
         ),
     ]
 
@@ -402,17 +413,19 @@ def _run_sweep(spec, args, all_rows: list[Result]) -> None:
     mode, var_label, values, header, make_case = spec
     print()
     print(SEP)
-    print(f"   {'THREADS:':<18}{args.threads}")
     for label, val in header:
         print(f"   {label + ':':<18}{val}")
     print(SEP)
     for v in values:
         print(f"   {var_label + ':':<18}{v}")
         print(SEP)
-        case = make_case(v)
-        generate(case)
-        all_rows.extend(profile(case, args.runs, args.cram, args.shapemapper_dir))
-        print(SEP)
+        # Data is thread-independent, so generate once and reuse for each count.
+        generate(make_case(v, args.threads[0]))
+        for t in args.threads:
+            print(f"   {'THREADS:':<18}{t}")
+            case = make_case(v, t)
+            all_rows.extend(profile(case, args.runs, args.cram, args.shapemapper_dir))
+            print(SEP)
 
 
 def _write_csv(path: Path, rows: list[Result], runs: int) -> None:
@@ -454,7 +467,14 @@ def _write_csv(path: Path, rows: list[Result], runs: int) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--runs", type=int, default=1, help="Iterations per measurement (min is kept)")
-    p.add_argument("--threads", type=int, default=1, help="Threads for cmuts/rf-count")
+    p.add_argument(
+        "--threads",
+        type=int,
+        nargs="+",
+        default=[1],
+        metavar="N",
+        help="Thread counts for cmuts/rf-count; multiple allowed (e.g. --threads 1 8)",
+    )
     p.add_argument("--queries", action="store_true", help="Sweep number of queries")
     p.add_argument("--references", action="store_true", help="Sweep number of references")
     p.add_argument("--lengths", action="store_true", help="Sweep reference length")
@@ -474,7 +494,7 @@ def main() -> None:
     TIME_BIN = _gnu_time_bin()
 
     enabled = {"queries": args.queries, "references": args.references, "lengths": args.lengths}
-    selected = [s for s in _sweeps(args.threads) if enabled[s[0]]]
+    selected = [s for s in _sweeps() if enabled[s[0]]]
     if not selected:
         sys.exit("Nothing to do: pass at least one of --queries, --references, --lengths.")
 
