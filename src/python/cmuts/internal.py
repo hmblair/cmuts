@@ -107,6 +107,8 @@ class Datasets:
     NORM = "norm"
     ROI = "roi-mask"
     HEATMAP = "heatmap"
+    COVERAGE = "coverage"
+    TERMINATIONS = "terminations"
     MI = "mutual-information"
     COV = "covariance"
     SEQUENCE = "sequence"
@@ -622,6 +624,8 @@ class ProbingData:
             group + "/" + Datasets.ERROR: da.from_array(self.error),
             group + "/" + Datasets.SNR: da.from_array(self.snr),
             group + "/" + Datasets.HEATMAP: da.from_array(self.heatmap),
+            group + "/" + Datasets.COVERAGE: da.from_array(self.coverage),
+            group + "/" + Datasets.TERMINATIONS: da.from_array(self.terminations),
         }
 
         if self.mi is not None:
@@ -656,6 +660,8 @@ class ProbingData:
         error = get(Datasets.ERROR)
         snr = get(Datasets.SNR)
         heatmap = get(Datasets.HEATMAP)
+        coverage = get(Datasets.COVERAGE)
+        terminations = get(Datasets.TERMINATIONS)
         mi = get(Datasets.MI)
         covariance = get(Datasets.COV)
         norm = get(Datasets.NORM)
@@ -683,8 +689,8 @@ class ProbingData:
             snr=snr,
             mask=np.ones_like(reactivity, dtype=bool),
             heatmap=heatmap if heatmap is not None else np.zeros((4, 7)),
-            coverage=np.sum(~np.isnan(reactivity), axis=0),
-            terminations=np.zeros((n, length)),
+            coverage=coverage if coverage is not None else np.sum(~np.isnan(reactivity), axis=0),
+            terminations=terminations if terminations is not None else np.zeros((n, length)),
             pairs=None,
             probability=None,
             covariance=covariance,
