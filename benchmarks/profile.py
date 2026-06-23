@@ -29,9 +29,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-# Fixed quality/collapse parameters, matching the historical bash harness.
-MIN_MAPQ = 20
-MIN_PHRED = 20
+import external
+
+# Quality/processing parameters, set to cmuts' defaults so cmuts runs out of the
+# box; rf-count and shapemapper2 are configured to match (see _profile_params),
+# and the synthetic data is generated with the same thresholds.
+MIN_MAPQ = 10
+MIN_PHRED = 10
 WINDOW = 2
 MIN_LENGTH = 2
 MAX_INDEL = 10
@@ -223,73 +227,45 @@ def _bench_cmuts(case: Case, fmt: str, runs: int) -> Result:
     return Result(case, "cmuts", fmt, t, m)
 
 
+def _profile_params(case: Case) -> external.Params:
+    """Quality/processing settings applied to every external tool, matching the
+    cmuts core flags above so all three measure the same work."""
+    return external.Params(
+        insertions=True,
+        right_align_deletions=True,
+        collapse=COLLAPSE,
+        cov_low_qual=False,
+        discard_duplicates=False,
+        fast=True,
+        threads=case.threads,
+        min_mapq=MIN_MAPQ,
+        min_phred=MIN_PHRED,
+        min_length=MIN_LENGTH,
+        max_indel=MAX_INDEL,
+        max_edit_distance=1.0,
+        median_quality=0,
+    )
+
+
 def _bench_rf_count(case: Case, runs: int) -> Result:
     def reset() -> None:
         shutil.rmtree(RF_DIR, ignore_errors=True)
         os.mkdir(RF_DIR)
 
-    cmd = [
-        "rf-count",
-        "-m",
-        "-wt",
-        str(case.threads),
-        "-f",
-        f"../{case.fasta}",
-        "--fast",
-        "--eval-surrounding",
-        "--no-cov-low-qual",
-        "--no-discard-duplicates",
-        "--right-deletion",
-        "--collapse-consecutive",
-        "--max-collapse-distance",
-        str(COLLAPSE - 1),
-        "--max-edit-distance",
-        "1.0",
-        "--map-quality",
-        str(MIN_MAPQ),
-        "--min-quality",
-        str(MIN_PHRED),
-        "--discard-shorter",
-        str(MIN_LENGTH),
-        "--max-deletion-len",
-        str(MAX_INDEL),
-        "--median-quality",
-        "0",
-        f"../{case.base}.bam",
-    ]
-    t, m = measure(cmd, runs, cwd=RF_DIR, pre=reset)
+    cmd = external.rfcount_command(f"{case.base}.bam", case.fasta, RF_DIR, _profile_params(case))
+    t, m = measure(cmd, runs, pre=reset)
     _print_tool("rf-count [bam]", t, m)
     return Result(case, "rf-count", "bam", t, m)
 
 
 def _bench_shapemapper(case: Case, sm_dir: str, runs: int) -> Result:
-    parser = f"{sm_dir}/internals/bin/shapemapper_mutation_parser"
-    counter = f"{sm_dir}/internals/bin/shapemapper_mutation_counter"
-    parsed = "_sm_parsed.mut"
-    counts = "_sm_counts.txt"
-    sam_in = "_sm_input.sam"
+    parsed, counts, sam_in = "_sm_parsed.mut", "_sm_counts.txt", "_sm_input.sam"
 
     # Drop unmapped reads up front (untimed), matching the input rf-count/cmuts see.
-    with open(sam_in, "w") as fh:
-        subprocess.run(
-            ["samtools", "view", "-h", "-F", "4", f"{case.base}.sam"],
-            stdout=fh,
-            check=True,
-        )
+    external.samtools_view_mapped(f"{case.base}.sam", sam_in)
 
-    # ShapeMapper's prebuilt binaries link against the boost shipped in its
-    # vendored conda env. Put that on LD_LIBRARY_PATH for these binaries only:
-    # exporting it process-wide shadows system libs (libattr/libacl) and breaks
-    # samtools/coreutils, so it is scoped inside this bash invocation.
-    libdir = f"{sm_dir}/internals/thirdparty/miniconda/envs/shapemapper_make/lib"
-    ld = (
-        f'export LD_LIBRARY_PATH="{libdir}:${{LD_LIBRARY_PATH:-}}"; '
-        if Path(libdir).is_dir()
-        else ""
-    )
-    script = (
-        f"{ld}{parser} -i {sam_in} -o {parsed} --input_is_unpaired -m {MIN_MAPQ} && "
-        f"{counter} -i {parsed} -c {counts} -n {case.length} --warn_on_no_mapped"
+    script = external.shapemapper_command(
+        sam_in, parsed, counts, case.length, sm_dir, _profile_params(case)
     )
 
     def reset() -> None:
