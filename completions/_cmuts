@@ -137,12 +137,9 @@ _shtab_cmuts_normalize_defaults_added=0
 
 _shtab_cmuts_plot_options=(
   "(- : *)"{-h,--help}"[show this help message and exit]"
-  "--files[Path to HDF5 file(s)]:files:_files -g '*.(h5)'"
-  "--datasets[Dataset name in HDF5 file(s)]:datasets:"
-  "--labels[Labels to use on plots]:labels:"
-  "--index[Index of reactivity in the dataset.]:index:"
-  "--trim-5p[Trim this many bases from the 5\' end of the reactivity data.]:trim_5p:"
-  "--trim-3p[Trim this many bases from the 3\' end of the reactivity data.]:trim_3p:"
+  "--group[Plot only this group]:group:"
+  {-o,--out}"[Output directory]:out:_files"
+  ":Reactivity HDF5 file:_files -g '*.(h5)'"
 )
 
 # guard to ensure default positional specs are added only once per session

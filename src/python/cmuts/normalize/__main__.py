@@ -241,16 +241,14 @@ def main():
 
     cmuts.save_groups(args.out, [(r.group.name, r.combined) for r in results])
 
-    # Print stats and plot per group.
-
-    figdir = os.path.join(os.path.dirname(os.path.abspath(args.out)), "figures")
+    # Print stats and save the SNR-vs-depth curves alongside each group. Plotting
+    # is decoupled: `cmuts plot <out.h5>` renders the figures from this file.
     for r in results:
         if len(results) > 1:
             print()
             print(cmuts.subtitle(r.group.name))
         cmuts.stats(r.mod, r.nomod, r.combined)
-        cmuts.visualize.plot_all(r.combined, r.group.name, figdir)
-        cmuts.visualize.plot_snr_scaling(r.mod, r.nomod, r.combined, r.group.name, figdir)
+        cmuts.compute_snr_curves(r.mod, r.nomod, r.combined).save(r.group.name, args.out)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LogNorm, SymLogNorm
 
-from cmuts.internal import ProbingData
+from cmuts.internal import ProbingData, SNRCurves
 
 from . import _transforms
 
@@ -336,136 +336,52 @@ def _plot_mi(
     _save_and_close(name, figtype, dir)
 
 
-# Parameters of the SNR-vs-read-depth projection (plot_snr_scaling).
-_SNR_DEPTH_MIN = 0.1  # relative-depth axis lower bound (0.1x current depth)
-_SNR_DEPTH_MAX = 10.0  # relative-depth axis upper bound (10x current depth)
-_SNR_DEPTH_POINTS = 1000  # samples along the relative-depth axis
-_SNR_PARETO_SPLITS = 200  # mod/nomod read-allocation fractions for the pareto frontier
-_SNR_PARETO_CHUNK = 500  # depth points per chunk (bounds the pareto loop's memory)
-_SNR_PRIOR = 0.001  # Beta prior on the mutation rate; sets the per-position variance floor
-
-
-def plot_snr_scaling(
-    mod: ProbingData,
-    nomod: "Union[ProbingData, None]",
-    combined: ProbingData,
-    name: str,
-    dir: str = FIGURES,
-) -> None:
-    """Plot expected mean SNR as a function of relative total read depth.
-
-    When nomod is present, three curves are shown:
-    - Modified: all extra reads go to the modified condition
-    - Unmodified: all extra reads go to the unmodified condition
-    - Pareto: optimal allocation of reads between conditions
-
-    When only a modified condition is present, a single curve is shown.
-    """
+def plot_snr_scaling(curves: SNRCurves, name: str, dir: str = FIGURES) -> None:
+    """Render precomputed SNR-vs-read-depth curves (see cmuts.compute_snr_curves)."""
     from matplotlib.transforms import ScaledTranslation
 
     os.makedirs(dir, exist_ok=True)
 
-    reactivity = np.asarray(combined.reactivity)
-    mod_err = np.asarray(mod.error)
-    mod_reads = float(np.asarray(mod.reads).max())
-
-    prior = _SNR_PRIOR
-    mod_err2 = np.maximum(mod_err**2, prior * (1 - prior) / mod_reads)
-
-    if nomod is not None:
-        nomod_err = np.asarray(nomod.error)
-        nomod_reads = float(np.asarray(nomod.reads).max())
-        total_reads = mod_reads + nomod_reads
-        nomod_err2 = np.maximum(nomod_err**2, prior * (1 - prior) / nomod_reads)
-    else:
-        nomod_err2 = None
-        total_reads = mod_reads
-
-    # SEM of mean SNR at current depth. Error bands at projected depths
-    # scale this proportionally by curve(k)/curve(1).
-    current_se2 = mod_err2.copy()
-    if nomod_err2 is not None:
-        current_se2 = current_se2 + nomod_err2
-    current_se = np.sqrt(current_se2)
-    current_snr = np.where(current_se > 0, reactivity / current_se, 0.0)
-    _flat = current_snr.ravel()
-    _valid = _flat[~np.isnan(_flat)]
-    snr_at_1 = _valid.mean() if len(_valid) > 0 else 1.0
-    snr_sem_at_1 = _valid.std() / np.sqrt(len(_valid)) if len(_valid) > 1 else 0.0
-
-    def _mean_snr_vec(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
-        """Compute mean SNR for an array of scale factors. Returns shape (N,)."""
-        se2 = mod_err2[None] / mod_scales[:, None, None]
-        if nomod_err2 is not None:
-            se2 = se2 + nomod_err2[None] / nomod_scales[:, None, None]
-        se = np.sqrt(se2)
-        snr = np.where(se > 0, reactivity[None] / se, 0.0)
-        return np.nanmean(snr, axis=-1).mean(axis=-1)
-
-    def _snr_band(snr_curve: np.ndarray) -> np.ndarray:
-        """Compute ±1 SEM band by scaling the current SEM proportionally."""
-        ratio = np.where(snr_at_1 > 0, snr_curve / snr_at_1, 0.0)
-        return np.abs(ratio) * snr_sem_at_1
-
-    def _trim_leading_zeros(snr: np.ndarray) -> slice:
-        """Trim leading near-zero region, keeping one point before the visible rise."""
+    def _trim(snr: np.ndarray) -> slice:
+        """Drop the leading near-zero region, keeping one point before the rise."""
         nz = np.nonzero(snr > 0.01)[0]
         start = max(nz[0] - 1, 0) if len(nz) > 0 else 0
         return slice(start, None)
 
-    xi = np.geomspace(_SNR_DEPTH_MIN, _SNR_DEPTH_MAX, _SNR_DEPTH_POINTS)
+    xi = curves.xi
+    mod_color = plt.get_cmap("RdPu")(0.7)
 
-    if nomod is not None:
-        # Modified: extra reads go to mod, nomod stays at current depth
-        mod_scales = np.maximum((xi * total_reads - nomod_reads) / mod_reads, 1e-10)
-        snr_mod = _mean_snr_vec(mod_scales, np.ones_like(mod_scales))
-        sem_mod = _snr_band(snr_mod)
-        s = _trim_leading_zeros(snr_mod)
-        mod_color = plt.get_cmap("RdPu")(0.7)
+    if curves.nomod is not None:
+        # nomod_sem, pareto and pareto_sem are populated together with nomod.
+        assert curves.nomod_sem is not None
+        assert curves.pareto is not None and curves.pareto_sem is not None
+        s = _trim(curves.mod)
         plt.fill_between(
             xi[s],
-            (snr_mod - sem_mod)[s],
-            (snr_mod + sem_mod)[s],
+            (curves.mod - curves.mod_sem)[s],
+            (curves.mod + curves.mod_sem)[s],
             color=mod_color,
             alpha=0.2,
         )
-        plt.plot(xi[s], snr_mod[s], color=mod_color, linewidth=2, label="Modified")
+        plt.plot(xi[s], curves.mod[s], color=mod_color, linewidth=2, label="Modified")
 
-        # Unmodified: extra reads go to nomod, mod stays at current depth
-        nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
-        snr_nomod = _mean_snr_vec(np.ones_like(nomod_scales), nomod_scales)
-        sem_nomod = _snr_band(snr_nomod)
-        s = _trim_leading_zeros(snr_nomod)
         nomod_color = plt.get_cmap("PuBu")(0.7)
+        s = _trim(curves.nomod)
         plt.fill_between(
             xi[s],
-            (snr_nomod - sem_nomod)[s],
-            (snr_nomod + sem_nomod)[s],
+            (curves.nomod - curves.nomod_sem)[s],
+            (curves.nomod + curves.nomod_sem)[s],
             color=nomod_color,
             alpha=0.2,
         )
-        plt.plot(xi[s], snr_nomod[s], color=nomod_color, linewidth=2, label="Unmodified")
+        plt.plot(xi[s], curves.nomod[s], color=nomod_color, linewidth=2, label="Unmodified")
 
-        # Set ylim based on mod/nomod curves before Pareto expands it
-        curve_max: float = max(np.nanmax(snr_mod + sem_mod), np.nanmax(snr_nomod + sem_nomod))
+        curve_max: float = max(
+            np.nanmax(curves.mod + curves.mod_sem), np.nanmax(curves.nomod + curves.nomod_sem)
+        )
         plt.ylim(0, curve_max * 1.1)
 
-        # Pareto: best allocation at each relative total depth
-        fracs = np.linspace(0.01, 0.99, _SNR_PARETO_SPLITS)
-        snr_pareto = np.empty(len(xi))
-        chunk = _SNR_PARETO_CHUNK
-        for i in range(0, len(xi), chunk):
-            xi_c = xi[i : i + chunk]
-            ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
-            ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
-            snr_grid = np.column_stack(
-                [_mean_snr_vec(ms[:, j], ns[:, j]) for j in range(len(fracs))]
-            )
-            snr_pareto[i : i + chunk] = snr_grid.max(axis=1)
-
-        sem_pareto = _snr_band(snr_pareto)
-        pareto_upper = snr_pareto + sem_pareto
-
+        pareto_upper = curves.pareto + curves.pareto_sem
         dy = ScaledTranslation(0, 2.0 / 72, plt.gcf().dpi_scale_trans)
         pareto_transform = plt.gca().transData + dy
         plt.plot(
@@ -479,26 +395,22 @@ def plot_snr_scaling(
             transform=pareto_transform,
         )
     else:
-        snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
-        sem_mod = _snr_band(snr_mod)
-        mod_color = plt.get_cmap("RdPu")(0.7)
         plt.fill_between(
             xi,
-            snr_mod - sem_mod,
-            snr_mod + sem_mod,
+            curves.mod - curves.mod_sem,
+            curves.mod + curves.mod_sem,
             color=mod_color,
             alpha=0.2,
         )
-        plt.plot(xi, snr_mod, color=mod_color, linewidth=2, label="Modified")
+        plt.plot(xi, curves.mod, color=mod_color, linewidth=2, label="Modified")
 
     plt.axvline(1.0, color="grey", linestyle="--", linewidth=1, alpha=0.7)
     plt.xscale("log")
-    plt.xlim(0.1, 10)
+    plt.xlim(xi[0], xi[-1])
     plt.grid(axis="y", alpha=0.5)
     plt.tick_params(axis="both", labelsize=TICK_SIZE)
 
-    # Hatch infeasible region above Pareto curve
-    if nomod is not None:
+    if curves.nomod is not None:
         ax = plt.gca()
         ylim = ax.get_ylim()
         ax.fill_between(
@@ -521,7 +433,6 @@ def plot_snr_scaling(
     _title("SNR vs Read Depth", name)
     _xlabel("Relative Total Read Depth")
     _ylabel("Mean SNR")
-
     _save_and_close(name, "snr-scaling", dir)
 
 
@@ -555,16 +466,16 @@ def plot_all(
 
 
 def main():
-    """CLI entry point for cmuts-plot."""
+    """CLI entry point for cmuts-plot: render every figure from a reactivity h5."""
     import argparse
 
     import h5py
 
     parser = argparse.ArgumentParser(
-        prog="cmuts-plot", description="Generate plots from reactivity data"
+        prog="cmuts-plot", description="Generate plots from a reactivity HDF5 file"
     )
-    parser.add_argument("file", help="HDF5 file with reactivity data")
-    parser.add_argument("--group", default="", help="Group name in HDF5 file")
+    parser.add_argument("file", help="HDF5 file written by cmuts normalize")
+    parser.add_argument("--group", default=None, help="Plot only this group (default: all)")
     parser.add_argument("-o", "--out", default=FIGURES, help="Output directory")
     args = parser.parse_args()
 
@@ -572,9 +483,15 @@ def main():
         raise FileNotFoundError(f"File not found: {args.file}")
 
     with h5py.File(args.file, "r") as f:
-        data = ProbingData.load(args.group, f)
-
-    plot_all(data, args.group, args.out)
+        if args.group is not None:
+            groups = [args.group]
+        else:
+            groups = [k for k in f if isinstance(f[k], h5py.Group)] or [""]
+        for group in groups:
+            plot_all(ProbingData.load(group, f), group, args.out)
+            curves = SNRCurves.load(group, f)
+            if curves is not None:
+                plot_snr_scaling(curves, group, args.out)
     print(f"Plots saved to {args.out}/")
 
 

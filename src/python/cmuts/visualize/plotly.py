@@ -10,7 +10,7 @@ import numpy as np
 import plotly.colors as pc
 import plotly.graph_objects as go
 
-from cmuts.internal import ProbingData
+from cmuts.internal import SNRCurves
 
 from . import _transforms
 
@@ -462,123 +462,55 @@ def plot_mi(values: np.ndarray, name: str = "") -> go.Figure:
     return fig
 
 
-# Parameters of the SNR-vs-read-depth projection (plot_snr_scaling).
-_SNR_DEPTH_MIN = 0.1  # relative-depth axis lower bound (0.1x current depth)
-_SNR_DEPTH_MAX = 10.0  # relative-depth axis upper bound (10x current depth)
-_SNR_DEPTH_POINTS = 1000  # samples along the relative-depth axis
-_SNR_PARETO_SPLITS = 200  # mod/nomod read-allocation fractions for the pareto frontier
-_SNR_PARETO_CHUNK = 500  # depth points per chunk (bounds the pareto loop's memory)
-_SNR_PRIOR = 0.001  # Beta prior on the mutation rate; sets the per-position variance floor
+def plot_snr_scaling(curves: SNRCurves, name: str = "") -> go.Figure:
+    """Render precomputed SNR-vs-read-depth curves (see cmuts.compute_snr_curves)."""
 
-
-def plot_snr_scaling(
-    mod: ProbingData,
-    nomod: Optional[ProbingData],
-    combined: ProbingData,
-    name: str = "",
-) -> go.Figure:
-    """Plot expected mean SNR as a function of relative total read depth."""
-    reactivity = np.asarray(combined.reactivity)
-    mod_err = np.asarray(mod.error)
-    mod_reads = float(np.asarray(mod.reads).max())
-
-    prior = _SNR_PRIOR
-    mod_err2 = np.maximum(mod_err**2, prior * (1 - prior) / mod_reads)
-
-    if nomod is not None:
-        nomod_err = np.asarray(nomod.error)
-        nomod_reads = float(np.asarray(nomod.reads).max())
-        total_reads = mod_reads + nomod_reads
-        nomod_err2 = np.maximum(nomod_err**2, prior * (1 - prior) / nomod_reads)
-    else:
-        nomod_err2 = None
-        total_reads = mod_reads
-
-    current_se2 = mod_err2.copy()
-    if nomod_err2 is not None:
-        current_se2 = current_se2 + nomod_err2
-    current_se = np.sqrt(current_se2)
-    current_snr = np.where(current_se > 0, reactivity / current_se, 0.0)
-    _flat = current_snr.ravel()
-    _valid = _flat[~np.isnan(_flat)]
-    snr_at_1 = _valid.mean() if len(_valid) > 0 else 1.0
-    snr_sem_at_1 = _valid.std() / np.sqrt(len(_valid)) if len(_valid) > 1 else 0.0
-
-    def _mean_snr_vec(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
-        se2 = mod_err2[None] / mod_scales[:, None, None]
-        if nomod_err2 is not None:
-            se2 = se2 + nomod_err2[None] / nomod_scales[:, None, None]
-        se = np.sqrt(se2)
-        snr = np.where(se > 0, reactivity[None] / se, 0.0)
-        return np.nanmean(snr, axis=-1).mean(axis=-1)
-
-    def _snr_band(snr_curve: np.ndarray) -> np.ndarray:
-        ratio = np.where(snr_at_1 > 0, snr_curve / snr_at_1, 0.0)
-        return np.abs(ratio) * snr_sem_at_1
-
-    def _trim_leading_zeros(snr: np.ndarray) -> slice:
+    def _trim(snr: np.ndarray) -> slice:
         nz = np.nonzero(snr > 0.01)[0]
         start = max(nz[0] - 1, 0) if len(nz) > 0 else 0
         return slice(start, None)
 
-    xi = np.geomspace(_SNR_DEPTH_MIN, _SNR_DEPTH_MAX, _SNR_DEPTH_POINTS)
+    xi = curves.xi
     fig = go.Figure()
 
-    if nomod is not None:
-        mod_scales = np.maximum((xi * total_reads - nomod_reads) / mod_reads, 1e-10)
-        snr_mod = _mean_snr_vec(mod_scales, np.ones_like(mod_scales))
-        sem_mod = _snr_band(snr_mod)
-        s = _trim_leading_zeros(snr_mod)
-        xi_s = xi[s]
-
-        _add_band(fig, xi_s, (snr_mod - sem_mod)[s], (snr_mod + sem_mod)[s], _rgba(_RDPU_070, 0.2))
+    if curves.nomod is not None:
+        # nomod_sem, pareto and pareto_sem are populated together with nomod.
+        assert curves.nomod_sem is not None
+        assert curves.pareto is not None and curves.pareto_sem is not None
+        s = _trim(curves.mod)
+        _add_band(
+            fig,
+            xi[s],
+            (curves.mod - curves.mod_sem)[s],
+            (curves.mod + curves.mod_sem)[s],
+            _rgba(_RDPU_070, 0.2),
+        )
         fig.add_trace(
             go.Scatter(
-                x=xi_s,
-                y=snr_mod[s],
-                line={"color": _RDPU_070, "width": 2},
-                name="Modified",
+                x=xi[s], y=curves.mod[s], line={"color": _RDPU_070, "width": 2}, name="Modified"
             )
         )
 
-        nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
-        snr_nomod = _mean_snr_vec(np.ones_like(nomod_scales), nomod_scales)
-        sem_nomod = _snr_band(snr_nomod)
-        s = _trim_leading_zeros(snr_nomod)
-        xi_s = xi[s]
-
+        s = _trim(curves.nomod)
         _add_band(
-            fig, xi_s, (snr_nomod - sem_nomod)[s], (snr_nomod + sem_nomod)[s], _rgba(_PUBU_070, 0.2)
+            fig,
+            xi[s],
+            (curves.nomod - curves.nomod_sem)[s],
+            (curves.nomod + curves.nomod_sem)[s],
+            _rgba(_PUBU_070, 0.2),
         )
         fig.add_trace(
             go.Scatter(
-                x=xi_s,
-                y=snr_nomod[s],
-                line={"color": _PUBU_070, "width": 2},
-                name="Unmodified",
+                x=xi[s], y=curves.nomod[s], line={"color": _PUBU_070, "width": 2}, name="Unmodified"
             )
         )
 
         curve_max = max(
-            float(np.nanmax(snr_mod + sem_mod)), float(np.nanmax(snr_nomod + sem_nomod))
+            float(np.nanmax(curves.mod + curves.mod_sem)),
+            float(np.nanmax(curves.nomod + curves.nomod_sem)),
         )
-
-        fracs = np.linspace(0.01, 0.99, _SNR_PARETO_SPLITS)
-        snr_pareto = np.empty(len(xi))
-        chunk = _SNR_PARETO_CHUNK
-        for i in range(0, len(xi), chunk):
-            xi_c = xi[i : i + chunk]
-            ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
-            ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
-            snr_grid = np.column_stack(
-                [_mean_snr_vec(ms[:, j], ns[:, j]) for j in range(len(fracs))]
-            )
-            snr_pareto[i : i + chunk] = snr_grid.max(axis=1)
-
-        sem_pareto = _snr_band(snr_pareto)
-        pareto_upper = snr_pareto + sem_pareto
         y_top = curve_max * 1.1
-
+        pareto_upper = curves.pareto + curves.pareto_sem
         _add_band(fig, xi, pareto_upper, np.full_like(xi, y_top), "rgba(200, 200, 200, 0.3)")
         fig.add_trace(
             go.Scatter(
@@ -590,22 +522,15 @@ def plot_snr_scaling(
         )
         fig.update_yaxes(range=[0, y_top])
     else:
-        snr_mod = _mean_snr_vec(xi, np.ones_like(xi))
-        sem_mod = _snr_band(snr_mod)
-
-        _add_band(fig, xi, snr_mod - sem_mod, snr_mod + sem_mod, _rgba(_RDPU_070, 0.2))
+        _add_band(
+            fig, xi, curves.mod - curves.mod_sem, curves.mod + curves.mod_sem, _rgba(_RDPU_070, 0.2)
+        )
         fig.add_trace(
-            go.Scatter(
-                x=xi,
-                y=snr_mod,
-                line={"color": _RDPU_070, "width": 2},
-                name="Modified",
-            )
+            go.Scatter(x=xi, y=curves.mod, line={"color": _RDPU_070, "width": 2}, name="Modified")
         )
 
     fig.add_vline(x=1.0, line={"color": "grey", "dash": "dash", "width": 1}, opacity=0.7)
-
     title = f"SNR vs Read Depth ({name})" if name else "SNR vs Read Depth"
     fig.update_layout(**_base_layout(title, "Relative Total Read Depth", "Mean SNR"))
-    fig.update_xaxes(type="log", range=[np.log10(0.1), np.log10(10)])
+    fig.update_xaxes(type="log", range=[np.log10(xi[0]), np.log10(xi[-1])])
     return fig

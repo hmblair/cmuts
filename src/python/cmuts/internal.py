@@ -949,6 +949,140 @@ def compute_reactivities(
     return raw
 
 
+# --- SNR-vs-read-depth projection ------------------------------------------
+# Parameters of the relative-depth axis and the pareto frontier search.
+_SNR_DEPTH_MIN = 0.1  # relative-depth axis lower bound (0.1x current depth)
+_SNR_DEPTH_MAX = 10.0  # relative-depth axis upper bound (10x current depth)
+_SNR_DEPTH_POINTS = 1000  # samples along the relative-depth axis
+_SNR_PARETO_SPLITS = 200  # mod/nomod read-allocation fractions for the pareto frontier
+_SNR_PARETO_CHUNK = 500  # depth points per chunk (bounds the pareto loop's memory)
+_SNR_PRIOR = 0.001  # Beta prior on the mutation rate; sets the per-position variance floor
+
+_SNR_CURVE_KEYS = ("xi", "mod", "mod_sem", "nomod", "nomod_sem", "pareto", "pareto_sem")
+
+
+@dataclass
+class SNRCurves:
+    """Expected mean SNR as a function of relative total read depth.
+
+    Computed once in the data layer (memory-bounded) and saved to the reactivity
+    HDF5, so the plot backends render rather than recompute. ``xi`` is the
+    relative-depth axis; the rest are mean-SNR curves over it. The ``nomod`` and
+    ``pareto`` curves are present only when an unmodified control exists.
+    """
+
+    xi: np.ndarray
+    mod: np.ndarray
+    mod_sem: np.ndarray
+    nomod: Union[np.ndarray, None] = None
+    nomod_sem: Union[np.ndarray, None] = None
+    pareto: Union[np.ndarray, None] = None
+    pareto_sem: Union[np.ndarray, None] = None
+
+    def save(self, group: str, path: str) -> None:
+        """Append the curves to an existing HDF5 file under ``group/snr-<name>``."""
+        with h5py.File(path, "a") as f:
+            grp = f if group == "" else f.require_group(group)
+            for key in _SNR_CURVE_KEYS:
+                value = getattr(self, key)
+                if value is not None:
+                    grp.create_dataset(f"snr-{key}", data=np.asarray(value))
+
+    @classmethod
+    def load(cls, group: str, file: h5py.File) -> Union[SNRCurves, None]:
+        prefix = f"{group}/snr-" if group else "snr-"
+        if f"{prefix}xi" not in file:
+            return None
+        vals = {
+            k: (np.array(file[f"{prefix}{k}"]) if f"{prefix}{k}" in file else None)
+            for k in _SNR_CURVE_KEYS
+        }
+        return cls(**vals)
+
+
+def compute_snr_curves(
+    mod: ProbingData,
+    nomod: Union[ProbingData, None],
+    combined: ProbingData,
+) -> SNRCurves:
+    """Expected mean SNR as a function of relative total read depth.
+
+    Reduces over references/positions at each depth, so the result is small
+    ``(_SNR_DEPTH_POINTS,)`` curves (see :class:`SNRCurves`). The pareto search
+    is chunked to bound memory.
+    """
+    reactivity = np.asarray(combined.reactivity)
+    mod_err = np.asarray(mod.error)
+    mod_reads = float(np.asarray(mod.reads).max())
+
+    prior = _SNR_PRIOR
+    mod_err2 = np.maximum(mod_err**2, prior * (1 - prior) / mod_reads)
+
+    if nomod is not None:
+        nomod_err = np.asarray(nomod.error)
+        nomod_reads = float(np.asarray(nomod.reads).max())
+        total_reads = mod_reads + nomod_reads
+        nomod_err2: Union[np.ndarray, None] = np.maximum(
+            nomod_err**2, prior * (1 - prior) / nomod_reads
+        )
+    else:
+        nomod_err2 = None
+        total_reads = mod_reads
+
+    # SEM of mean SNR at current depth; bands at projected depths scale this.
+    current_se2 = mod_err2.copy()
+    if nomod_err2 is not None:
+        current_se2 = current_se2 + nomod_err2
+    current_snr = np.where(np.sqrt(current_se2) > 0, reactivity / np.sqrt(current_se2), 0.0)
+    valid = current_snr.ravel()[~np.isnan(current_snr.ravel())]
+    snr_at_1 = valid.mean() if len(valid) > 0 else 1.0
+    snr_sem_at_1 = valid.std() / np.sqrt(len(valid)) if len(valid) > 1 else 0.0
+
+    def mean_snr(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
+        se2 = mod_err2[None] / mod_scales[:, None, None]
+        if nomod_err2 is not None:
+            se2 = se2 + nomod_err2[None] / nomod_scales[:, None, None]
+        se = np.sqrt(se2)
+        snr = np.where(se > 0, reactivity[None] / se, 0.0)
+        return np.nanmean(snr, axis=-1).mean(axis=-1)
+
+    def band(curve: np.ndarray) -> np.ndarray:
+        ratio = np.where(snr_at_1 > 0, curve / snr_at_1, 0.0)
+        return np.abs(ratio) * snr_sem_at_1
+
+    xi = np.geomspace(_SNR_DEPTH_MIN, _SNR_DEPTH_MAX, _SNR_DEPTH_POINTS)
+
+    if nomod is None:
+        snr_mod = mean_snr(xi, np.ones_like(xi))
+        return SNRCurves(xi=xi, mod=snr_mod, mod_sem=band(snr_mod))
+
+    # Modified: extra reads go to mod; Unmodified: extra reads go to nomod.
+    mod_scales = np.maximum((xi * total_reads - nomod_reads) / mod_reads, 1e-10)
+    snr_mod = mean_snr(mod_scales, np.ones_like(mod_scales))
+    nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
+    snr_nomod = mean_snr(np.ones_like(nomod_scales), nomod_scales)
+
+    # Pareto frontier: best mod/nomod read split at each depth (chunked).
+    fracs = np.linspace(0.01, 0.99, _SNR_PARETO_SPLITS)
+    snr_pareto = np.empty(len(xi))
+    for i in range(0, len(xi), _SNR_PARETO_CHUNK):
+        xi_c = xi[i : i + _SNR_PARETO_CHUNK]
+        ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
+        ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
+        grid = np.column_stack([mean_snr(ms[:, j], ns[:, j]) for j in range(len(fracs))])
+        snr_pareto[i : i + _SNR_PARETO_CHUNK] = grid.max(axis=1)
+
+    return SNRCurves(
+        xi=xi,
+        mod=snr_mod,
+        mod_sem=band(snr_mod),
+        nomod=snr_nomod,
+        nomod_sem=band(snr_nomod),
+        pareto=snr_pareto,
+        pareto_sem=band(snr_pareto),
+    )
+
+
 def save_groups(
     path: str,
     results: list[tuple[str, ProbingData]],

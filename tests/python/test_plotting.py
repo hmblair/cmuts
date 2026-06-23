@@ -18,6 +18,7 @@ matplotlib.use("Agg")
 
 from cmuts.internal import ProbingData
 from cmuts.visualize.plotting import main, plot_all, plot_profiles, plot_snr_scaling
+from cmuts.internal import compute_snr_curves
 
 pytestmark = pytest.mark.no_external_dependencies
 
@@ -140,7 +141,7 @@ class TestStandalonePlotting:
         nomod = _make_probing_data(nseq=1)
         combined = _make_probing_data(nseq=1)
 
-        plot_snr_scaling(mod, nomod, combined, "sample", str(tmp_path))
+        plot_snr_scaling(compute_snr_curves(mod, nomod, combined), "sample", str(tmp_path))
 
         assert (tmp_path / "sample-snr-scaling.png").exists()
 

@@ -38,8 +38,10 @@ from .internal import (
     GroupResult,
     Opts,
     ProbingData,
+    SNRCurves,
     compute_reactivities,
     compute_reactivity,
+    compute_snr_curves,
     save_groups,
 )
 from .normalize import Scheme, get_norm, pooled_norm, register, scheme_names
@@ -60,9 +62,11 @@ __all__ = [
     "GroupResult",
     "Opts",
     "ProbingData",
+    "SNRCurves",
     "Scheme",
     "compute_reactivities",
     "compute_reactivity",
+    "compute_snr_curves",
     "get_norm",
     "pooled_norm",
     "register",

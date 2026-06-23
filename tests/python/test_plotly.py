@@ -7,7 +7,7 @@ import pytest
 
 go = pytest.importorskip("plotly.graph_objects")
 
-from cmuts.internal import ProbingData  # noqa: E402
+from cmuts.internal import ProbingData, compute_snr_curves  # noqa: E402
 from cmuts.visualize.plotly import (  # noqa: E402
     plot_correlation,
     plot_coverage,
@@ -144,11 +144,11 @@ class TestPlotlyFigures:
         mod = _make_probing_data()
         nomod = _make_probing_data()
         combined = _make_probing_data()
-        fig = plot_snr_scaling(mod, nomod, combined, "sample")
+        fig = plot_snr_scaling(compute_snr_curves(mod, nomod, combined), "sample")
         assert isinstance(fig, go.Figure)
 
     def test_plot_snr_scaling_without_nomod(self) -> None:
         mod = _make_probing_data()
         combined = _make_probing_data()
-        fig = plot_snr_scaling(mod, None, combined, "sample")
+        fig = plot_snr_scaling(compute_snr_curves(mod, None, combined), "sample")
         assert isinstance(fig, go.Figure)
