@@ -58,6 +58,39 @@ std::string _path(const std::string& name) {
     return parent + "/" + stem;
 }
 
+std::string _index_path(const std::string& preferred) {
+
+    std::filesystem::path path(preferred);
+    std::filesystem::path dir = path.parent_path();
+    if (dir.empty()) {
+        dir = ".";
+    }
+
+    // Keep the index beside its source when that directory is writable.
+
+    if (::access(dir.c_str(), W_OK) == 0) {
+        return preferred;
+    }
+
+    // Otherwise redirect into the temp directory, keyed on the absolute source
+    // path so the name is unique per source and reused on subsequent runs.
+
+    std::error_code ec;
+    std::filesystem::path absolute = std::filesystem::absolute(path, ec);
+    std::string key = ec ? preferred : absolute.string();
+
+    std::filesystem::path tmp = std::filesystem::temp_directory_path(ec);
+    if (ec) {
+        __throw_and_log(_LOG_FILE, "The directory for \"" + preferred +
+                                       "\" is not writable and no temp directory is available.");
+    }
+
+    std::string name =
+        "cmuts-" + std::to_string(std::hash<std::string>{}(key)) + "-" + path.filename().string();
+
+    return (tmp / name).string();
+}
+
 bool _has_duplicate_paths(const std::vector<std::string>& paths) {
 
     std::unordered_set<std::string> seen;

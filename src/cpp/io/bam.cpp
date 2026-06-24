@@ -497,6 +497,9 @@ static inline void _build_bam_index(BGZF* _bgzf_file, const std::string& filenam
 
     _throw_if_exists(filename);
     std::ofstream outfile(filename);
+    if (!outfile) {
+        __throw_and_log(_LOG_FILE, "Failed to open \"" + filename + "\" for writing the index.");
+    }
 
     bam1_t* _hts_aln = _open_aln();
     IndexBlock block;
@@ -561,7 +564,7 @@ BamFile::BamFile(const std::string& name) : File(name, FileType::BAM), _hts_aln(
     Header header = _read_bam_header(_hts_bgzf);
     _references = header.references;
 
-    std::string _index_name = _name + CMUTS_INDEX;
+    std::string _index_name = _index_path(_name + CMUTS_INDEX);
     if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
         _build_bam_index(_hts_bgzf, _index_name, _references);
         __log(_LOG_FILE, "Successfully created " + _index_name + ".");
@@ -644,6 +647,9 @@ static inline void _build_sam_index(BGZF* _bgzf_file, sam_hdr_t* hdr, const std:
 
     _throw_if_exists(filename);
     std::ofstream outfile(filename);
+    if (!outfile) {
+        __throw_and_log(_LOG_FILE, "Failed to open \"" + filename + "\" for writing the index.");
+    }
 
     bam1_t* _hts_aln = _open_aln();
     kstring_t line = KS_INITIALIZE;
@@ -738,7 +744,7 @@ SamFile::SamFile(const std::string& name) : File(name, FileType::SAM), _hts_aln(
     _hdr = _read_sam_text_header(_hts_bgzf, _sorted);
     _references = sam_hdr_nref(_hdr);
 
-    std::string _index_name = _name + CMUTS_INDEX;
+    std::string _index_name = _index_path(_name + CMUTS_INDEX);
     if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
         _build_sam_index(_hts_bgzf, _hdr, _index_name, _references);
         __log(_LOG_FILE, "Successfully created " + _index_name + ".");

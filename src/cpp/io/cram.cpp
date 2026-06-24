@@ -1596,6 +1596,9 @@ static inline void _build_cram_index(BGZF* file, const std::string& name, int32_
 
     _throw_if_exists(name);
     std::ofstream out(name);
+    if (!out) {
+        __throw_and_log(_LOG_FILE, "Failed to open \"" + name + "\" for writing the index.");
+    }
 
     IndexBlock block;
     int64_t unaligned = 0;
@@ -1692,7 +1695,7 @@ CramFile::CramFile(const std::string& name) : File(name, FileType::CRAM) {
     _references = _data.references;
     _version = _data.version;
 
-    std::string _index_name = _name + CMUTS_INDEX;
+    std::string _index_name = _index_path(_name + CMUTS_INDEX);
     if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
         _build_cram_index(_hts_bgzf, _index_name, _references, _data.version);
         __log(_LOG_FILE, "Successfully created " + _index_name + ".");

@@ -97,9 +97,8 @@ static inline seq_t _read_binary_sequence(std::ifstream& file, int32_t length, i
     int32_t bytes = _bytes_from_seq(length);
     seq_t binary(bytes);
 
-    // Clear any failbit/eofbit left over from header parsing, which reads
-    // past the end of the data region on short files and would otherwise
-    // turn the seek and read below into silent no-ops.
+    // Clear any eofbit/failbit left by a previous sequence read that ended at
+    // EOF; otherwise the seek and read below would become silent no-ops.
     file.clear();
     file.seekg(offset);
     file.read(reinterpret_cast<char*>(binary.data()), bytes * sizeof(base_t));
@@ -113,22 +112,31 @@ static inline void _write_binary_sequence(std::ofstream& file, const std::string
     file.write(reinterpret_cast<const char*>(binary.data()), binary.size() * sizeof(base_t));
 }
 
-static inline HeaderBlock _read_fasta_header_block(std::ifstream& file) {
-
-    HeaderBlock block;
-    file.read(reinterpret_cast<char*>(&block.length), sizeof(int32_t));
-    file.read(reinterpret_cast<char*>(&block.sequences), sizeof(int32_t));
-    return block;
-}
-
 static inline std::vector<HeaderBlock> _read_fasta_header(std::ifstream& file) {
 
-    HeaderBlock block;
     std::vector<HeaderBlock> blocks;
 
-    while (block.length != EOH) {
+    while (true) {
 
-        block = _read_fasta_header_block(file);
+        // Read the length first so we can stop at the EOH terminator without
+        // over-reading a phantom count past it.
+
+        HeaderBlock block;
+        file.read(reinterpret_cast<char*>(&block.length), sizeof(int32_t));
+
+        // A failed length read means the index is missing, empty, or truncated.
+
+        if (!file) {
+            __throw_and_log(_LOG_FILE,
+                            "Failed to read the FASTA index (missing, truncated, or unreadable).");
+        }
+
+        if (block.length == EOH) {
+            break;
+        }
+
+        file.read(reinterpret_cast<char*>(&block.sequences), sizeof(int32_t));
+
         if (!block.empty()) {
             blocks.push_back(block);
         }
@@ -195,6 +203,9 @@ static inline void _fasta_to_binary(const std::string& fname, const std::string&
     _throw_if_exists(bname);
 
     std::ofstream binary(bname);
+    if (!binary) {
+        __throw_and_log(_LOG_FILE, "Failed to open \"" + bname + "\" for writing the FASTA index.");
+    }
     std::vector<HeaderBlock> blocks = _get_fasta_header(fname);
     _write_fasta_header(binary, blocks);
 
@@ -341,7 +352,7 @@ static inline std::string _cmfa_extension(const std::string& filename) {
 }
 
 BinaryFASTA::BinaryFASTA(const std::string& fasta, bool rebuild)
-    : _fasta_name(fasta), _name(_cmfa_extension(fasta)) {
+    : _fasta_name(fasta), _name(_index_path(_cmfa_extension(fasta))) {
 
     _throw_if_not_exists(_fasta_name);
 

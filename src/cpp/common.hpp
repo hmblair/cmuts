@@ -139,6 +139,13 @@ void _throw_if_not_exists(const std::string& filename);
 void _safe_move(const std::string& src, const std::string& dst);
 std::string _stem(const std::string& name);
 std::string _path(const std::string& name);
+
+// Returns a path at which an auxiliary index file may be written. Normally this
+// is `preferred` itself (beside the source file), but when that directory is
+// not writable -- e.g. read-only input data -- the index is redirected into the
+// system temp directory under a name derived from the absolute source path, so
+// it stays unique per source and stable across runs.
+std::string _index_path(const std::string& preferred);
 bool _has_duplicate_paths(const std::vector<std::string>& paths);
 void _throw_if_has_duplicate_paths(const std::vector<std::string>& paths);
 
