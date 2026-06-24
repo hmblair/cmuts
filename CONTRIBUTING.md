@@ -59,7 +59,7 @@ throw std::runtime_error("read failed");
 
 | Element | Convention | Example |
 |---------|------------|---------|
-| Classes | PascalCase | `ProbingData`, `NormScheme` |
+| Classes | PascalCase | `ProbingData`, `Scheme` |
 | Functions | snake_case | `normalize()`, `get_reactivity()` |
 | Constants | UPPER_SNAKE_CASE | `IX_DEL`, `BOLD` |
 | Private | Leading underscore | `_internal_method()` |
@@ -110,46 +110,57 @@ def normalize(file: str, fasta: str, opts: Opts) -> ProbingData:
 git clone --recursive https://github.com/hmblair/cmuts.git
 cd cmuts
 
-# Build C++ components
+# Build the C++ binaries, generate docs, and install the cmuts package (uses uv).
+# Flags: --clean (full rebuild), --mpi (MPI support), --debug (sanitizers),
+# --install-completions.
 ./configure
-cmake --build build --parallel
 
-# Install Python package in development mode
-pip install -e ".[dev]"
+# Install the development tools (pytest, ruff, mypy, pre-commit)
+uv pip install -e ".[dev]"
 ```
+
+On macOS, install the system dependencies first with
+`brew install hdf5 htslib zlib cmake`.
 
 ### Running Tests
 
 ```bash
-# C++ tests (after building with BUILD_TESTING=ON)
-ctest --test-dir build --output-on-failure
+# Full suite (integration tests that exercise the C++ binaries)
+cmuts test
 
-# Python tests
-pytest tests/python -v
+cmuts test --quick   # skip slow tests
+cmuts test --cram    # CRAM-specific tests only
 ```
 
+`cmuts test` runs the pytest suite under `tests/python`; any extra arguments are
+passed through to pytest.
+
 ### Code Formatting
+
+The repository ships a pre-commit config covering the C++, the Python package,
+and the benchmark scripts; install the hooks with `pre-commit install`. To run
+the tools directly:
 
 ```bash
 # C++ formatting
 clang-format -i src/cpp/*.cpp src/cpp/*.hpp
 
-# Python formatting and linting
-ruff check src/python/cmuts
-ruff format src/python/cmuts
+# Python linting and formatting (package + benchmarks)
+ruff check src/python/cmuts benchmarks
+ruff format src/python/cmuts benchmarks
 
 # Type checking
-mypy src/python/cmuts
+mypy src/python/cmuts benchmarks
 ```
 
 ## Pull Request Process
 
-1. Create a feature branch from `dev`
+1. Create a feature branch from `master`
 2. Make your changes following the style guide
 3. Add tests for new functionality
 4. Ensure all tests pass
 5. Update documentation if needed
-6. Submit a pull request to `dev`
+6. Submit a pull request to `master`
 
 ## License
 
