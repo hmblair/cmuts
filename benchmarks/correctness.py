@@ -40,10 +40,15 @@ from external import MIN_DEPTH
 # rf-count and shapemapper2 settings that match cmuts' defaults (min-mapq 10,
 # min-phred 10, min-length 2, max-indel 10, collapse 2) with insertions off and
 # deletions right-aligned, so the three tools count the same events.
+# discard_duplicates=False is essential: MaP-seq reads pile up at the same
+# coordinates (independent molecules that get flagged as duplicates), so the
+# flag must be ignored -- cmuts and shapemapper2 keep them, and rf-count would
+# otherwise discard ~all reads, collapsing its coverage.
 MATCH = external.Params(
     insertions=False,
     right_align_deletions=True,
     collapse=2,
+    discard_duplicates=False,
     min_mapq=10,
     min_phred=10,
     min_length=2,
