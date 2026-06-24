@@ -268,9 +268,12 @@ def main() -> None:
     ap.add_argument("--profiles", required=True, type=Path, help="Profiles HDF5 from profiles.py")
     ap.add_argument("--fasta", required=True, type=Path)
     ap.add_argument("--structures", required=True, type=Path)
-    ap.add_argument("--per-ref", type=Path, default=Path("per_reference.tsv"))
-    ap.add_argument("--summary", type=Path, default=Path("summary.tsv"))
+    ap.add_argument("--per-ref", type=Path, default=Path("outputs/per_reference.tsv"))
+    ap.add_argument("--summary", type=Path, default=Path("outputs/summary.tsv"))
     args = ap.parse_args()
+
+    args.per_ref.parent.mkdir(parents=True, exist_ok=True)
+    args.summary.parent.mkdir(parents=True, exist_ok=True)
 
     refs = load_fasta(args.fasta)
     names = [n for n, _ in refs]

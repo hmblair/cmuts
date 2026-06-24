@@ -49,10 +49,17 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--profiles", required=True, type=Path, help="Profiles HDF5 from profiles.py")
     p.add_argument("-f", "--fasta", required=True, help="Reference FASTA (for reference names)")
-    p.add_argument("-o", "--out", default="correctness.csv", help="Output CSV")
+    p.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        default=Path("outputs/correctness.csv"),
+        help="Output CSV (parent dir created); default is the gitignored outputs/.",
+    )
     args = p.parse_args()
 
     names = read_fasta_names(args.fasta)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     rows = 0
     with h5py.File(args.profiles, "r") as f, open(args.out, "w", newline="") as fh:
         w = csv.writer(fh)
