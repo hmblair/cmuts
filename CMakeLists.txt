@@ -147,7 +147,7 @@ target_link_directories(libcmuts PRIVATE
 target_link_libraries(libcmuts PRIVATE
     ${HTSLIB_LIBRARIES}
     ${HDF5_LIBRARIES}
-    ${ZLIB_LIBRARIES}
+    ZLIB::ZLIB
     argparse
     xtensor
     htscodecs
@@ -200,7 +200,7 @@ function(setup_target _target)
     target_link_libraries(${_target} PRIVATE
         ${HTSLIB_LIBRARIES}
         ${HDF5_LIBRARIES}
-        ${ZLIB_LIBRARIES}
+        ZLIB::ZLIB
         argparse
         xtensor
         htscodecs
