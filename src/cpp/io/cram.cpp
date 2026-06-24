@@ -321,7 +321,7 @@ int64_t CramContainer::unaligned() {
     return reads;
 }
 
-CramSlice CramContainer::slice(int32_t ix) {
+CramSlice& CramContainer::slice(int32_t ix) {
 
     if (ix >= slices.size()) {
         __throw_and_log(_LOG_FILE,
@@ -863,7 +863,7 @@ static inline std::vector<std::vector<base_t>> _parse_substitution_matrix(uint8_
 SubstitutionMatrix::SubstitutionMatrix(uint8_t* matrix)
     : _decoder(_parse_substitution_matrix(matrix)) {}
 
-std::vector<base_t> SubstitutionMatrix::parse(base_t code) {
+std::vector<base_t> SubstitutionMatrix::parse(base_t code) const {
     return _decoder[code];
 }
 
@@ -1189,7 +1189,7 @@ CodecMap CompressionHeader::codecs() const {
     return _codecs;
 }
 
-SubstitutionMatrix CompressionHeader::substitution() const {
+const SubstitutionMatrix& CompressionHeader::substitution() const {
     return _subs;
 }
 
@@ -1286,7 +1286,7 @@ CodecMap CramContainer::codecs() const {
     return _comp.codecs();
 }
 
-SubstitutionMatrix CramContainer::substitution() const {
+const SubstitutionMatrix& CramContainer::substitution() const {
     return _comp.substitution();
 }
 
@@ -1406,7 +1406,7 @@ void CramIterator::set(int64_t reads) {
     _reads = static_cast<int32_t>(reads);
 }
 
-std::shared_ptr<Codec> CramIterator::at(ExtData_t type) {
+const std::shared_ptr<Codec>& CramIterator::at(ExtData_t type) {
 
     return _container.slice(_slice).codecs.map.at(type);
 }
@@ -1436,7 +1436,9 @@ void CramIterator::_next_op() {
     // relative to the previous feature. It uses one-based indexing (i.e. the
     // first position in the read has jump = 1), which we account for.
     int32_t jump = at(ExtData_t::FP)->integer();
-    if (_cigar.empty()) {
+    // The first feature's FP is one-based; detect it via the seeded leading TERM
+    // op still being the most recent op (no feature has been appended yet).
+    if (_cigar.back().type() == CIGAR_t::TERM) {
         jump--;
     }
 
@@ -1556,6 +1558,13 @@ Alignment CramIterator::next() {
     _cigar = CIGAR(CIGAR_RESERVE);
     _qpos = 0;
     _prev_qlength = 0;
+
+    // Seed the CIGAR with the termination op. Reverse transcription marches
+    // 3'->5', so the RT fall-off site is the 5'-most sequenced base, i.e. the
+    // first op in the 5'->3' CIGAR. This mirrors the BAM reader (see bam.cpp,
+    // _get_cigar_core), which the CRAM path otherwise omitted -- leaving the
+    // termination (IX_TERM) channel empty for CRAM input.
+    _cigar.append(CIGAR_op(CIGAR_t::TERM));
 
     while (_remaining > 0) {
         _next_op();

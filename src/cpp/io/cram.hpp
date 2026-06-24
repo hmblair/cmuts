@@ -252,7 +252,7 @@ class SubstitutionMatrix {
     SubstitutionMatrix() = default;
     explicit SubstitutionMatrix(uint8_t* matrix);
 
-    std::vector<base_t> parse(base_t code);
+    std::vector<base_t> parse(base_t code) const;
 };
 
 class CramBlock {
@@ -343,7 +343,7 @@ class CompressionHeader {
     explicit CompressionHeader(uint8_t*& data, bool crc);
 
     CodecMap codecs() const;
-    SubstitutionMatrix substitution() const;
+    const SubstitutionMatrix& substitution() const;
     bool delta() const;
 };
 
@@ -402,7 +402,7 @@ class CramContainer : public CramContainerBase {
     // The slices in the container
 
     std::vector<CramSlice> slices;
-    CramSlice slice(int32_t ix);
+    CramSlice& slice(int32_t ix);
 
     // The number of aligned reads in the container
 
@@ -416,7 +416,7 @@ class CramContainer : public CramContainerBase {
 
     CodecMap codecs() const;
 
-    SubstitutionMatrix substitution() const;
+    const SubstitutionMatrix& substitution() const;
 
     bool delta() const;
 };
@@ -473,7 +473,7 @@ class CramIterator : public Iterator {
     CramIterator(CramIterator&&) = delete;
     CramIterator& operator=(CramIterator&&) = delete;
 
-    std::shared_ptr<Codec> at(ExtData_t type);
+    const std::shared_ptr<Codec>& at(ExtData_t type);
     std::vector<base_t> sub(base_t code);
     Alignment next() override;
     void to(int32_t reference);

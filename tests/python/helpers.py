@@ -252,7 +252,7 @@ class TestRunner:
 
         with h5py.File(self.cmuts_h5_path, "r") as f:
             dataset_path = find_counts_dataset(f)
-            cmuts_counts = f[dataset_path][..., :-1]
+            cmuts_counts = f[dataset_path][:]
 
         with h5py.File(self.expected_h5_path, "r") as f:
             dataset_path = find_counts_dataset(f)

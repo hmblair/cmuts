@@ -133,6 +133,14 @@ AlignmentGenerator::AlignmentGenerator(const seq_t& reference, const Params& par
         extend_alignment();
     }
 
+    // Record the termination at the read's 5' terminus, where _rpos has landed.
+    // cmuts synthesizes a terminus op at the 5'-most base of every read it
+    // processes (see the BAM/CRAM readers); it is not present in the alignment
+    // data itself. It is counted once per kept read, unmasked, as in __term.
+    if (_passes_mapq) {
+        _expected(_rpos, _reference[_rpos], IX_TERM) += 1;
+    }
+
     // Reverse to get correct 5'→3' orientation for output
     std::reverse(_query.begin(), _query.end());
     std::reverse(_cigar.begin(), _cigar.end());
@@ -413,7 +421,7 @@ void generate_test_data(const MPI::Manager& mpi, size_t num_references, size_t r
     // Create HDF5 memspace for expected values
     std::vector<size_t> dims = {
         num_references, reference_length, BASES,
-        6 // A, C, G, U, DEL, INS
+        N_DELBASES // A, C, G, U, DEL, INS, TERM
     };
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path) + "/counts-1d");
 
