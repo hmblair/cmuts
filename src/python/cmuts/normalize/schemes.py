@@ -9,6 +9,8 @@ Built-in schemes:
     raw     : no normalization
     ubr     : upper-bound reference -- 90th percentile of high-coverage positions
     outlier : 2-8% outlier-based, per-reference normalization
+    sm-dms  : ShapeMapper2-style per-nucleotide DMS normalization (per-base 75th
+              percentile, pooled library-wide)
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ __all__ = [
     "get_norm",
     "pooled_norm",
     "register",
+    "requires_sequence",
     "scheme_names",
 ]
 
@@ -33,6 +36,11 @@ __all__ = [
 # UBR (upper-bound reference) normalization parameters.
 _UBR_READ_CUTOFF = 500  # per-reference read floor for "high-coverage" positions
 _UBR_PERCENTILE = 90  # reactivity percentile used as the normalization factor
+
+# ShapeMapper2-style per-nucleotide DMS normalization parameters.
+_DMS_PERCENTILE = 75  # per-base reactivity percentile used as the factor
+_DMS_MIN_FACTOR = 0.002  # below this, a base's signal is treated as absent (factor -> NaN)
+_DMS_BASE_TOKENS = (0, 1, 2, 3)  # A, C, G, U tokens (see internal._BASE_TOKEN)
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +58,7 @@ class Scheme(ABC):
     """
 
     name: str
+    needs_sequence: bool = False  # True if single/pooled read data.sequences
 
     @abstractmethod
     def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
@@ -73,6 +82,12 @@ def register(scheme_cls: type[Scheme]) -> type[Scheme]:
 def scheme_names() -> list[str]:
     """Names of all registered schemes (drives the CLI ``--norm`` choices)."""
     return list(_SCHEMES)
+
+
+def requires_sequence(name: str) -> bool:
+    """Whether scheme ``name`` reads the per-position sequence (so the caller
+    must attach it before normalization)."""
+    return _resolve(name).needs_sequence
 
 
 def _resolve(name: str) -> Scheme:
@@ -153,6 +168,54 @@ class OutlierScheme(Scheme):
             return float(np.mean(sarr[p2 : p10 + 1]))
 
         return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)[:, None]
+
+
+@register
+class ShapeMapperDMSScheme(Scheme):
+    """ShapeMapper2-style per-nucleotide DMS normalization.
+
+    Each base type (A, C, G, U) is scaled independently by the 75th percentile
+    of that base's reactivities, pooled across *all* references (library-wide,
+    matching ShapeMapper2's single ``normalize_profiles`` call). A position is
+    divided by its own base's factor, so the returned factor is per position.
+    A base whose factor falls below ``_DMS_MIN_FACTOR`` is treated as having no
+    usable signal (factor NaN -> left unscaled by :meth:`ProbingData.normalize`).
+
+    Requires the per-position sequence, which ``compute_reactivity`` attaches
+    from the FASTA when the counts file carries none.
+    """
+
+    name = "sm-dms"
+    needs_sequence = True
+
+    def _factors(self, datasets: list[ProbingData]) -> dict[int, float]:
+        react = np.concatenate([np.asarray(d.reactivity).ravel() for d in datasets])
+        seq = np.concatenate([np.asarray(d.sequences).ravel() for d in datasets])
+        factors: dict[int, float] = {}
+        for tok in _DMS_BASE_TOKENS:
+            vals = react[(seq == tok) & np.isfinite(react)]
+            f = float(np.percentile(vals, _DMS_PERCENTILE)) if vals.size else float("nan")
+            factors[tok] = f if f >= _DMS_MIN_FACTOR else float("nan")
+        return factors
+
+    def _per_position(self, data: ProbingData, factors: dict[int, float]) -> np.ndarray:
+        seq = np.asarray(data.sequences)
+        out = np.ones_like(np.asarray(data.reactivity), dtype=float)
+        for tok, f in factors.items():
+            out[seq == tok] = f
+        return out
+
+    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
+        if data.sequences is None:
+            raise ValueError("sm-dms normalization requires per-position sequences")
+        return self._per_position(data, self._factors([data]))
+
+    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
+        if any(d.sequences is None for d in datasets):
+            raise ValueError("sm-dms normalization requires per-position sequences")
+        # Datasets share the library (same FASTA), so a single per-position
+        # factor array built from the first applies to all of them.
+        return self._per_position(datasets[0], self._factors(datasets))
 
 
 # ---------------------------------------------------------------------------

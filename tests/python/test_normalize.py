@@ -114,6 +114,23 @@ class TestNormalizeOpts:
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
         assert out.exists()
 
+    def test_sm_dms_normalization(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """--norm sm-dms (ShapeMapper-style per-nucleotide) produces output.
+
+        Exercises the sequence-aware path: the scheme needs the per-position base
+        identity, which is attached from the FASTA when the counts file carries
+        no tokenized sequence.
+        """
+        counts_h5, fasta = test_data
+        groups = _find_mod_groups(counts_h5)
+
+        out = tmp_path / "out.h5"
+        result = _run_normalize(counts_h5, fasta, out, mod=groups, extra_args=["--norm", "sm-dms"])
+        assert result.returncode == 0, f"stderr:\n{result.stderr}"
+        assert out.exists()
+        with h5py.File(out, "r") as f:
+            assert "reactivity" in f
+
     def test_clip_flags(self, test_data: tuple[Path, Path], tmp_path: Path):
         """--clip-below and --clip-above flags work with explicit thresholds."""
         counts_h5, fasta = test_data

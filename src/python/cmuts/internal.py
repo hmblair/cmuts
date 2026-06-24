@@ -35,7 +35,7 @@ import h5py
 import numpy as np
 from scipy.stats import t as student
 
-from .normalize.schemes import get_norm, pooled_norm
+from .normalize.schemes import get_norm, pooled_norm, requires_sequence
 
 # Core datatypes and dataclasses
 
@@ -510,7 +510,7 @@ def _data_from_counts(
 class ProbingData:
     def __init__(
         self: ProbingData,
-        sequences: Union[da.Array, None],
+        sequences: Union[ProbingDatum, None],
         reactivity: ProbingDatum,
         reads: ProbingDatum,
         error: ProbingDatum,
@@ -807,6 +807,49 @@ def _lengths_from_fasta(file: str) -> da.Array:
     return da.array(lengths)
 
 
+# Canonical base -> token map for sequence-aware normalization (T folds onto U).
+_BASE_TOKEN = {"A": 0, "C": 1, "G": 2, "U": 3, "T": 3}
+
+
+def _sequences_from_fasta(fasta: str, width: int) -> np.ndarray:
+    """Per-position base tokens for each reference (FASTA order).
+
+    A/C/G/U(/T) map to 0/1/2/3; any other character and padding map to -1. Each
+    row is padded or truncated to ``width`` so it aligns with the reactivity
+    arrays. Used to give sequence-aware norm schemes (e.g. per-nucleotide DMS)
+    the base identity when the counts file carries no tokenized sequence.
+    """
+    seqs: list[str] = []
+    cur: list[str] = []
+    with open(fasta) as f:
+        for line in f:
+            if line.startswith(">"):
+                if cur:
+                    seqs.append("".join(cur))
+                    cur = []
+            else:
+                cur.append(line.strip())
+    if cur:
+        seqs.append("".join(cur))
+
+    out = np.full((len(seqs), width), -1, dtype=np.int8)
+    for i, s in enumerate(seqs):
+        for j, ch in enumerate(s[:width]):
+            out[i, j] = _BASE_TOKEN.get(ch.upper(), -1)
+    return out
+
+
+def _ensure_sequences(data: ProbingData, fasta: str, opts: Opts) -> None:
+    """Attach per-position base tokens from the FASTA when the active norm scheme
+    needs the sequence and the counts file provided none (no-``--tokenize`` case).
+
+    Gated on the scheme so schemes that ignore the sequence keep their previous
+    output (no extra sequence dataset)."""
+    if data.sequences is None and requires_sequence(opts.norm):
+        width = int(np.asarray(data.reactivity).shape[1])
+        data.sequences = _sequences_from_fasta(fasta, width)
+
+
 def compute_reactivity(
     file: h5py.File,
     fasta: str,
@@ -847,6 +890,7 @@ def compute_reactivity(
 
     # Normalize
 
+    _ensure_sequences(combined, fasta, opts)
     norm = get_norm(combined, opts)
 
     mod.normalize(norm)
@@ -932,6 +976,7 @@ def compute_reactivities(
         if nomod is not None:
             nomod = nomod.compute()
 
+        _ensure_sequences(combined, fasta, opts)
         raw.append(GroupResult(group=group, mod=mod, nomod=nomod, combined=combined))
 
     # Compute the normalization factor.
