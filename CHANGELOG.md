@@ -2,6 +2,10 @@
 
 ## [1.4.11] - 2026-06-23
 
+### Added
+
+- A `benchmarks/` suite comparing cmuts against rf-count (RNAFramework) and shapemapper2, with a shared module (`benchmarks/external.py`) that owns invoking and parsing both external tools: `profile` (wall-clock time and peak memory across query/reference/length sweeps for BAM and CRAM; ported from the bash harness to Python with CSV output), `correctness` (per-nucleotide raw mutation-rate agreement — the control that isolates deletion spreading), and `accuracy` (AUC/Pearson/Spearman of reactivity against base-pairing derived geometrically from 3D structures). Documented on the new Benchmarks docs page
+
 ### Changed
 
 - Plotting is decoupled from normalization (breaking). `cmuts normalize` now only computes: it writes the reactivity HDF5 (a complete record of the plottable data) and prints statistics, but no longer generates figures. Run `cmuts plot <reactivity.h5>` to render them — `cmuts normalize` followed by `cmuts plot` reproduces the previous behavior
