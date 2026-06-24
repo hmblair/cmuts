@@ -111,12 +111,6 @@ cmuts run --fasta ref.fasta --mod DMS/*.fq --nomod ETH/*.fq  -o profiles.h5 --gr
 
 # Plotly backend cleanup
 
-## plotly.py
-
-- [ ] `plot_snr_scaling` mixes signal processing with visualization (~200 lines). The SNR/Pareto computation should move into cmuts core (or `cmuts.internal`), leaving this function to render pre-computed curves. Larger refactor — touches core, not a mechanical cleanup.
-
-(The other items here are done: the repeated band pattern is now `_add_band`; `plot_heatmap`'s intentional `_base_layout` bypass is documented; the `ArrayType` alias was already gone; and `plot_profile`'s `error=None` branch is kept deliberately as graceful behavior for the public API.)
-
 ## app.py (cmuts-space)
 
 cmuts-space was rewritten from Gradio to FastAPI (`app.py` + `pipeline.py`), so the original items here are obsolete — there is no 14-element tuple yield, `load_saved_result`, `_load_from_query`, `select_profile`, `_read_profiles`/`_build_stats_table`, or `_empty_plot`. The remaining concerns now live in `pipeline.py`:
