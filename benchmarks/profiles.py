@@ -12,10 +12,10 @@ Datasets, each a (n_references, length) reactivity array per probe condition
     rnaframework     rf-count + rf-norm (Siegfried -sm 3, 2-8% -nm 1, treated vs untreated)
     shapemapper2     shapemapper2 native reactivity (modified vs untreated, 2-8%)
     cmuts-match-rf   cmuts --no-spread, normalize --norm outlier --per-reference-norm (mod/nomod)
+    cmuts-match-sm   cmuts --no-spread, normalize --norm sm-dms (DMS) / sm-shape (2A3) (mod/nomod)
     cmuts-nospread   cmuts --no-spread, normalize --norm ubr (mod/nomod)
     cmuts-uniform    cmuts --uniform-spread, --norm ubr (mod/nomod)
     cmuts-default    cmuts (mutation-informed spread), --norm ubr (mod/nomod)
-    # cmuts-match-sm TODO: cmuts settings tuned to shapemapper2's normalization
 
 correctness consumes {rnaframework, shapemapper2, cmuts-match-rf, cmuts-match-sm};
 accuracy consumes {rnaframework, shapemapper2, cmuts-nospread, cmuts-uniform,
@@ -244,6 +244,14 @@ def main() -> None:
             cmuts_normalize(
                 counts["nospread"], mod, nomod, args.fasta, cond, "outlier", True, prof
             ),
+            length,
+        )
+        # cmuts tuned to shapemapper2: global per-base 75th-pct (DMS) or boxplot
+        # (2A3) normalization, both library-wide (not per-reference).
+        print("  cmuts-match-sm ...")
+        sm_norm = "sm-dms" if cond == "DMS" else "sm-shape"
+        datasets.setdefault("cmuts-match-sm", {})[cond] = _pad(
+            cmuts_normalize(counts["nospread"], mod, nomod, args.fasta, cond, sm_norm, False, prof),
             length,
         )
         for mode, dataset in [

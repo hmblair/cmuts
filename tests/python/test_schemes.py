@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from cmuts.normalize.schemes import normalization
+from cmuts.normalize.schemes import _resolve, normalization
 
 
 class _Data:
@@ -71,3 +71,27 @@ def test_both_axes_give_independent_factors():
     # each (experiment, reference) cell is normalized on its own -> all four differ
     cells = [factors[e][r, 0] for e in range(2) for r in range(2)]
     assert len({round(float(c), 6) for c in cells}) == 4
+
+
+def _shapemapper_boxplot(x: np.ndarray) -> float:
+    """Reference port of ShapeMapper2's find_boxplot_factor (calc_quartile type 7
+    == numpy's default linear percentile)."""
+    x = np.sort(x[np.isfinite(x)])
+    n = len(x)
+    ten = n // 10
+    q = 1.5 * abs(np.percentile(x, 25) - np.percentile(x, 75))
+    cut = max(q, x[n - 1 - ten]) if n >= 100 else max(q, x[n - 1 - n // 20])
+    kept = x[x < cut]
+    return float(np.mean(kept[-ten:]))
+
+
+def test_sm_shape_matches_shapemapper_boxplot():
+    """The sm-shape scheme reproduces ShapeMapper2's SHAPE boxplot factor exactly."""
+    scheme = _resolve("sm-shape")
+    rng = np.random.default_rng(0)
+    for n in (50, 207, 1000):
+        arr = np.abs(rng.standard_exponential(n)) * 0.1
+        arr[rng.integers(0, n, n // 20)] = np.nan  # scattered missing positions
+        block = arr.reshape(1, n)  # one reference of n positions, high coverage
+        mine = float(scheme.block_factor(block, np.array([1e6]), None)[0, 0])
+        assert np.isclose(mine, _shapemapper_boxplot(arr))

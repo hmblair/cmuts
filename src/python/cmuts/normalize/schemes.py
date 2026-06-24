@@ -14,6 +14,7 @@ Built-in schemes:
     outlier : 2-8% outlier-based normalization
     sm-dms  : ShapeMapper2-style per-nucleotide DMS normalization (per-base 75th
               percentile)
+    sm-shape: ShapeMapper2-style SHAPE boxplot normalization
 
 Granularity (one normalization factor is computed per "pool" of reference
 profiles, then divided out):
@@ -57,6 +58,10 @@ _OUTLIER_HIGH = 0.10  # average down to the top 10%
 _DMS_PERCENTILE = 75  # per-base reactivity percentile used as the factor
 _DMS_MIN_FACTOR = 0.002  # below this, a base's signal is treated as absent (factor -> NaN)
 _DMS_BASE_TOKENS = (0, 1, 2, 3)  # A, C, G, U tokens (see internal._BASE_TOKEN)
+
+# ShapeMapper2-style SHAPE boxplot normalization parameters.
+_SM_SHAPE_MIN = 20  # minimum finite values to attempt a factor
+_SM_SHAPE_SMALL = 100  # below this many values, exclude the top 5% (not 10%) as outliers
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +210,35 @@ class ShapeMapperDMSScheme(Scheme):
             f = float(np.percentile(vals, _DMS_PERCENTILE)) if vals.size else float("nan")
             out[bases == tok] = f if f >= _DMS_MIN_FACTOR else float("nan")
         return out
+
+
+@register
+class ShapeMapperSHAPEScheme(Scheme):
+    """ShapeMapper2-style SHAPE (2A3) boxplot normalization.
+
+    Reproduces ShapeMapper2's box-plot factor: over the pool, drop outliers above
+    ``max(1.5*IQR, the value at the 90th percentile)`` -- whichever cuts fewer
+    points -- then divide by the mean of the top 10% of what remains. Below 100
+    values the 95th-percentile cut is used in place of the 90th. The factor is a
+    single scalar shared by every base, matching ShapeMapper's SHAPE scheme.
+    Pools with fewer than 20 finite values are left unnormalized.
+    """
+
+    name = "sm-shape"
+
+    def block_factor(self, react, reads, bases):
+        vals = np.sort(react[np.isfinite(react)])
+        n = vals.size
+        ten_pct = n // 10
+        if n < _SM_SHAPE_MIN or ten_pct == 0:
+            return np.ones(react.shape, dtype=float)
+        iqr_limit = 1.5 * abs(np.percentile(vals, 25) - np.percentile(vals, 75))
+        tail = ten_pct if n >= _SM_SHAPE_SMALL else n // 20
+        limit = max(iqr_limit, vals[n - 1 - tail])
+        kept = vals[vals < limit]
+        if kept.size < ten_pct:
+            return np.ones(react.shape, dtype=float)
+        return _uniform(react, float(np.mean(kept[-ten_pct:])))
 
 
 # ---------------------------------------------------------------------------

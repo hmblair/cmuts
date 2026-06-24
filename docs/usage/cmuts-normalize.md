@@ -49,6 +49,7 @@ Each `--experiment` defines one experiment: a name followed by `mod=` (treated) 
 - `raw`: no normalization
 - `outlier`: 2-8% outlier-based normalization
 - `sm-dms`: ShapeMapper2-style per-nucleotide DMS normalization (per-base 75th percentile)
+- `sm-shape`: ShapeMapper2-style SHAPE boxplot normalization
 
 **`--clip-below`** : Clip reactivity values below this threshold (e.g. 0)
 

@@ -94,7 +94,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--norm",
-    help="Normalization method: ubr (90th percentile), raw (none), outlier (2-8%%).",
+    help="Normalization scheme (see the cmuts normalize docs for what each does).",
     choices=cmuts.normalize.scheme_names(),
     default="ubr",
 )
