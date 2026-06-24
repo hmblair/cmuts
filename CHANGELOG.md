@@ -1,10 +1,10 @@
 # Changelog
 
-## [1.4.11] - 2026-06-23
+## [1.4.11] - 2026-06-24
 
 ### Added
 
-- A `benchmarks/` suite comparing cmuts against rf-count (RNAFramework) and shapemapper2, with a shared module (`benchmarks/external.py`) that owns invoking and parsing both external tools: `profile` (wall-clock time and peak memory across query/reference/length sweeps for BAM and CRAM; ported from the bash harness to Python with CSV output), `correctness` (per-nucleotide raw mutation-rate agreement — the control that isolates deletion spreading), and `accuracy` (AUC/Pearson/Spearman of reactivity against base-pairing derived geometrically from 3D structures). Documented on the new Benchmarks docs page
+- A `benchmarks/` suite comparing cmuts against rf-count (RNAFramework) and shapemapper2, with a shared module (`benchmarks/external.py`) that owns invoking and parsing both external tools. `benchmarks/profiles.py` runs each tool's full pipeline (counting, background subtraction, and normalization) once on the modified/unmodified BAMs and writes one HDF5 of reactivity profiles — cmuts at each spread mode and tuned to each tool, plus rf-count and shapemapper2 — which the two scoring benchmarks read instead of re-running the tools: `correctness` (per-nucleotide agreement of cmuts-tuned-to-each-tool against that tool — the control that isolates deletion spreading) and `accuracy` (AUC/Pearson/Spearman of reactivity against a base-pairing ground truth read from the deposited mmCIF hydrogen-bond annotations). `profile` measures wall-clock time and peak memory across query/reference/length sweeps for BAM and CRAM (ported from the bash harness to Python with CSV output). Documented on the new Benchmarks docs page
 
 ### Changed
 

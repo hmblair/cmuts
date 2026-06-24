@@ -2,16 +2,22 @@
 
 The `benchmarks/` directory holds the scripts that compare `cmuts` against the
 two other MaP-seq mutation counters, **rf-count** (RNAFramework) and
-**shapemapper2**. There are three benchmarks:
+**shapemapper2**:
 
 - **profile** — wall-clock time and peak memory of each tool across sweeps of
-  query count, reference count, and reference length.
-- **correctness** — per-nucleotide agreement: with deletion spreading off and
-  every tool configured to count the same events, how close is each tool's raw
-  mutation rate to cmuts'. This is the Fig 2a control that isolates deletion
-  spreading.
-- **accuracy** — how well each tool's reactivity predicts base pairing in
-  deposited 3D structures (PDB130), with each tool tuned for accuracy.
+  query count, reference count, and reference length. Standalone.
+- **profiles** — runs each tool's full pipeline (counting, background
+  subtraction, and normalization) once on the modified/unmodified BAMs and writes
+  one HDF5 of reactivity profiles: cmuts at each spread mode and tuned to each
+  tool, plus rf-count and shapemapper2. This is the shared input for the two
+  scoring benchmarks, so the tools are run once rather than per benchmark.
+- **correctness** — reads the profiles HDF5; per-nucleotide agreement of cmuts
+  (with spreading off, tuned to each tool) against that tool's own profile. This
+  is the Fig 2a control that isolates deletion spreading.
+- **accuracy** — reads the profiles HDF5; how well each tool's reactivity
+  predicts base pairing in deposited 3D structures (PDB130), scored as AUC /
+  Pearson / Spearman against a ground truth read from the deposited mmCIF
+  hydrogen-bond annotations.
 
 These are development tools, not part of the installed `cmuts` package, so they
 are run as plain scripts rather than `cmuts` subcommands.
@@ -27,11 +33,16 @@ parsers live in exactly one place.
 Quality and processing knobs are carried in `external.Params` and mapped to each
 tool's own flags. Every benchmark passes the `Params` matching its intent:
 
-| Benchmark   | Intent                                                   |
-|-------------|----------------------------------------------------------|
-| profile     | mirror the synthetic-data generation (counts insertions) |
-| correctness | match cmuts defaults so the rate is the same quantity    |
-| accuracy    | tune each tool for accuracy (its standard mutation set)  |
+| Benchmark | Intent                                                          |
+|-----------|-----------------------------------------------------------------|
+| profile   | mirror the synthetic-data generation (counts insertions)        |
+| profiles  | one shared map-seq counting config across every tool (`MAP`)    |
+
+`profiles.py` drives both scoring benchmarks, so all tools share a single
+map-seq config (`MAP` in `profiles.py`): insertions off, deletions on and
+right-aligned, collapse 2, mapq/phred 10, eval-surrounding (quality window 1),
+duplicates kept. The only thing that varies across the cmuts datasets is the
+deletion spread mode.
 
 ## Environment
 
@@ -43,13 +54,13 @@ still runs the cmuts-only paths (an absent tool is skipped):
 | `CMUTS`      | cmuts dispatcher                 | `cmuts` on PATH  |
 | `RF_COUNT`   | RNAFramework `rf-count`          | `rf-count`       |
 | `RF_RCTOOLS` | RNAFramework `rf-rctools`        | `rf-rctools`     |
-| `RF_NORM`    | RNAFramework `rf-norm` (accuracy)| `rf-norm`        |
+| `RF_NORM`    | RNAFramework `rf-norm` (profiles)| `rf-norm`        |
 | `SAMTOOLS`   | `samtools`                       | `samtools`       |
 | `SM2_DIR`    | shapemapper2 install directory   | unset → skipped  |
 
 `accuracy` additionally requires **ciffy**, **biopython**, and **scipy** (cmuts
-already depends on the latter two). BAMs passed to `correctness` and `accuracy`
-for the per-reference shapemapper2 loop must be **sorted and indexed**.
+already depends on the latter two). BAMs passed to `profiles` for the
+per-reference shapemapper2 loop must be **sorted and indexed**.
 
 ## Running
 
@@ -66,46 +77,62 @@ required). Synthetic data is generated with `cmuts generate` and cached under
 `--shapemapper-dir` is given. Results are appended to the CSV; the figure
 sources read it.
 
+### profiles
+
+```bash
+python benchmarks/profiles.py \
+  --fasta references.fasta \
+  --dms-mod dms_mod.bam --dms-nomod dms_nomod.bam \
+  --2a3-mod 2a3_mod.bam --2a3-nomod 2a3_nomod.bam \
+  -o profiles.h5 [--downsample N]
+```
+
+Each condition (DMS, 2A3) takes a modified and an unmodified (nomod) sample, and
+**each tool uses its own native pipeline** (counting + background subtraction +
+normalization), so the comparison is between fully processed reactivities:
+
+- **rf-count** + **rf-norm** (Siegfried `-sm 3`, 2-8% `-nm 1`, treated vs
+  untreated).
+- **shapemapper2** — its `make_reactivity_profiles` + `normalize_profiles` step on
+  the modified + untreated samples (run with shapemapper's bundled Python; the
+  normalization factor is computed library-wide across references).
+- **cmuts** — `cmuts core` (once per spread mode) + `cmuts normalize --mod
+  --nomod`. The `cmuts-match-rf` dataset uses `--no-spread` with outlier
+  normalization and `--independent-norm`; `cmuts-{nospread,uniform,default}` use
+  UBR normalization across the three spread modes.
+
+The output HDF5 has one `(n_references, length)` reactivity array per dataset and
+condition (`/<dataset>/<DMS|2A3>`), in FASTA order. `--downsample N` caps reads
+per reference in `cmuts core`.
+
 ### correctness
 
 ```bash
-python benchmarks/correctness.py alignments.bam -f references.fasta \
+python benchmarks/correctness.py --profiles profiles.h5 -f references.fasta \
   -o correctness.csv
 ```
 
-Writes one row per (reference, position) with the cmuts / rf-count /
-shapemapper2 raw mutation rates and the absolute difference of each external
-tool from cmuts. As a sanity check on the parsers, rf-count and shapemapper2
-should agree closely with each other on deep coverage (Pearson ≳ 0.99).
+Reads the profiles HDF5 and writes one row per (comparison, condition, reference,
+position) with the cmuts-tuned-to-the-tool reactivity, that tool's reactivity,
+and their absolute difference. With spreading off and matched settings, cmuts
+should reproduce each tool's profile nucleotide-by-nucleotide; the residual
+isolates deletion spreading.
 
 ### accuracy
 
 ```bash
 python benchmarks/accuracy.py \
+  --profiles profiles.h5 \
   --fasta references.fasta \
   --structures /path/to/cif/dir \
-  --dms-mod dms_mod.bam --dms-nomod dms_nomod.bam \
-  --2a3-mod 2a3_mod.bam --2a3-nomod 2a3_nomod.bam \
   --per-ref per_reference.tsv --summary summary.tsv
 ```
 
-Each condition takes a modified and an unmodified (nomod) sample, and **each tool
-uses its own native normalization**:
-
-- **cmuts** — `cmuts core` + `cmuts normalize --mod --nomod` for all three spread
-  modes (`nospread`, `default`, `uniform`).
-- **rf-count** — `rf-norm` (treated-only Zubradt scoring, 2-8% normalization) on
-  the modified sample, counted without deletions (rf-count cannot spread them, so
-  excluding them is its accuracy-optimal config; matches the reference pipeline).
-- **shapemapper2** — its `make_reactivity_profiles` + `normalize_profiles` step on
-  the modified + untreated samples (run with shapemapper's bundled Python; the
-  normalization factor is computed library-wide across references).
-
-Pass `--profiles profiles.h5` in place of the BAMs to load precomputed cmuts
-profiles (e.g. from `generate_profiles.sh`) and skip recomputing them. The
-summary reports mean/median AUC, Pearson, and Spearman per (tool/mode ×
-condition); `--blank-5p` / `--blank-3p` / `--downsample` tune the cmuts
-normalization.
+Reads each dataset's reactivity from the profiles HDF5 and scores it against a
+base-pairing ground truth read from the deposited mmCIF hydrogen-bond
+annotations (references whose structure carries no such annotations are skipped).
+The summary reports mean/median AUC, Pearson, and Spearman per (dataset ×
+condition), and each dataset's delta against cmuts' default spread mode.
 
 ## Sherlock notes
 
@@ -119,10 +146,13 @@ Two issues found while validating these on the cluster:
    source "$CMUTS_HOME/__sherlock_deps"
    export PATH="$CMUTS_HOME/bin:/path/to/RNAFramework:$PATH"
    export SM2_DIR=/path/to/shapemapper2
-   "$CMUTS_HOME/.venv/bin/python" benchmarks/correctness.py ...
+   "$CMUTS_HOME/.venv/bin/python" benchmarks/profiles.py ...
    ```
 
-2. `correctness`/`accuracy` call `cmuts normalize`, which on older builds
+   (Only `profiles.py` invokes the external tools; `correctness.py` and
+   `accuracy.py` read the HDF5 it writes and need no samtools/rf-count/sm2.)
+
+2. `profiles` calls `cmuts normalize`, which on older builds
    allocated the full SNR-scaling array and could run out of memory on inputs
    with thousands of references. This is fixed in current builds (normalization
    no longer plots); deploy a current `cmuts` before large runs.
