@@ -32,6 +32,7 @@ Hamish M. Blair, 2026
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import tempfile
 from pathlib import Path
@@ -106,12 +107,19 @@ def shapemapper(mod, nomod, fasta_list, sm_dir, dms, workdir) -> dict[str, np.nd
     )
 
 
-def cmuts_core(spread_flag: str, all_bams, fasta, counts, downsample) -> None:
-    """cmuts core with the shared map-seq config and a spread flag."""
+def cmuts_core(spread_flag: str, all_bams, fasta, counts, downsample, threads) -> None:
+    """cmuts core with the shared map-seq config and a spread flag.
+
+    `--threads N` makes the cmuts dispatcher run `mpirun -np N cmuts-core`, which
+    parallelizes across references; without it cmuts-core runs as a single MPI
+    rank (one core), which is ~N times slower on a many-reference dataset.
+    """
     cmuts = os.environ.get("CMUTS", "cmuts")
     cmd = [
         cmuts,
         "core",
+        "--threads",
+        str(threads),
         "-f",
         str(fasta),
         "-o",
@@ -182,7 +190,17 @@ def main() -> None:
     p.add_argument(
         "--downsample", type=int, default=0, help="Per-reference read cap for cmuts core"
     )
+    p.add_argument(
+        "--threads",
+        type=int,
+        default=8,
+        help="MPI ranks for cmuts core and worker threads for rf-count",
+    )
     args = p.parse_args()
+
+    # rf-count runs single-threaded by default in MAP; give it the same budget.
+    global MAP
+    MAP = dataclasses.replace(MAP, threads=args.threads)
 
     fasta = _read_fasta(args.fasta)
     names = [n for n, _ in fasta]
@@ -200,7 +218,7 @@ def main() -> None:
     for mode, flag in SPREAD.items():
         print(f"cmuts core [{mode}] ...")
         counts[mode] = cmuts_dir / f"counts-{mode}.h5"
-        cmuts_core(flag, all_bams, args.fasta, counts[mode], args.downsample)
+        cmuts_core(flag, all_bams, args.fasta, counts[mode], args.downsample, args.threads)
 
     # (dataset, builder(cond, mod, nomod)) -> {name: reactivity}
     datasets: dict[str, dict[str, np.ndarray]] = {}
