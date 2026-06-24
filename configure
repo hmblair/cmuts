@@ -53,9 +53,14 @@ CODECS_DIR=${SCRIPT_DIR}/htscodecs
 BUILD_DIR=${SCRIPT_DIR}/build
 BIN_DIR=${SCRIPT_DIR}/bin
 
-# Clean and create build directory
+# Clean and create the build/bin directories.
+# Only wipe bin/ on --clean. An unconditional rm leaves bin/ empty if the build
+# below fails (the previous working install is already gone), and -- combined
+# with --build-only returning before the symlinks are created -- drops the
+# dispatcher symlinks. A normal run instead overwrites the binaries via the
+# build and refreshes the symlinks idempotently with ln -sf.
 
-rm -rf ${BIN_DIR}
+[[ "${CLEAN:-}" == "1" ]] && rm -rf ${BIN_DIR}
 [[ "${CLEAN:-}" == "1" ]] && rm -rf ${BUILD_DIR}
 [[ "${CLEAN:-}" == "1" ]] && rm -rf ${CODECS_DIR}/build
 mkdir -p ${BUILD_DIR} ${BIN_DIR}
@@ -106,6 +111,17 @@ make install
 
 popd > /dev/null
 
+# Symlink the dispatcher and Python CLI scripts into bin/. Done before the
+# --build-only gate so bin/ is always fully assembled, and with ln -sf so the
+# step is idempotent across repeated runs.
+
+for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
+  if [[ -f "$script" && -x "$script" ]]; then
+    name=$(basename "$script")
+    ln -sf "$script" "${BIN_DIR}/$name"
+  fi
+done
+
 echo
 echo " -- cmuts built successfully --"
 echo
@@ -116,13 +132,6 @@ if [[ "${BUILD_ONLY}" == "1" ]]; then
 fi
 
 # Post-install steps
-
-for script in ${SCRIPT_DIR}/src/scripts/* ${SCRIPT_DIR}/src/python/*; do
-  if [[ -f "$script" && -x "$script" ]]; then
-    name=$(basename "$script")
-    ln -s "$script" "${BIN_DIR}/$name"
-  fi
-done
 
 # Generate documentation from JSON config
 python3 ${SCRIPT_DIR}/scripts/generate_docs.py \
