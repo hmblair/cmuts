@@ -96,10 +96,11 @@ normalization), so the comparison is between fully processed reactivities:
 - **shapemapper2** — its `make_reactivity_profiles` + `normalize_profiles` step on
   the modified + untreated samples (run with shapemapper's bundled Python; the
   normalization factor is computed library-wide across references).
-- **cmuts** — `cmuts core` (once per spread mode) + `cmuts normalize --mod
-  --nomod`. The `cmuts-match-rf` dataset uses `--no-spread` with outlier
-  normalization and `--independent-norm`; `cmuts-{nospread,uniform,default}` use
-  UBR normalization across the three spread modes.
+- **cmuts** — `cmuts core` (once per spread mode) + `cmuts normalize` (mod vs
+  nomod). The `cmuts-match-rf` dataset uses `--no-spread` with outlier
+  normalization and `--per-reference-norm` (per-transcript, matching rf-norm);
+  `cmuts-{nospread,uniform,default}` use UBR normalization across the three
+  spread modes.
 
 The output HDF5 has one `(n_references, length)` reactivity array per dataset and
 condition (`/<dataset>/<DMS|2A3>`), in FASTA order. `--downsample N` caps reads

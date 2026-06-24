@@ -27,7 +27,7 @@ The Python package (`cmuts-normalize`) transforms counts to reactivity:
 1. **Count Aggregation**: Combines counts across replicates/conditions
 2. **Coverage Filtering**: Masks positions below coverage threshold
 3. **Reactivity Calculation**: `reactivity = modifications / coverage`
-4. **Normalization**: Applies scheme (raw, percentile, or outlier-based)
+4. **Normalization**: Applies the selected scheme (`raw`, `ubr`, `outlier`, `sm-dms`) at the chosen per-experiment / per-reference granularity
 5. **Pairwise Analysis**: Computes correlation matrices and mutual information
 
 ## Module Responsibilities
@@ -108,9 +108,11 @@ When built with MPI support, cmuts distributes work across ranks:
 
 ### Adding New Normalization Schemes
 
-1. Add enum value to `NormScheme` in `internal.py`
-2. Implement `_get_norm_<scheme>()` function
-3. Update `_get_norm()` dispatch logic
+1. Subclass `Scheme` in `src/python/cmuts/normalize/schemes.py`
+2. Implement `block_factor()` (the factor for a pool of reference profiles)
+3. Decorate the class with `@register`
+
+The CLI `--norm` choices, shell completions, and the granularity dispatch all read from the registry, so no other change is needed. Set `needs_sequence = True` if the scheme reads the per-position base identity.
 
 ### Adding New Output Formats
 

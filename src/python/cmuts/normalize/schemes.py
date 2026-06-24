@@ -1,16 +1,29 @@
 """Normalization schemes for reactivity profiles.
 
-A scheme converts raw mutation rates into a reactivity scale factor. Schemes are
-small classes registered in a ``name -> instance`` table; both the CLI ``--norm``
-choices and the dispatch read from it, so adding a scheme is a single localized
-change (subclass :class:`Scheme`, decorate with :func:`register`).
+A scheme defines only a *formula*: how to turn a pool of reactivity values into a
+scale factor. The *granularity* of that pool is chosen separately, by the two
+axes on :class:`~cmuts.internal.Opts` (``per_experiment``, ``per_reference``), so
+any scheme composes with any granularity. Schemes are small classes registered in
+a ``name -> instance`` table; both the CLI ``--norm`` choices and the dispatch
+read from it, so adding a scheme is a single localized change (subclass
+:class:`Scheme`, decorate with :func:`register`, implement :meth:`block_factor`).
 
 Built-in schemes:
     raw     : no normalization
     ubr     : upper-bound reference -- 90th percentile of high-coverage positions
-    outlier : 2-8% outlier-based, per-reference normalization
+    outlier : 2-8% outlier-based normalization
     sm-dms  : ShapeMapper2-style per-nucleotide DMS normalization (per-base 75th
-              percentile, pooled library-wide)
+              percentile)
+
+Granularity (one normalization factor is computed per "pool" of reference
+profiles, then divided out):
+
+    per_experiment=False : pool across all experiments (one shared factor keeps
+                           experiments on a comparable scale)
+    per_reference=False  : pool across all references (one factor for the pool)
+
+So with neither axis set there is a single factor over everything; with both set
+each (experiment, reference) is normalized independently (like rf-norm).
 """
 
 from __future__ import annotations
@@ -25,8 +38,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Scheme",
-    "get_norm",
-    "pooled_norm",
+    "normalization",
     "register",
     "requires_sequence",
     "scheme_names",
@@ -36,6 +48,10 @@ __all__ = [
 # UBR (upper-bound reference) normalization parameters.
 _UBR_READ_CUTOFF = 500  # per-reference read floor for "high-coverage" positions
 _UBR_PERCENTILE = 90  # reactivity percentile used as the normalization factor
+
+# 2-8% (outlier) normalization band.
+_OUTLIER_LOW = 0.02  # drop the top 2% as outliers
+_OUTLIER_HIGH = 0.10  # average down to the top 10%
 
 # ShapeMapper2-style per-nucleotide DMS normalization parameters.
 _DMS_PERCENTILE = 75  # per-base reactivity percentile used as the factor
@@ -49,24 +65,33 @@ _DMS_BASE_TOKENS = (0, 1, 2, 3)  # A, C, G, U tokens (see internal._BASE_TOKEN)
 
 
 class Scheme(ABC):
-    """A normalization scheme: maps probing data to a reactivity scale factor.
+    """A normalization scheme: the factor formula for a pool of reference profiles.
 
-    Subclasses set ``name`` and implement :meth:`single`. The default
-    :meth:`pooled` averages each group's factor, which is correct for
-    per-reference and constant schemes; override it when groups must share a
-    factor computed jointly (e.g. UBR pools raw values before the percentile).
+    Subclasses set ``name`` and implement :meth:`block_factor`, which receives one
+    pool (the reference profiles being normalized together under the chosen
+    granularity) and returns a per-position scale factor for it. The granularity
+    -- which profiles share a pool -- is handled by :func:`normalization`, so a
+    scheme never needs to know about experiments or references.
     """
 
     name: str
-    needs_sequence: bool = False  # True if single/pooled read data.sequences
+    needs_sequence: bool = False  # True if block_factor reads the base tokens
 
     @abstractmethod
-    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
-        """Normalization factor for one dataset."""
+    def block_factor(
+        self, react: np.ndarray, reads: np.ndarray, bases: np.ndarray | None
+    ) -> np.ndarray:
+        """Per-position scale factor for one pool of ``n`` reference profiles.
 
-    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-        """Shared factor across groups (default: average the per-group factors)."""
-        return np.mean([self.single(d, opts) for d in datasets], axis=0)
+        Args:
+            react: ``(n, P)`` reactivities for the pooled profiles.
+            reads: ``(n,)`` per-profile read count (per-reference coverage).
+            bases: ``(n, P)`` base tokens, or ``None`` for sequence-agnostic schemes.
+
+        Returns:
+            ``(n, P)`` factor array. Uniform schemes broadcast one scalar; per-base
+            schemes vary it by base. NaN entries leave that position unscaled.
+        """
 
 
 _SCHEMES: dict[str, Scheme] = {}
@@ -104,139 +129,123 @@ def _resolve(name: str) -> Scheme:
 # ---------------------------------------------------------------------------
 
 
+def _uniform(react: np.ndarray, factor: float) -> np.ndarray:
+    """A pool-wide scalar broadcast to every position."""
+    return np.full(react.shape, factor, dtype=float)
+
+
 @register
 class RawScheme(Scheme):
     """No normalization."""
 
     name = "raw"
 
-    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
-        return np.ones(1, dtype=np.asarray(data.reactivity).dtype)
-
-    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-        return self.single(datasets[0], opts)
-
-
-def _ubr_high_coverage(data: ProbingData) -> np.ndarray:
-    """Reactivity values at masked, high-coverage positions of one dataset."""
-    mask = np.asarray(data.mask)
-    reads = np.asarray(data.reads)
-    reactivity = np.asarray(data.reactivity)
-    good_pos = mask & (reads > _UBR_READ_CUTOFF)[:, None]
-    return reactivity[good_pos]
+    def block_factor(self, react, reads, bases):
+        return np.ones(react.shape, dtype=float)
 
 
 @register
 class UBRScheme(Scheme):
-    """Upper-bound reference: the percentile of high-coverage reactivity pooled
-    across datasets. Falls back to no normalization when no position clears the
-    coverage floor.
+    """Upper-bound reference: the percentile of reactivity over high-coverage
+    positions in the pool. Falls back to no normalization when no position clears
+    the coverage floor.
     """
 
     name = "ubr"
 
-    def _norm(self, datasets: list[ProbingData]) -> np.ndarray:
-        vals = [v for v in (_ubr_high_coverage(d) for d in datasets) if v.size]
-        if not vals:
-            return np.ones(1, dtype=np.asarray(datasets[0].reactivity).dtype)
-        pooled = np.concatenate([v.flatten() for v in vals])
-        return np.asarray(np.percentile(pooled, _UBR_PERCENTILE))
-
-    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
-        return self._norm([data])
-
-    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-        return self._norm(datasets)
+    def block_factor(self, react, reads, bases):
+        vals = react[reads > _UBR_READ_CUTOFF]
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            return np.ones(react.shape, dtype=float)
+        return _uniform(react, float(np.percentile(vals, _UBR_PERCENTILE)))
 
 
 @register
 class OutlierScheme(Scheme):
-    """2-8% normalization: from the top 10%, drop the top 2% and divide by the
-    mean of the remaining 8%. Produces a per-reference factor.
+    """2-8% normalization: from the top 10% of the pool, drop the top 2% and
+    divide by the mean of the remaining 8%.
     """
 
     name = "outlier"
 
-    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
-        def norm_1d(arr: np.ndarray, low: float = 0.02, high: float = 0.1) -> float:
-            arr = arr[~np.isnan(arr)]
-            p2 = max(1, round(len(arr) * low) - 1)
-            p10 = max(1, round(len(arr) * high) - 1)
-            sarr = np.sort(arr)[::-1]
-            if sarr.size == 0:
-                return 1.0
-            return float(np.mean(sarr[p2 : p10 + 1]))
-
-        return np.apply_along_axis(norm_1d, axis=1, arr=data.reactivity)[:, None]
+    def block_factor(self, react, reads, bases):
+        vals = react[np.isfinite(react)]
+        if vals.size == 0:
+            return np.ones(react.shape, dtype=float)
+        p_low = max(1, round(vals.size * _OUTLIER_LOW) - 1)
+        p_high = max(1, round(vals.size * _OUTLIER_HIGH) - 1)
+        ranked = np.sort(vals)[::-1]
+        return _uniform(react, float(np.mean(ranked[p_low : p_high + 1])))
 
 
 @register
 class ShapeMapperDMSScheme(Scheme):
     """ShapeMapper2-style per-nucleotide DMS normalization.
 
-    Each base type (A, C, G, U) is scaled independently by the 75th percentile
-    of that base's reactivities, pooled across *all* references (library-wide,
-    matching ShapeMapper2's single ``normalize_profiles`` call). A position is
-    divided by its own base's factor, so the returned factor is per position.
-    A base whose factor falls below ``_DMS_MIN_FACTOR`` is treated as having no
-    usable signal (factor NaN -> left unscaled by :meth:`ProbingData.normalize`).
+    Each base type (A, C, G, U) is scaled independently by the 75th percentile of
+    that base's reactivities over the pool (matching ShapeMapper2's per-nucleotide
+    scheme). A position is divided by its own base's factor. A base whose factor
+    falls below ``_DMS_MIN_FACTOR`` is treated as having no usable signal (factor
+    NaN -> left unscaled by :meth:`ProbingData.normalize`).
 
-    Requires the per-position sequence, which ``compute_reactivity`` attaches
-    from the FASTA when the counts file carries none.
+    Requires the per-position sequence, which ``compute_reactivity`` attaches from
+    the FASTA when the counts file carries none.
     """
 
     name = "sm-dms"
     needs_sequence = True
 
-    def _factors(self, datasets: list[ProbingData]) -> dict[int, float]:
-        react = np.concatenate([np.asarray(d.reactivity).ravel() for d in datasets])
-        seq = np.concatenate([np.asarray(d.sequences).ravel() for d in datasets])
-        factors: dict[int, float] = {}
+    def block_factor(self, react, reads, bases):
+        out = np.ones(react.shape, dtype=float)
+        if bases is None:
+            return out
         for tok in _DMS_BASE_TOKENS:
-            vals = react[(seq == tok) & np.isfinite(react)]
+            vals = react[(bases == tok) & np.isfinite(react)]
             f = float(np.percentile(vals, _DMS_PERCENTILE)) if vals.size else float("nan")
-            factors[tok] = f if f >= _DMS_MIN_FACTOR else float("nan")
-        return factors
-
-    def _per_position(self, data: ProbingData, factors: dict[int, float]) -> np.ndarray:
-        seq = np.asarray(data.sequences)
-        out = np.ones_like(np.asarray(data.reactivity), dtype=float)
-        for tok, f in factors.items():
-            out[seq == tok] = f
+            out[bases == tok] = f if f >= _DMS_MIN_FACTOR else float("nan")
         return out
 
-    def single(self, data: ProbingData, opts: Opts) -> np.ndarray:
-        if data.sequences is None:
-            raise ValueError("sm-dms normalization requires per-position sequences")
-        return self._per_position(data, self._factors([data]))
-
-    def pooled(self, datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-        if any(d.sequences is None for d in datasets):
-            raise ValueError("sm-dms normalization requires per-position sequences")
-        # Datasets share the library (same FASTA), so a single per-position
-        # factor array built from the first applies to all of them.
-        return self._per_position(datasets[0], self._factors(datasets))
-
 
 # ---------------------------------------------------------------------------
-# Public dispatch API
+# Granularity dispatch
 # ---------------------------------------------------------------------------
 
 
-def get_norm(data: ProbingData, opts: Opts) -> np.ndarray:
-    """Normalization factor for a single dataset under ``opts.norm``."""
-    return _resolve(opts.norm).single(data, opts)
+def normalization(experiments: list[ProbingData], opts: Opts) -> list[np.ndarray]:
+    """Per-experiment normalization factors under ``opts.norm`` and the two
+    granularity axes (``opts.per_experiment``, ``opts.per_reference``).
 
-
-def pooled_norm(datasets: list[ProbingData], opts: Opts) -> np.ndarray:
-    """Shared normalization factor across datasets under ``opts.norm``.
-
-    Used to make reactivities directly comparable across experimental groups.
-    Empty input yields ones; a single dataset is equivalent to :func:`get_norm`.
+    Each experiment's combined reactivity is stacked into ``(E, R, P)``; the
+    scheme's factor is then computed once per pool, where a pool spans all
+    experiments unless ``per_experiment`` and all references unless
+    ``per_reference``. Returns one ``(R, P)`` factor array per experiment, in
+    input order, to divide that experiment's reactivity by.
     """
-    if not datasets:
-        return np.ones(1, dtype=np.float64)
     scheme = _resolve(opts.norm)
-    if len(datasets) == 1:
-        return scheme.single(datasets[0], opts)
-    return scheme.pooled(datasets, opts)
+    react = np.stack([np.asarray(e.reactivity, dtype=float) for e in experiments])  # (E, R, P)
+    reads = np.stack([np.asarray(e.reads, dtype=float) for e in experiments])  # (E, R)
+    e_count, r_count, p_count = react.shape
+
+    bases = None
+    if scheme.needs_sequence and experiments[0].sequences is not None:
+        bases = np.asarray(experiments[0].sequences)  # (R, P), shared across experiments
+
+    exp_pools = [[e] for e in range(e_count)] if opts.per_experiment else [list(range(e_count))]
+    ref_pools = [[r] for r in range(r_count)] if opts.per_reference else [list(range(r_count))]
+
+    factors = np.ones((e_count, r_count, p_count), dtype=float)
+    for eg in exp_pools:
+        for rg in ref_pools:
+            idx: tuple[np.ndarray, ...] = np.ix_(eg, rg)
+            ne, nr = len(eg), len(rg)
+            n = ne * nr
+            pool_react = react[idx].reshape(n, p_count)
+            pool_reads = reads[idx].reshape(n)
+            pool_bases = None
+            if bases is not None:
+                pool_bases = np.broadcast_to(bases[rg], (ne, nr, p_count)).reshape(n, p_count)
+            block = scheme.block_factor(pool_react, pool_reads, pool_bases)
+            factors[idx] = block.reshape(ne, nr, p_count)
+
+    return [factors[e] for e in range(e_count)]

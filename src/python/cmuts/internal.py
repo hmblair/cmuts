@@ -21,7 +21,7 @@ Key Functions:
 
 Data Flow:
     HDF5 counts -> _accumulate_arrays -> _data_from_counts -> ProbingData
-    -> _merge_conditions (if nomod) -> _get_norm -> normalize -> clip -> output
+    -> _merge_conditions (if nomod) -> normalization -> normalize -> clip -> output
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ import h5py
 import numpy as np
 from scipy.stats import t as student
 
-from .normalize.schemes import get_norm, pooled_norm, requires_sequence
+from .normalize.schemes import normalization, requires_sequence
 
 # Core datatypes and dataclasses
 
@@ -65,18 +65,24 @@ class Opts:
     cutoff: int
     ins: bool
     dels: bool
-    norm: str  # "ubr", "raw", or "outlier"
+    norm: str  # registered scheme name (see normalize.scheme_names)
     blank: tuple[int, int]
     clip: tuple[float | None, float | None]  # (clip_below, clip_above); None = no clip
     sig: float
+    # Normalization granularity. A factor is computed per pool of reference
+    # profiles; per_experiment pools each experiment separately (else all
+    # experiments share a factor), per_reference pools each reference separately
+    # (else all references share a factor).
+    per_experiment: bool = False
+    per_reference: bool = False
 
 
 @dataclass
-class Group:
-    """A named experimental group with one or more replicate datasets.
+class Experiment:
+    """A named experiment with one or more replicate datasets.
 
     Attributes:
-        name: Output group name (used as the HDF5 group when saving).
+        name: Experiment name, used as the output HDF5 group when saving.
         mod: HDF5 paths for the modified condition (replicates are summed).
         nomod: HDF5 paths for the unmodified control (optional).
     """
@@ -891,7 +897,7 @@ def compute_reactivity(
     # Normalize
 
     _ensure_sequences(combined, fasta, opts)
-    norm = get_norm(combined, opts)
+    norm = normalization([combined], opts)[0]
 
     mod.normalize(norm)
     combined.normalize(norm)
@@ -909,10 +915,10 @@ def compute_reactivity(
 
 
 @dataclass
-class GroupResult:
-    """Per-group output of :func:`compute_reactivities`."""
+class ExperimentResult:
+    """Per-experiment output of :func:`compute_reactivities`."""
 
-    group: Group
+    experiment: Experiment
     mod: ProbingData
     nomod: Union[ProbingData, None]
     combined: ProbingData
@@ -921,53 +927,55 @@ class GroupResult:
 def compute_reactivities(
     file: h5py.File,
     fasta: str,
-    groups: list[Group],
+    experiments: list[Experiment],
     opts: Opts,
-    shared_norm: bool = True,
-) -> list[GroupResult]:
-    """Compute reactivity profiles for one or more experimental groups.
+) -> list[ExperimentResult]:
+    """Compute reactivity profiles for one or more experiments.
 
-    All groups share a single FASTA reference. Mutation counts are read once,
-    then per-group raw reactivities are computed and (optionally) normalized
-    using a single factor pooled across all groups so the values are directly
-    comparable.
+    All experiments share a single FASTA reference. Mutation counts are read
+    once, then per-experiment raw reactivities are computed and normalized. The
+    normalization granularity comes from ``opts`` (``per_experiment``,
+    ``per_reference``): by default one factor is pooled across all experiments
+    and references, keeping the experiments on a comparable scale.
 
     Args:
-        file: Open HDF5 file containing count data for all groups.
+        file: Open HDF5 file containing count data for all experiments.
         fasta: Path to FASTA file with reference sequences.
-        groups: One or more named groups, each with mod and optional nomod paths.
+        experiments: One or more named experiments, each with mod and optional
+            nomod paths.
         opts: Processing options. ``opts.mod`` and ``opts.nomod`` are ignored;
-            data locations come from ``groups``. The other fields (cutoff, ins,
-            dels, norm, blank, clip, sig) are applied to every group.
-        shared_norm: If True (default), compute one normalization factor pooled
-            across all groups. If False, normalize each group independently.
+            data locations come from ``experiments``. The other fields (cutoff,
+            ins, dels, norm, blank, clip, sig, and the granularity axes) are
+            applied to every experiment.
 
     Returns:
-        One :class:`GroupResult` per input group, in the same order.
+        One :class:`ExperimentResult` per input experiment, in the same order.
 
     Raises:
         FileNotFoundError: If the FASTA file does not exist.
-        ValueError: If ``groups`` is empty.
+        ValueError: If ``experiments`` is empty.
     """
-    if not groups:
-        raise ValueError("compute_reactivities requires at least one Group.")
+    if not experiments:
+        raise ValueError("compute_reactivities requires at least one Experiment.")
     if not os.path.exists(fasta):
         raise FileNotFoundError(f"FASTA file not found: {fasta}")
 
     lengths = _lengths_from_fasta(fasta)
 
-    # First pass: compute raw (unnormalized, unclipped) reactivities per group.
+    # First pass: compute raw (unnormalized, unclipped) reactivities per experiment.
 
-    raw: list[GroupResult] = []
-    for group in groups:
-        mod_groups = DataGroups(list(group.mod))
-        nomod_groups = DataGroups(list(group.nomod) if group.nomod else None)
+    raw: list[ExperimentResult] = []
+    for experiment in experiments:
+        mod_groups = DataGroups(list(experiment.mod))
+        nomod_groups = DataGroups(list(experiment.nomod) if experiment.nomod else None)
 
         mod = _probing_data_from_counts(file, mod_groups, opts, lengths)
         nomod = _probing_data_from_counts(file, nomod_groups, opts, lengths)
 
         if mod is None:
-            raise ValueError(f"Group '{group.name}' has no mod datasets; at least one is required.")
+            raise ValueError(
+                f"Experiment '{experiment.name}' has no mod datasets; at least one is required."
+            )
 
         combined = _merge_conditions(mod, nomod)
 
@@ -977,23 +985,18 @@ def compute_reactivities(
             nomod = nomod.compute()
 
         _ensure_sequences(combined, fasta, opts)
-        raw.append(GroupResult(group=group, mod=mod, nomod=nomod, combined=combined))
+        raw.append(ExperimentResult(experiment=experiment, mod=mod, nomod=nomod, combined=combined))
 
-    # Compute the normalization factor.
+    # Compute the per-experiment normalization factors (granularity from opts),
+    # then apply and clip.
 
-    if shared_norm and len(raw) > 1:
-        norm = pooled_norm([r.combined for r in raw], opts)
-    else:
-        norm = None  # marker: per-group
+    factors = normalization([r.combined for r in raw], opts)
 
-    # Apply normalization and clipping.
-
-    for r in raw:
-        n = norm if norm is not None else get_norm(r.combined, opts)
-        r.mod.normalize(n)
-        r.combined.normalize(n)
+    for r, norm in zip(raw, factors):
+        r.mod.normalize(norm)
+        r.combined.normalize(norm)
         if r.nomod is not None:
-            r.nomod.normalize(n)
+            r.nomod.normalize(norm)
 
         r.mod.clip(opts.clip[0], opts.clip[1])
         r.combined.clip(opts.clip[0], opts.clip[1])

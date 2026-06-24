@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Run from the directory containing this script, so the cleanup below and the
+# relative paths are scoped here regardless of the caller's working directory.
+cd "$(dirname "$0")" || exit 1
+
 rm -rf *.log *.cmfa outputs
 
 mkdir outputs
@@ -13,10 +17,6 @@ PROFILES="profiles.h5"
 FASTQ="../fastq"
 FASTA="../ref.fasta"
 
-MODS=("bicine-2A3" "bicine-DMS")
-NOMODS=("bicine-DMSO" "bicine-ETH")
-NAMES=("2A3" "DMS")
-
 cmuts align \
   --fasta "$FASTA" \
   --threads "$THREADS" \
@@ -29,17 +29,11 @@ cmuts core \
   --no-insertions \
   "$ALIGNMENTS"/*
 
-for ((IX=0; IX<${#MODS[@]}; IX++)); do
-  MOD_DS="$ALIGNMENTS"/${MODS[IX]}
-  NOMOD_DS="$ALIGNMENTS"/${NOMODS[IX]}
-  NAME=${NAMES[IX]}
-  cmuts normalize \
-    -o "$PROFILES" \
-    --mod "$MOD_DS" \
-    --nomod "$NOMOD_DS" \
-    --fasta "$FASTA" \
-    --group "$NAME" \
-    "$COUNTS"
-done
+cmuts normalize "$COUNTS" \
+  -o "$PROFILES" \
+  --fasta "$FASTA" \
+  --experiment 2A3 mod="$ALIGNMENTS/bicine-2A3" nomod="$ALIGNMENTS/bicine-DMSO" \
+  --experiment DMS mod="$ALIGNMENTS/bicine-DMS" nomod="$ALIGNMENTS/bicine-ETH" \
+  --per-experiment-norm
 
 cd ..

@@ -8,17 +8,15 @@ In the case that `cmuts core` was run with the `--pairwise` argument, the 2D cou
 
 To run `cmuts normalize` requires an HDF5 file of modification counts and the original sequence library in FASTA format. The basic syntax is
 ```bash
-cmuts normalize \
+cmuts normalize "$FILE" \
   -o "$OUTPUT" \
-  --mod "$MOD" \
-  --nomod "$NOMOD" \
-  --fasta "$FASTA"
-  $FILE
+  --fasta "$FASTA" \
+  --experiment "$NAME" mod="$MOD" nomod="$NOMOD"
 ```
-The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated and untreated modification counts are stored, respectively. The latter is optional.
+Each `--experiment` defines one experiment: a name followed by `mod=` (treated) and optional `nomod=` (untreated), whose values name the HDF5 datasets holding the counts. The experiment name is the output HDF5 group.
 
 !!! tip
-    More than one file can be passed to `cmuts normalize`. In such a case, the modification counts are summed across the files before normalization. This is useful in the case where the inputs to `cmuts core` were split across multiple files.
+    Comma-separate replicate datasets (`mod=a,b`); they are summed before normalization. Repeat `--experiment` to normalize several experiments in one pass, each written to its own HDF5 group. By default a single normalization factor is shared across all experiments so their reactivities are directly comparable (see `--per-experiment-norm`).
 
 ## Command Line Options
 
@@ -26,9 +24,7 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 **`-o, --output`** : Output HDF5 filename (required)
 
-**`--mod`** : Name of the dataset containing treated modification counts (required)
-
-**`--nomod`** : Name of the dataset containing untreated modification counts
+**`--experiment NAME mod=... [nomod=...]`** : Define an experiment to normalize (required, repeatable). `NAME` is the output HDF5 group; `mod=`/`nomod=` are comma-separated HDF5 dataset paths for the treated and (optional) untreated counts, summed across replicates.
 
 **`--fasta`** : FASTA file of probed RNA sequences.
 
@@ -36,8 +32,6 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 ### Output Control
 
 **`--overwrite`** : Overwrite existing HDF5 file
-
-**`--group`** : HDF5 group to place the output datasets in (none if not specified)
 
 
 ### Profile Computation
@@ -49,11 +43,12 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 ### Normalization Control
 
-**`--norm {ubr,raw,outlier}`** : Normalization method (default: ubr)
+**`--norm {raw,ubr,outlier,sm-dms}`** : Normalization method (default: ubr)
 
-- `ubr`: 90th percentile normalization (default)
-- `raw`: No normalization
+- `ubr`: 90th percentile of high-coverage positions (default)
+- `raw`: no normalization
 - `outlier`: 2-8% outlier-based normalization
+- `sm-dms`: ShapeMapper2-style per-nucleotide DMS normalization (per-base 75th percentile)
 
 **`--clip-below`** : Clip reactivity values below this threshold (e.g. 0)
 
@@ -65,7 +60,9 @@ The `--mod` and `--nomod` flags specify the HDF5 datasets in which the treated a
 
 **`--blank-cutoff`** : NaN out any positions with less than this many reads (default: 10)
 
-**`--norm-independent`** : Normalize each profile separately, rather than using experiment-wide statistics 
+**`--per-experiment-norm`** : Normalize each experiment independently. By default one factor is shared across all experiments, keeping them on a comparable scale.
+
+**`--per-reference-norm`** : Normalize each reference independently (like rf-norm per transcript). By default one factor is shared across all references. Composes with `--per-experiment-norm`.
 
 
 ### Pairwise Settings
@@ -98,7 +95,7 @@ The output of `cmuts normalize` will be an HDF5 file with the following structur
 
 **heatmap**: The prevalence of each mutation, insertion, deletion, and termination type throughout the entire library.
 
-**norm**: The normalization value used. It will be a scalar unless `--norm-independent` is passed, in which case each reference has its own norm value.
+**norm**: The normalization factor used. It is a single value unless `--per-reference-norm` is passed, in which case each reference has its own factor.
 
 **reactivity**: The reactivity profiles.
 
@@ -116,7 +113,7 @@ In the case where 2D data was also present in the input, the output HDF5 file wi
 **pairwise-snr**: Signal-to-noise ratio for pairwise joint probabilities. Computed as P(i=1, j=1) / SE(P(i=1, j=1)) for each position pair, then averaged across all pairs (excluding diagonal). One value per reference. Higher values indicate more reliable pairwise correlation estimates.
 
 !!! warning
-    If a value was passed to `--group`, then the above will be contained in an HDF5 group with that name.
+    The above datasets are contained in an HDF5 group named after the experiment (one group per `--experiment`).
 
 ### Figures
 

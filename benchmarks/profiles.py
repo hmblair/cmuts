@@ -11,7 +11,7 @@ Datasets, each a (n_references, length) reactivity array per probe condition
 
     rnaframework     rf-count + rf-norm (Siegfried -sm 3, 2-8% -nm 1, treated vs untreated)
     shapemapper2     shapemapper2 native reactivity (modified vs untreated, 2-8%)
-    cmuts-match-rf   cmuts --no-spread, normalize --norm outlier --independent-norm (mod/nomod)
+    cmuts-match-rf   cmuts --no-spread, normalize --norm outlier --per-reference-norm (mod/nomod)
     cmuts-nospread   cmuts --no-spread, normalize --norm ubr (mod/nomod)
     cmuts-uniform    cmuts --uniform-spread, --norm ubr (mod/nomod)
     cmuts-default    cmuts (mutation-informed spread), --norm ubr (mod/nomod)
@@ -146,29 +146,31 @@ def cmuts_core(spread_flag: str, all_bams, fasta, counts, downsample, threads) -
 
 
 def cmuts_normalize(counts, mod, nomod, fasta, cond, norm, independent, out_h5) -> np.ndarray:
-    """cmuts normalize (mod vs nomod) -> the reactivity array for one condition."""
+    """cmuts normalize (mod vs nomod) -> the reactivity array for one condition.
+
+    The condition name is the experiment (and output HDF5 group). `independent`
+    selects per-reference normalization (rf-norm-like), matching cmuts-match-rf.
+    """
     cmuts = os.environ.get("CMUTS", "cmuts")
+    experiment = [cond, f"mod={_strip_ext(mod)}", f"nomod={_strip_ext(nomod)}"]
     cmd = [
         cmuts,
         "normalize",
+        str(counts),
         "-o",
         str(out_h5),
         "--fasta",
         str(fasta),
         "--norm",
         norm,
-        "--mod",
-        _strip_ext(mod),
-        "--nomod",
-        _strip_ext(nomod),
         "--blank-cutoff",
         str(BLANK_CUTOFF),
-        "--group",
-        cond,
+        "--experiment",
+        *experiment,
         "--overwrite",
     ]
     if independent:
-        cmd.append("--independent-norm")
+        cmd.append("--per-reference-norm")
     external.run_checked(cmd)
     with h5py.File(out_h5, "r") as f:
         return np.asarray(f[f"{cond}/reactivity"])

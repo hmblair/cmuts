@@ -81,12 +81,9 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
   MOD_DS="$ALIGNMENTS"/${MODS[IX]}
   NOMOD_DS="$ALIGNMENTS"/${NOMODS[IX]}
   NAME=${NAMES[IX]}
-  cmuts normalize \
+  cmuts normalize "$COUNTS" \
     -o "$PROFILES" \
-    --mod "$MOD_DS" \
-    --nomod "$NOMOD_DS" \
-    --group "$NAME" \
-    "$COUNTS"
+    --experiment "$NAME" mod="$MOD_DS" nomod="$NOMOD_DS"
 done
 ```
 
@@ -199,12 +196,9 @@ for ((IX=0; IX<${#MODS[@]}; IX++)); do
   MOD_DS="$ALIGNMENTS"/${MODS[IX]}
   NOMOD_DS="$ALIGNMENTS"/${NOMODS[IX]}
   NAME=${NAMES[IX]}
-  cmuts normalize \
+  cmuts normalize "$COUNTS" \
     -o "$PROFILES" \
-    --mod "$MOD_DS" \
-    --nomod "$NOMOD_DS" \
-    --group "$NAME" \
-    "$COUNTS"
+    --experiment "$NAME" mod="$MOD_DS" nomod="$NOMOD_DS"
 done
 ```
 
@@ -245,11 +239,10 @@ The third step uses `cmuts normalize` to postprocess the 2D data.
 ```bash
 for ((IX=0; IX<${#MODS[@]}; IX++)); do
   MOD_DS="$ALIGNMENTS"/${MODS[IX]}
-  cmuts normalize \
+  cmuts normalize "$COUNTS" \
     -o "$PROFILES" \
-    --mod "$MOD_DS" \
-    --clip-below 0 \
-    "$COUNTS"
+    --experiment "${MODS[IX]}" mod="$MOD_DS" \
+    --clip-below 0
 done
 ```
 

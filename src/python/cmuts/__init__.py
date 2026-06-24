@@ -34,8 +34,8 @@ from . import visualize
 # Core data types and functions
 from .internal import (
     DataGroups,
-    Group,
-    GroupResult,
+    Experiment,
+    ExperimentResult,
     Opts,
     ProbingData,
     SNRCurves,
@@ -44,7 +44,7 @@ from .internal import (
     compute_snr_curves,
     save_groups,
 )
-from .normalize import Scheme, get_norm, pooled_norm, register, scheme_names
+from .normalize import Scheme, normalization, register, requires_sequence, scheme_names
 
 # Output formatting
 from .output import (
@@ -58,8 +58,8 @@ __version__ = _get_version("cmuts")
 __all__ = [
     "__version__",
     "DataGroups",
-    "Group",
-    "GroupResult",
+    "Experiment",
+    "ExperimentResult",
     "Opts",
     "ProbingData",
     "SNRCurves",
@@ -67,9 +67,9 @@ __all__ = [
     "compute_reactivities",
     "compute_reactivity",
     "compute_snr_curves",
-    "get_norm",
-    "pooled_norm",
+    "normalization",
     "register",
+    "requires_sequence",
     "save_groups",
     "scheme_names",
     "stats",

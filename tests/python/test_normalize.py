@@ -33,22 +33,31 @@ def test_data(tmp_path: Path) -> tuple[Path, Path]:
     return runner.cmuts_h5_path, runner.fasta_path
 
 
+_SCRIPT = Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"
+
+
 def _run_normalize(
     counts_h5: Path,
     fasta: Path,
     out: Path,
     mod: list[str],
+    *,
+    name: str = "exp",
+    nomod: list[str] | None = None,
     extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess:
-    """Run the cmuts-normalize script as a subprocess."""
+    """Run cmuts-normalize for a single experiment named ``name``."""
+    spec = [name, "mod=" + ",".join(mod)]
+    if nomod:
+        spec.append("nomod=" + ",".join(nomod))
     cmd = [
         sys.executable,
-        str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
+        str(_SCRIPT),
         str(counts_h5),
         "--fasta",
         str(fasta),
-        "--mod",
-        *mod,
+        "--experiment",
+        *spec,
         "-o",
         str(out),
         "--overwrite",
@@ -96,9 +105,9 @@ class TestNormalizeSmoke:
         assert out.exists()
 
         with h5py.File(out, "r") as f:
-            assert "reactivity" in f
-            assert "reads" in f
-            assert "error" in f
+            assert "reactivity" in f["exp"]
+            assert "reads" in f["exp"]
+            assert "error" in f["exp"]
 
 
 class TestNormalizeOpts:
@@ -129,7 +138,7 @@ class TestNormalizeOpts:
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
         assert out.exists()
         with h5py.File(out, "r") as f:
-            assert "reactivity" in f
+            assert "reactivity" in f["exp"]
 
     def test_clip_flags(self, test_data: tuple[Path, Path], tmp_path: Path):
         """--clip-below and --clip-above flags work with explicit thresholds."""
@@ -191,86 +200,63 @@ class TestNormalizeOpts:
         )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
 
-    def test_group_flag(self, test_data: tuple[Path, Path], tmp_path: Path):
-        """--group flag places output under a group."""
+    def test_experiment_name_is_output_group(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """The experiment name becomes the output HDF5 group."""
         counts_h5, fasta = test_data
         groups = _find_mod_groups(counts_h5)
 
         out = tmp_path / "out.h5"
-        result = _run_normalize(
-            counts_h5,
-            fasta,
-            out,
-            mod=groups,
-            extra_args=["--group", "mygroup"],
-        )
+        result = _run_normalize(counts_h5, fasta, out, mod=groups, name="mygroup")
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
 
         with h5py.File(out, "r") as f:
             assert "mygroup" in f
             assert "reactivity" in f["mygroup"]
 
+    def test_per_reference_norm(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """--per-reference-norm runs and produces output."""
+        counts_h5, fasta = test_data
+        groups = _find_mod_groups(counts_h5)
 
-class TestNormalizeMultiGroup:
-    """Tests for --groups multi-group mode."""
+        out = tmp_path / "out.h5"
+        result = _run_normalize(
+            counts_h5, fasta, out, mod=groups, extra_args=["--per-reference-norm"]
+        )
+        assert result.returncode == 0, f"stderr:\n{result.stderr}"
+        with h5py.File(out, "r") as f:
+            assert "reactivity" in f["exp"]
 
-    def _write_toml(self, path: Path, entries: list[dict]) -> None:
-        lines: list[str] = []
-        for e in entries:
-            lines.append("[[group]]")
-            lines.append(f'name = "{e["name"]}"')
-            mods = ", ".join(f'"{m}"' for m in e["mod"])
-            lines.append(f"mod = [{mods}]")
-            if e.get("nomod"):
-                nomods = ", ".join(f'"{m}"' for m in e["nomod"])
-                lines.append(f"nomod = [{nomods}]")
-            lines.append("")
-        path.write_text("\n".join(lines))
 
-    def _run_groups(
+class TestNormalizeMultiExperiment:
+    """Tests for multiple --experiment flags."""
+
+    def _run(
         self,
         counts_h5: Path,
         fasta: Path,
         out: Path,
-        groups_toml: Path,
+        experiments: list[tuple[str, list[str]]],
         extra_args: list[str] | None = None,
     ) -> subprocess.CompletedProcess:
-        cmd = [
-            sys.executable,
-            str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
-            str(counts_h5),
-            "--fasta",
-            str(fasta),
-            "--groups",
-            str(groups_toml),
-            "-o",
-            str(out),
-            "--overwrite",
-        ]
+        cmd = [sys.executable, str(_SCRIPT), str(counts_h5), "--fasta", str(fasta)]
+        for name, mod in experiments:
+            cmd += ["--experiment", name, "mod=" + ",".join(mod)]
+        cmd += ["-o", str(out), "--overwrite"]
         if extra_args:
             cmd.extend(extra_args)
         return subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=out.parent)
 
-    def test_two_groups_shared_norm(self, test_data: tuple[Path, Path], tmp_path: Path):
-        """Two groups produce a single HDF5 with both as top-level groups."""
+    def test_two_experiments(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """Two experiments produce a single HDF5 with both as top-level groups."""
         counts_h5, fasta = test_data
         groups = _find_mod_groups(counts_h5)
         assert groups, "No count groups found in test HDF5"
-        # Reuse the single available dataset for both groups — sufficient to
-        # exercise the multi-group code path without needing distinct counts.
+        # Reuse the single available dataset for both experiments -- enough to
+        # exercise the multi-experiment path without distinct counts.
         ds = groups[0]
 
-        toml_path = tmp_path / "groups.toml"
-        self._write_toml(
-            toml_path,
-            [
-                {"name": "g1", "mod": [ds]},
-                {"name": "g2", "mod": [ds]},
-            ],
-        )
-
         out = tmp_path / "out.h5"
-        result = self._run_groups(counts_h5, fasta, out, toml_path)
+        result = self._run(counts_h5, fasta, out, [("g1", [ds]), ("g2", [ds])])
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
         assert out.exists()
 
@@ -279,50 +265,26 @@ class TestNormalizeMultiGroup:
             assert "reactivity" in f["g1"]
             assert "reactivity" in f["g2"]
 
-    def test_independent_norm_flag(self, test_data: tuple[Path, Path], tmp_path: Path):
-        """--independent-norm runs without error."""
+    def test_per_experiment_norm(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """--per-experiment-norm runs without error."""
         counts_h5, fasta = test_data
         groups = _find_mod_groups(counts_h5)
-        assert groups
         ds = groups[0]
 
-        toml_path = tmp_path / "groups.toml"
-        self._write_toml(
-            toml_path,
-            [
-                {"name": "g1", "mod": [ds]},
-                {"name": "g2", "mod": [ds]},
-            ],
-        )
-
         out = tmp_path / "out.h5"
-        result = self._run_groups(counts_h5, fasta, out, toml_path, ["--independent-norm"])
+        result = self._run(
+            counts_h5, fasta, out, [("g1", [ds]), ("g2", [ds])], ["--per-experiment-norm"]
+        )
         assert result.returncode == 0, f"stderr:\n{result.stderr}"
 
-    def test_groups_and_mod_mutually_exclusive(self, test_data: tuple[Path, Path], tmp_path: Path):
-        """Passing both --groups and --mod is rejected."""
+    def test_duplicate_names_rejected(self, test_data: tuple[Path, Path], tmp_path: Path):
+        """Two experiments with the same name are rejected."""
         counts_h5, fasta = test_data
         groups = _find_mod_groups(counts_h5)
-
-        toml_path = tmp_path / "groups.toml"
-        self._write_toml(toml_path, [{"name": "g1", "mod": [groups[0]]}])
+        ds = groups[0]
 
         out = tmp_path / "out.h5"
-        cmd = [
-            sys.executable,
-            str(Path(__file__).resolve().parents[2] / "src" / "python" / "cmuts-normalize"),
-            str(counts_h5),
-            "--fasta",
-            str(fasta),
-            "--groups",
-            str(toml_path),
-            "--mod",
-            groups[0],
-            "-o",
-            str(out),
-            "--overwrite",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = self._run(counts_h5, fasta, out, [("g1", [ds]), ("g1", [ds])])
         assert result.returncode != 0
 
 

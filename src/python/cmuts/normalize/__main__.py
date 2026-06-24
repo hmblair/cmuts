@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import Any
 
 import h5py
 
@@ -20,42 +19,33 @@ parser.add_argument(
     help="The HDF5 file containing the input data.",
 )
 parser.add_argument(
-    "--mod",
+    "--experiment",
+    action="append",
     nargs="+",
+    required=True,
+    metavar="NAME mod=... [nomod=...]",
     help=(
-        "Single-group mode: HDF5 paths for the modified condition "
-        "(replicates are summed). Mutually exclusive with --groups."
+        "Define an experiment: a NAME followed by 'mod=' and optional 'nomod=' "
+        "(comma-separated HDF5 paths; replicates are summed). The NAME is the "
+        "output HDF5 group. Repeat the flag for multiple experiments, e.g. "
+        "--experiment apo mod=a.h5,b.h5 nomod=c.h5 --experiment holo mod=d.h5 nomod=e.h5"
     ),
 )
 parser.add_argument(
-    "--nomod",
-    nargs="+",
-    help=(
-        "Single-group mode: HDF5 paths for the unmodified control. "
-        "Mutually exclusive with --groups."
-    ),
-)
-parser.add_argument(
-    "--group",
-    help=(
-        "Single-group mode: name for the output HDF5 group. " "Mutually exclusive with --groups."
-    ),
-    default="",
-)
-parser.add_argument(
-    "--groups",
-    help=(
-        "Multi-group mode: path to a TOML file describing the groups. "
-        "See the documentation for the file format."
-    ),
-)
-parser.add_argument(
-    "--independent-norm",
-    help=(
-        "Normalize each group independently rather than pooling across "
-        "groups. Has no effect in single-group mode."
-    ),
+    "--per-experiment-norm",
     action="store_true",
+    help=(
+        "Normalize each experiment independently. By default one factor is "
+        "shared across all experiments, keeping them on a comparable scale."
+    ),
+)
+parser.add_argument(
+    "--per-reference-norm",
+    action="store_true",
+    help=(
+        "Normalize each reference independently (like rf-norm per transcript). "
+        "By default one factor is shared across all references."
+    ),
 )
 parser.add_argument(
     "--fasta",
@@ -126,56 +116,32 @@ parser.add_argument(
 )
 
 
-def _load_toml(path: str) -> dict[str, Any]:
-    try:
-        import tomllib  # Python 3.11+
-    except ImportError:
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ImportError:
-            sys.exit(
-                "Reading TOML group files requires Python 3.11+ or the 'tomli' "
-                "package. Install with: pip install tomli"
-            )
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+def _parse_experiment(tokens: list[str]) -> cmuts.Experiment:
+    """Parse one ``--experiment NAME mod=... [nomod=...]`` token list.
 
-
-def _groups_from_toml(path: str) -> list[cmuts.Group]:
-    """Parse a multi-group TOML config into a list of Group objects.
-
-    Expected format::
-
-        [[group]]
-        name = "with_ligand"
-        mod = ["mod1", "mod2"]
-        nomod = ["nomod1"]  # optional
+    The first token is the experiment name; the rest are ``key=value`` pairs
+    (``mod`` required, ``nomod`` optional) whose values are comma-separated HDF5
+    paths.
     """
-    data = _load_toml(path)
-    raw = data.get("group")
-    if raw is None:
-        sys.exit(f"{path}: no [[group]] entries found.")
-    if not isinstance(raw, list):
-        sys.exit(f"{path}: 'group' must be an array of tables ([[group]]).")
-
-    groups: list[cmuts.Group] = []
-    for i, entry in enumerate(raw):
-        if not isinstance(entry, dict):
-            sys.exit(f"{path}: [[group]] entry {i} is not a table.")
-        name = entry.get("name")
-        mod = entry.get("mod")
-        nomod = entry.get("nomod")
-        if not isinstance(name, str) or not name:
-            sys.exit(f"{path}: [[group]] entry {i} is missing 'name'.")
-        if not isinstance(mod, list) or not mod or not all(isinstance(m, str) for m in mod):
-            sys.exit(f"{path}: group '{name}' needs a non-empty 'mod' list of strings.")
-        if nomod is not None and (
-            not isinstance(nomod, list) or not all(isinstance(n, str) for n in nomod)
-        ):
-            sys.exit(f"{path}: group '{name}' has invalid 'nomod' (must be list of strings).")
-        groups.append(cmuts.Group(name=name, mod=list(mod), nomod=list(nomod) if nomod else None))
-
-    return groups
+    if not tokens:
+        sys.exit("--experiment requires a NAME followed by mod=...")
+    name, rest = tokens[0], tokens[1:]
+    mod: list[str] | None = None
+    nomod: list[str] | None = None
+    for tok in rest:
+        if "=" not in tok:
+            sys.exit(f"--experiment {name}: expected key=value, got '{tok}'.")
+        key, _, value = tok.partition("=")
+        paths = [p for p in value.split(",") if p]
+        if key == "mod":
+            mod = paths
+        elif key == "nomod":
+            nomod = paths
+        else:
+            sys.exit(f"--experiment {name}: unknown key '{key}' (use mod= or nomod=).")
+    if not mod:
+        sys.exit(f"--experiment {name}: needs a non-empty mod=...")
+    return cmuts.Experiment(name=name, mod=mod, nomod=nomod)
 
 
 def _remove_if_exists(path: str, overwrite: bool = False) -> None:
@@ -187,28 +153,14 @@ def _remove_if_exists(path: str, overwrite: bool = False) -> None:
 def main():
     args = parser.parse_args()
 
-    using_groups_file = args.groups is not None
-    using_single = args.mod is not None
-    if using_groups_file and using_single:
-        parser.error("--groups is mutually exclusive with --mod/--nomod/--group.")
-    if not using_groups_file and not using_single:
-        parser.error("Provide either --mod (single group) or --groups (multi-group).")
-
-    if using_groups_file:
-        groups = _groups_from_toml(args.groups)
-    else:
-        groups = [
-            cmuts.Group(
-                name=args.group, mod=list(args.mod), nomod=list(args.nomod) if args.nomod else None
-            )
-        ]
+    experiments = [_parse_experiment(tokens) for tokens in args.experiment]
+    names = [e.name for e in experiments]
+    if len(set(names)) != len(names):
+        parser.error("--experiment names must be unique (each is an output HDF5 group).")
 
     print()
     print(cmuts.title(NAME, cmuts.__version__))
-    if len(groups) == 1:
-        print(cmuts.subtitle(groups[0].name))
-    else:
-        print(cmuts.subtitle(", ".join(g.name for g in groups)))
+    print(cmuts.subtitle(", ".join(names)))
 
     _remove_if_exists(args.out, args.overwrite)
 
@@ -226,29 +178,25 @@ def main():
         blank,
         clip,
         args.sig,
+        per_experiment=args.per_experiment_norm,
+        per_reference=args.per_reference_norm,
     )
 
     with h5py.File(args.file, "r") as f:
-        results = cmuts.compute_reactivities(
-            f,
-            args.fasta,
-            groups,
-            opts,
-            shared_norm=not args.independent_norm,
-        )
+        results = cmuts.compute_reactivities(f, args.fasta, experiments, opts)
 
-    # Save all groups to a single output file.
+    # Save all experiments to a single output file (one HDF5 group per name).
 
-    cmuts.save_groups(args.out, [(r.group.name, r.combined) for r in results])
+    cmuts.save_groups(args.out, [(r.experiment.name, r.combined) for r in results])
 
-    # Print stats and save the SNR-vs-depth curves alongside each group. Plotting
-    # is decoupled: `cmuts plot <out.h5>` renders the figures from this file.
+    # Print stats and save the SNR-vs-depth curves alongside each experiment.
+    # Plotting is decoupled: `cmuts plot <out.h5>` renders the figures.
     for r in results:
         if len(results) > 1:
             print()
-            print(cmuts.subtitle(r.group.name))
+            print(cmuts.subtitle(r.experiment.name))
         cmuts.stats(r.mod, r.nomod, r.combined)
-        cmuts.compute_snr_curves(r.mod, r.nomod, r.combined).save(r.group.name, args.out)
+        cmuts.compute_snr_curves(r.mod, r.nomod, r.combined).save(r.experiment.name, args.out)
 
 
 if __name__ == "__main__":
