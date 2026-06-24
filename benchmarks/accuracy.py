@@ -117,7 +117,8 @@ HBOND_CUTOFF = 3.4  # heavy-atom N/O...N/O distance (Angstrom)
 def load_fasta(path: Path) -> list[tuple[str, str]]:
     """Return [(name, sequence)] in file order."""
     entries: list[tuple[str, str]] = []
-    name, seq = None, []
+    name: str | None = None
+    seq: list[str] = []
     for line in Path(path).read_text().splitlines():
         if line.startswith(">"):
             if name is not None:

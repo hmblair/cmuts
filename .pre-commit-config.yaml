@@ -1,7 +1,7 @@
-# Only run hooks on first-party source. This keeps vendored dependencies
-# (deps/, htscodecs/), build output (site/), and data files untouched, and
-# matches the scope CI checks.
-files: ^src/
+# Only run hooks on first-party source (the package, the C++, and the benchmark
+# scripts). This keeps vendored dependencies (deps/, htscodecs/), build output
+# (site/), and data files untouched, and matches the scope CI checks.
+files: ^(src|benchmarks)/
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -25,7 +25,7 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        files: ^src/python/cmuts/
+        files: ^(src/python/cmuts|benchmarks)/
         args: [--ignore-missing-imports]
         # numpy>=2.2 ships stubs using 3.12+ `type` syntax, which mypy rejects
         # under python_version=3.9; pin stubs to a compatible release.

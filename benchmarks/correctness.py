@@ -55,7 +55,8 @@ MATCH = external.Params(
 def read_fasta(path: str) -> list[tuple[str, str]]:
     """Ordered (name, sequence) list. Names are the header up to the first space."""
     out: list[tuple[str, str]] = []
-    name, seq = None, []
+    name: str | None = None
+    seq: list[str] = []
     with open(path) as f:
         for line in f:
             if line.startswith(">"):
