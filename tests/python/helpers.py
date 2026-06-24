@@ -16,6 +16,11 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+# Alignment file formats cmuts is expected to read, in order of increasing
+# encoding complexity. Tests parametrize over this tuple so every format is a
+# first-class citizen of the matrix.
+FORMATS = ("sam", "bam", "cram")
+
 
 @lru_cache(maxsize=1)
 def has_mpi_support() -> bool:
@@ -62,11 +67,15 @@ class TestParams:  # noqa: pytest collection warning - not a test class
     no_insertions: bool = False
     no_deletions: bool = False
 
-    # File format
-    use_cram: bool = False
+    # Alignment file format: one of FORMATS ("sam", "bam", "cram").
+    fmt: str = "bam"
 
     # Seed for reproducibility (None = random)
     seed: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.fmt not in FORMATS:
+            raise ValueError(f"Unknown format {self.fmt!r}; expected one of {FORMATS}")
 
     def to_generate_args(self) -> list[str]:
         """Convert to generate arguments."""
@@ -196,8 +205,7 @@ class TestRunner:
 
     @property
     def alignment_path(self) -> Path:
-        ext = "cram" if self.params.use_cram else "bam"
-        return self.work_dir / f"aln.{ext}"
+        return self.work_dir / f"aln.{self.params.fmt}"
 
     @property
     def expected_h5_path(self) -> Path:
@@ -214,11 +222,8 @@ class TestRunner:
             "--out-fasta", str(self.fasta_path),
             "-o", str(base),
             "--out-h5", str(self.expected_h5_path),
+            f"--{self.params.fmt}",
         ]
-        if self.params.use_cram:
-            args.append("--cram")
-        else:
-            args.append("--bam")
         subprocess.run(args, check=True, capture_output=True)
 
     def run_cmuts(self) -> None:
@@ -267,10 +272,10 @@ def run_test(params: TestParams, keep_files: bool = False) -> TestResult:
     runner.__enter__()
     try:
         result = runner.run()
-        # Keep files for debugging failed CRAM tests
-        if not result.counts_match and params.use_cram:
+        # Keep files for debugging failed tests, labeled by format.
+        if not result.counts_match:
             runner.keep_files = True
-            print(f"\nDEBUG: CRAM test failed, files kept at: {runner.work_dir}")
+            print(f"\nDEBUG: {params.fmt.upper()} test failed, files kept at: {runner.work_dir}")
         return result
     finally:
         runner.__exit__(None, None, None)

@@ -10,7 +10,7 @@ import random
 
 import pytest
 
-from helpers import TestParams, run_test
+from helpers import FORMATS, TestParams, run_test
 
 
 # =============================================================================
@@ -208,30 +208,31 @@ class TestEdgeCases:
         assert result.counts_match, result.summary()
 
 
-class TestCramFormat:
-    """Tests specifically for CRAM file format handling."""
+@pytest.mark.parametrize("fmt", FORMATS)
+class TestFileFormats:
+    """Format-parametrized tests: SAM, BAM, and CRAM are all first-class."""
 
-    def test_cram_basic(self):
-        """Basic CRAM file processing."""
+    def test_format_basic(self, fmt: str):
+        """Basic file processing for each format."""
         params = TestParams(
             length=100,
             references=2,
             queries=100,
-            use_cram=True,
+            fmt=fmt,
             seed=2001,
         )
         result = run_test(params)
         assert result.counts_match, result.summary()
 
-    def test_cram_with_filters(self):
-        """CRAM with quality filters."""
+    def test_format_with_filters(self, fmt: str):
+        """Each format with quality filters."""
         params = TestParams(
             length=100,
             references=3,
             queries=150,
             min_mapq=15,
             min_phred=20,
-            use_cram=True,
+            fmt=fmt,
             seed=2002,
         )
         result = run_test(params)
@@ -264,34 +265,25 @@ def random_params(seed: int | None = None) -> TestParams:
         no_mismatches=rng.random() < 0.2,
         no_insertions=rng.random() < 0.2,
         no_deletions=rng.random() < 0.2,
-        use_cram=rng.random() < 0.3,
+        fmt=rng.choice(FORMATS),
         seed=seed,
     )
 
 
 class TestRandomFuzzing:
-    """Random parameter fuzzing tests."""
+    """Random parameter fuzzing tests, parametrized over format."""
 
-    @pytest.mark.parametrize("iteration", range(10))
-    def test_random_bam(self, iteration: int):
-        """Random parameters with BAM format."""
-        # Use iteration as part of seed for reproducibility
-        seed = 10000 + iteration
-        params = random_params(seed)
-        params.use_cram = False
-
-        result = run_test(params)
-        assert result.counts_match, f"seed={seed}\n{result.summary()}"
-
+    @pytest.mark.parametrize("fmt", FORMATS)
     @pytest.mark.parametrize("iteration", range(5))
-    def test_random_cram(self, iteration: int):
-        """Random parameters with CRAM format."""
-        seed = 20000 + iteration
+    def test_random(self, fmt: str, iteration: int):
+        """Random parameters with a fixed format."""
+        # Seed off both format and iteration for reproducibility.
+        seed = 10000 + FORMATS.index(fmt) * 1000 + iteration
         params = random_params(seed)
-        params.use_cram = True
+        params.fmt = fmt
 
         result = run_test(params)
-        assert result.counts_match, f"seed={seed}\n{result.summary()}"
+        assert result.counts_match, f"seed={seed} fmt={fmt}\n{result.summary()}"
 
 
 # =============================================================================
