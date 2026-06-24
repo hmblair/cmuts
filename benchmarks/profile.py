@@ -11,6 +11,10 @@ shapemapper2 only SAM, so a requested non-native format adds a one-off samtools
 conversion to their native runtime (timed separately and added); the tools
 themselves are never re-run.
 
+With --convert, each non-BAM format is also reported as a "cmuts-via-bam" row:
+the samtools cost of converting it to BAM plus cmuts' BAM runtime, to compare
+pre-converting against reading the format directly.
+
 Synthetic data is generated with `cmuts generate` and cached under ./.cases.
 Results are printed and appended to a CSV (--output). Plotting is left to the
 figure sources, which can read the CSV.
@@ -340,17 +344,56 @@ def _bench_external_formats(
     return results
 
 
-def profile(case: Case, formats: list[str], runs: int, sm_dir: str) -> list[Result]:
+def _bench_cmuts_via_bam(
+    case: Case, formats: list[str], runs: int, cmuts_times: dict[str, float]
+) -> list[Result]:
+    """For each non-BAM format, measure the alternative of converting it to BAM
+    with samtools and then running cmuts, to compare against reading the format
+    directly. cmuts reads every format natively, so the question is whether the
+    one-off conversion ever beats the (small) direct-read overhead. The cmuts BAM
+    runtime is reused, not re-run; the summed convert+process time is recorded
+    under the "cmuts-via-bam" tool so the CSV holds both sides of the comparison."""
+    targets = [f for f in formats if f != "bam"]
+    bam_time = cmuts_times.get("bam")
+    if not targets or bam_time is None:
+        return []
+
+    results: list[Result] = []
+    # A FASTA index is needed for CRAM decode and samtools -T.
+    subprocess.run(
+        ["samtools", "faidx", case.fasta],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    for fmt in targets:
+        ct, cm = _time_conversion(case, fmt, "bam", runs)
+        _print_tool(f"samtools {fmt}->bam", ct, cm)
+        _print_tool(f"cmuts via bam [{fmt}] (= {fmt}->bam + bam run)", ct + bam_time)
+        results.append(Result(case, "samtools", f"{fmt}->bam", ct, cm))
+        results.append(Result(case, "cmuts-via-bam", fmt, ct + bam_time, None))
+
+    return results
+
+
+def profile(case: Case, formats: list[str], runs: int, sm_dir: str, convert: bool) -> list[Result]:
     results: list[Result] = []
 
     # cmuts reads BAM, CRAM, and SAM natively, so benchmark every requested format.
+    cmuts_times: dict[str, float] = {}
     for fmt in formats:
-        results.append(_bench_cmuts(case, fmt, runs))
+        r = _bench_cmuts(case, fmt, runs)
+        cmuts_times[fmt] = r.time_s
+        results.append(r)
 
     # rf-count (native BAM) and shapemapper2 (native SAM) run once on their input.
     rf = _bench_rf_count(case, runs) if shutil.which("rf-count") else None
     sm = _bench_shapemapper(case, sm_dir, runs) if sm_dir else None
     results += _bench_external_formats(case, formats, runs, rf, sm)
+
+    # Optionally compare direct reads against converting to BAM first.
+    if convert:
+        results += _bench_cmuts_via_bam(case, formats, runs, cmuts_times)
 
     return results
 
@@ -407,7 +450,7 @@ def _run_sweep(spec, args, output: Path, all_rows: list[Result]) -> None:
         for t in args.threads:
             print(f"   {'THREADS:':<18}{t}")
             case = make_case(v, t)
-            rows = profile(case, args.formats, args.runs, args.shapemapper_dir)
+            rows = profile(case, args.formats, args.runs, args.shapemapper_dir, args.convert)
             _append_csv(output, rows, args.runs)
             all_rows.extend(rows)
             print(SEP)
@@ -497,6 +540,12 @@ def main() -> None:
         metavar="LIST",
         help="Comma-separated input formats to benchmark (bam,cram,sam); default: bam",
     )
+    p.add_argument(
+        "--convert",
+        action="store_true",
+        help="Also measure converting each non-BAM format to BAM (samtools) then running "
+        "cmuts, to compare against reading it directly. Forces BAM into the benchmark.",
+    )
     p.add_argument("--shapemapper-dir", default="", metavar="DIR", help="ShapeMapper2 install dir")
     p.add_argument(
         "--output",
@@ -519,6 +568,11 @@ def main() -> None:
     args.formats = [f for f in FORMATS if f in requested]  # canonical order, deduped
     if not args.formats:
         sys.exit("Nothing to do: --formats is empty.")
+
+    # The --convert comparison needs cmuts' direct BAM runtime as the baseline, so
+    # ensure BAM is benchmarked (and generated) even if the user didn't request it.
+    if args.convert and "bam" not in args.formats:
+        args.formats = [f for f in FORMATS if f in (*args.formats, "bam")]
 
     # rf-count and shapemapper2 run on their native BAM/SAM, so those must exist
     # even when not benchmarked directly (they back the conversion-cost rows).
