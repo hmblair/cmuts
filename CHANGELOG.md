@@ -4,6 +4,7 @@
 
 ### Added
 
+- `cmuts core` now reads SAM alignment files (plain text or bgzipped), alongside BAM and CRAM. SAM records decode to the same internal alignment as BAM via htslib's `sam_parse1`, reusing the existing per-reference index and seek machinery (BGZF reads uncompressed files transparently). Format is detected from the file's leading bytes rather than the extension. SAM input must be coordinate-sorted, as with BAM and CRAM. The test matrix is now parametrized over all three formats
 - A `benchmarks/` suite comparing cmuts against rf-count (RNAFramework) and shapemapper2, with a shared module (`benchmarks/external.py`) that owns invoking and parsing both external tools. `benchmarks/profiles.py` runs each tool's full pipeline (counting, background subtraction, and normalization) once on the modified/unmodified BAMs and writes one HDF5 of reactivity profiles — cmuts at each spread mode and tuned to each tool, plus rf-count and shapemapper2 — which the two scoring benchmarks read instead of re-running the tools: `correctness` (per-nucleotide agreement of cmuts-tuned-to-each-tool against that tool — the control that isolates deletion spreading) and `accuracy` (AUC/Pearson/Spearman of reactivity against a base-pairing ground truth read from the deposited mmCIF hydrogen-bond annotations). `profile` measures wall-clock time and peak memory across query/reference/length sweeps for BAM and CRAM (ported from the bash harness to Python with CSV output). Documented on the new Benchmarks docs page
 
 ### Changed

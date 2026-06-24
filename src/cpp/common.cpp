@@ -837,17 +837,20 @@ FileType _get_filetype(BGZF* _bgzf_file) {
     std::array<char, MAGIC_SIZE> magic = {0};
     _read_bgzf(_bgzf_file, magic.data(), magic.size());
 
-    if (strncmp(magic.data(), SAM_MAGIC.c_str(), magic.size()) == 0) {
-
-        return FileType::SAM;
-
-    } else if (strncmp(magic.data(), BAM_MAGIC.c_str(), magic.size()) == 0) {
+    if (strncmp(magic.data(), BAM_MAGIC.c_str(), magic.size()) == 0) {
 
         return FileType::BAM;
 
     } else if (strncmp(magic.data(), CRAM_MAGIC.c_str(), magic.size()) == 0) {
 
         return FileType::CRAM;
+
+    } else if (magic[0] == SAM_LEADER) {
+
+        // Uncompressed (or bgzipped) text SAM, identified by its leading
+        // header line. BGZF transparently handles the uncompressed case.
+
+        return FileType::SAM;
 
     } else {
 

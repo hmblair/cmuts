@@ -403,6 +403,25 @@ static inline PHRED _bam_phred(bam1_t* _hts_aln) {
     return PHRED(scores);
 }
 
+// Convert a decoded htslib record into a format-agnostic Alignment. Shared by
+// the BAM and SAM iterators, which differ only in how they obtain the record.
+
+static inline Alignment _alignment_from_bam(bam1_t* _hts_aln) {
+
+    Alignment aln;
+
+    aln.aligned = _bam_aligned(_hts_aln);
+    aln.primary = _bam_primary(_hts_aln);
+    aln.reversed = bam_is_rev(_hts_aln);
+    aln.mapq = _bam_mapq(_hts_aln);
+    aln.length = _bam_length(_hts_aln);
+    aln.offset = _bam_offset(_hts_aln);
+    aln.cigar = _bam_cigar(_hts_aln);
+    aln.phred = _bam_phred(_hts_aln);
+
+    return aln;
+}
+
 BamIterator::BamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, int64_t reads)
     : Iterator(reads), _hts_bgzf(_hts_bgzf), _hts_aln(_hts_aln) {}
 
@@ -432,18 +451,7 @@ Alignment BamIterator::next() {
     _read_bam(_hts_bgzf, _hts_aln);
     _curr++;
 
-    Alignment aln;
-
-    aln.aligned = _bam_aligned(_hts_aln);
-    aln.primary = _bam_primary(_hts_aln);
-    aln.reversed = bam_is_rev(_hts_aln);
-    aln.mapq = _bam_mapq(_hts_aln);
-    aln.length = _bam_length(_hts_aln);
-    aln.offset = _bam_offset(_hts_aln);
-    aln.cigar = _bam_cigar(_hts_aln);
-    aln.phred = _bam_phred(_hts_aln);
-
-    return aln;
+    return _alignment_from_bam(_hts_aln);
 }
 
 //
@@ -582,12 +590,193 @@ std::shared_ptr<Iterator> BamFile::get(int32_t ix, bool seek) {
 }
 
 //
+// SAM
+//
+// A SAM file is the same logical content as a BAM file in uncompressed text:
+// an @-prefixed header followed by one alignment per line. We read the header
+// into an htslib sam_hdr_t (which also yields the reference order and count),
+// then read each alignment as a text line and decode it with sam_parse1 into
+// the same bam1_t the BAM path uses. Because BGZF reads uncompressed files
+// transparently, the BGZF-offset index and seek machinery is identical to BAM.
+//
+
+// Read the text header lines off the BGZF stream, leaving it positioned at the
+// first alignment record. Returns the parsed htslib header.
+
+static inline sam_hdr_t* _read_sam_text_header(BGZF* _bgzf_file, bool& sorted) {
+
+    std::string text;
+    kstring_t line = KS_INITIALIZE;
+    int64_t offset = bgzf_tell(_bgzf_file);
+
+    int32_t length = 0;
+    while ((length = bgzf_getline(_bgzf_file, '\n', &line)) >= 0) {
+
+        // The first non-header line is the first alignment. Rewind so the
+        // record is not consumed, then stop.
+
+        if (length == 0 || line.s[0] != SAM_LEADER) {
+            _seek_bgzf(_bgzf_file, offset);
+            break;
+        }
+
+        text.append(line.s, length);
+        text.push_back('\n');
+        offset = bgzf_tell(_bgzf_file);
+    }
+    ks_free(&line);
+
+    if (length < -1) {
+        __throw_and_log(_LOG_FILE, "Failure while reading the SAM header.");
+    }
+
+    sam_hdr_t* hdr = sam_hdr_parse(text.size(), text.c_str());
+    if (hdr == nullptr) {
+        __throw_and_log(_LOG_FILE, "Failed to parse the SAM header.");
+    }
+
+    sorted = (text.find(HEADER_SORT_KEY + BGZF_SORTED) != std::string::npos);
+    return hdr;
+}
+
+static inline void _build_sam_index(BGZF* _bgzf_file, sam_hdr_t* hdr, const std::string& filename,
+                                    int32_t references) {
+
+    _throw_if_exists(filename);
+    std::ofstream outfile(filename);
+
+    bam1_t* _hts_aln = _open_aln();
+    kstring_t line = KS_INITIALIZE;
+    IndexBlock block;
+    int64_t unaligned = 0;
+
+    // The beginning of the non-header section
+
+    block.tell(_bgzf_file);
+    outfile.seekp(0);
+    block.write_ptr(outfile);
+
+    int32_t tid = 0, curr;
+    while (bgzf_getline(_bgzf_file, '\n', &line) >= 0) {
+
+        if (sam_parse1(&line, hdr, _hts_aln) < 0) {
+            ks_free(&line);
+            _close_aln(_hts_aln);
+            __throw_and_log(_LOG_FILE, "Failed to parse a SAM record while indexing.");
+        }
+
+        curr = _hts_aln->core.tid;
+        if (curr > tid) {
+
+            block.write_reads(outfile);
+            block.reads = 0;
+
+            // Write empty blocks for all references which did not appear in the file
+
+            for (int32_t jx = tid + 1; jx < curr; jx++) {
+                block.write_ptr(outfile);
+                block.write_reads(outfile);
+            }
+
+            block.reads++;
+            tid = curr;
+            block.write_ptr(outfile);
+
+        } else if (curr == -1) {
+
+            unaligned++;
+
+        } else {
+
+            block.reads++;
+        }
+
+        block.tell(_bgzf_file);
+    }
+    ks_free(&line);
+    _close_aln(_hts_aln);
+
+    block.write_reads(outfile);
+    block.reads = 0;
+
+    // Write any final references with no aligned reads
+
+    for (int32_t jx = tid + 1; jx < references; jx++) {
+        block.write_ptr(outfile);
+        block.write_reads(outfile);
+    }
+
+    // Write the unaligned read count
+
+    outfile.write(reinterpret_cast<char*>(&unaligned), sizeof(int64_t));
+    outfile.close();
+}
+
+SamIterator::SamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, sam_hdr_t* _hdr, int64_t reads)
+    : Iterator(reads), _hts_bgzf(_hts_bgzf), _hts_aln(_hts_aln), _hdr(_hdr) {}
+
+SamIterator::~SamIterator() {
+
+    ks_free(&_line);
+}
+
+Alignment SamIterator::next() {
+
+    if (bgzf_getline(_hts_bgzf, '\n', &_line) < 0) {
+        __throw_and_log(_LOG_FILE, "The alignment ended prematurely.");
+    }
+    if (sam_parse1(&_line, _hdr, _hts_aln) < 0) {
+        __throw_and_log(_LOG_FILE, "Failed to parse a SAM record.");
+    }
+    _curr++;
+
+    return _alignment_from_bam(_hts_aln);
+}
+
+SamFile::SamFile(const std::string& name) : File(name, FileType::SAM), _hts_aln(_open_aln()) {
+
+    _hdr = _read_sam_text_header(_hts_bgzf, _sorted);
+    _references = sam_hdr_nref(_hdr);
+
+    std::string _index_name = _name + CMUTS_INDEX;
+    if (!std::filesystem::exists(_index_name) && !cmuts::mutex::check(_name)) {
+        _build_sam_index(_hts_bgzf, _hdr, _index_name, _references);
+        __log(_LOG_FILE, "Successfully created " + _index_name + ".");
+    }
+
+    // Will trigger if another thread started creating the index file first
+
+    cmuts::mutex::wait(_name);
+
+    _index = Index(_index_name, _references);
+    __log(_LOG_FILE, "Successfully loaded " + _index_name + ".");
+}
+
+SamFile::~SamFile() {
+
+    _close_aln(_hts_aln);
+    if (_hdr != nullptr) {
+        sam_hdr_destroy(_hdr);
+        _hdr = nullptr;
+    }
+}
+
+std::shared_ptr<Iterator> SamFile::get(int32_t ix, bool seek) {
+
+    IndexBlock block = _index.read(ix);
+    if (seek) {
+        _seek_bgzf(_hts_bgzf, block.ptr);
+    }
+    return std::make_shared<SamIterator>(_hts_bgzf, _hts_aln, _hdr, block.reads);
+}
+
+//
 // From common.hpp
 //
 
 std::unique_ptr<File> _get_sam(const std::string& name) {
 
-    return std::make_unique<BamFile>(name);
+    return std::make_unique<SamFile>(name);
 }
 
 std::unique_ptr<File> _get_bam(const std::string& name) {

@@ -63,7 +63,8 @@ trap 'rm -f "$SAM_TMP" "$BAM_TMP"' EXIT
 _cmuts-generate-tests -o "$SAM_TMP" "${ARGS[@]}"
 
 if [[ "$SAM" == "true" ]]; then
-  samtools calmd "$SAM_TMP" "$FASTA" 2>/dev/null > "${BASE}.sam"
+  samtools calmd -b "$SAM_TMP" "$FASTA" 2>/dev/null > "$BAM_TMP"
+  samtools sort -O sam -o "${BASE}.sam" "$BAM_TMP"
 fi
 
 if [[ "$BAM" == "true" ]]; then

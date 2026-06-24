@@ -80,7 +80,9 @@ const std::string BGZF_SORTED = "coordinate";
 const std::string HEADER_SORT_KEY = "SO:";
 const std::string HEADER_LEN_KEY = "LN:";
 const int32_t MAGIC_SIZE = 4;
-const std::string SAM_MAGIC = "SAM\1";
+// SAM is uncompressed text with no binary magic; every SAM file begins with a
+// header, whose lines start with '@'. BAM and CRAM have proper 4-byte magics.
+const char SAM_LEADER = '@';
 const std::string BAM_MAGIC = "BAM\1";
 const std::string CRAM_MAGIC = "CRAM";
 const std::string CMUTS_INDEX = ".cmix";

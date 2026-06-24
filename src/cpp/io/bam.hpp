@@ -78,6 +78,48 @@ class BamFile : public File {
     std::shared_ptr<Iterator> get(int32_t ix, bool seek) override;
 };
 
+//
+// SamIterator
+//
+// SAM records decode to the same bam1_t as BAM, so the only difference from
+// BamIterator is how the next record is obtained: a line of text is read from
+// the (transparently uncompressed) BGZF stream and parsed with sam_parse1.
+//
+
+class SamIterator : public Iterator {
+  private:
+    BGZF* _hts_bgzf = nullptr;
+    bam1_t* _hts_aln = nullptr;
+    sam_hdr_t* _hdr = nullptr;
+    kstring_t _line = KS_INITIALIZE;
+
+  public:
+    SamIterator(BGZF* _hts_bgzf, bam1_t* _hts_aln, sam_hdr_t* _hdr, int64_t reads);
+    SamIterator(SamIterator&&) = delete;
+    SamIterator& operator=(SamIterator&&) = delete;
+    SamIterator(const SamIterator&) = delete;
+    SamIterator& operator=(const SamIterator&) = delete;
+    ~SamIterator() override;
+
+    Alignment next() override;
+};
+
+//
+// SamFile
+//
+
+class SamFile : public File {
+  private:
+    bam1_t* _hts_aln = nullptr;
+    sam_hdr_t* _hdr = nullptr;
+
+  public:
+    explicit SamFile(const std::string& name);
+    ~SamFile() override;
+
+    std::shared_ptr<Iterator> get(int32_t ix, bool seek) override;
+};
+
 } // namespace HTS
 
 #endif
