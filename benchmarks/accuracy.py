@@ -15,9 +15,10 @@ hydrogen bonds geometrically from the 3D coordinates, and derive a probe-matched
                   Watson-Crick-face atom (A-N1 / C-N3, the atoms DMS methylates)
                   is specifically hydrogen bonded. G/U are not DMS-probed (NaN).
 
-Base pairing is computed from geometry (heavy-atom N/O distances), not from
-deposited struct_conn records, because many entries (especially cryo-EM
-ribosomes) do not annotate base pairs.
+Base pairing is read from the deposited hydrogen-bond annotations (mmCIF
+struct_conn 'hydrog' records, via ciffy `connections`), which are present for
+~all of PDB130 (incl. cryo-EM ribosomes). References whose structure carries no
+such annotations are skipped.
 
 All three tools' profiles are computed from BAMs and scored together. Each
 condition (DMS, 2A3) takes a modified and an unmodified (nomod) sample. cmuts is
@@ -52,7 +53,6 @@ import numpy as np
 from Bio import Align
 from ciffy.biochemistry import Residue
 from scipy import stats
-from scipy.spatial import cKDTree
 
 warnings.filterwarnings("ignore")
 
@@ -111,7 +111,6 @@ BASE_ATOMS = {
 # Watson-Crick-face atoms DMS methylates (protected only when H-bonded).
 WC_FACE = {int(Residue.A.N1), int(Residue.C.N3)}
 A_VAL, C_VAL = int(Residue.A.value), int(Residue.C.value)
-HBOND_CUTOFF = 3.4  # heavy-atom N/O...N/O distance (Angstrom)
 
 
 def load_fasta(path: Path) -> list[tuple[str, str]]:
@@ -163,35 +162,41 @@ def _rna_chains(s):
                 yield seq, c
 
 
-def _geometry_labels(chain) -> tuple[np.ndarray, np.ndarray]:
-    """Probe-matched unpaired labels over a chain's residues, from geometry.
+def _pairing_labels(chain) -> tuple[np.ndarray, np.ndarray] | None:
+    """Probe-matched unpaired labels from the deposited hydrogen-bond annotations.
+
+    Reads ciffy `connections` (the mmCIF struct_conn 'hydrog' records, atom-level)
+    rather than re-deriving contacts geometrically: the deposited annotations are
+    present for ~all of PDB130 (incl. cryo-EM ribosomes) and avoid the
+    over-calling of a bare distance cutoff. Returns None for the rare structure
+    with no connections, so the caller skips that reference.
 
     Returns (shape_unpaired, dms_unpaired):
-      shape_unpaired[r] = 0 if residue r has any base-base H-bond else 1.
-      dms_unpaired[r]   = 0/1 for A,C by whether the WC-face atom is H-bonded;
-                          NaN for G,U (not DMS-probed).
+      shape_unpaired[r] = 0 if residue r's base participates in any base-base
+                          hydrogen bond else 1.
+      dms_unpaired[r]   = 0/1 for A,C by whether the WC-face atom (A-N1/C-N3) is
+                          hydrogen bonded; NaN for G,U (not DMS-probed).
     """
-    coords = np.asarray(chain.coordinates)
+    conns = np.asarray(chain.connections)
+    if conns.ndim != 2 or conns.shape[0] == 0:
+        return None  # no deposited annotations -> skip this reference
+
     atype = np.asarray(chain.atoms)
     resid = np.asarray(chain.membership(ciffy.RESIDUE))
     seq = np.asarray(chain.sequence)
     n = len(seq)
 
-    sel = np.isin(atype, list(BASE_ATOMS))
-    P, A, R = coords[sel], atype[sel], resid[sel]
-
     base_paired = np.zeros(n, dtype=bool)
     wc_hbonded = np.zeros(n, dtype=bool)
-    if len(P):
-        for i, j in cKDTree(P).query_pairs(HBOND_CUTOFF):
-            ri, rj = int(R[i]), int(R[j])
-            if abs(ri - rj) < 2:  # skip self/adjacent (stacking, backbone)
-                continue
-            base_paired[ri] = base_paired[rj] = True
-            if A[i] in WC_FACE:
-                wc_hbonded[ri] = True
-            if A[j] in WC_FACE:
-                wc_hbonded[rj] = True
+    for a, b in conns:
+        # base-base hydrogen bonds only (both partners are base N/O atoms)
+        if atype[a] in BASE_ATOMS and atype[b] in BASE_ATOMS:
+            ra, rb = int(resid[a]), int(resid[b])
+            base_paired[ra] = base_paired[rb] = True
+            if atype[a] in WC_FACE:
+                wc_hbonded[ra] = True
+            if atype[b] in WC_FACE:
+                wc_hbonded[rb] = True
 
     shape_unpaired = (~base_paired).astype(float)
     dms_unpaired = np.full(n, np.nan)
@@ -222,9 +227,12 @@ def structure_labels(pdbid: str, ref_seq: str, struct_dir: str):
         return None
     _, seq, c = best
     try:
-        shape_unp, dms_unp = _geometry_labels(c)
+        labels = _pairing_labels(c)
     except Exception:
         return None
+    if labels is None:  # structure carries no hydrogen-bond annotations
+        return None
+    shape_unp, dms_unp = labels
     return seq, shape_unp, dms_unp
 
 
