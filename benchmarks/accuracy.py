@@ -24,7 +24,9 @@ The reactivity profiles are read from the HDF5 written by `profiles.py` (one
 dataset per cmuts spread mode and per existing tool, x condition); this script
 only scores them. Each (dataset x condition) profile is scored by AUC / Pearson /
 Spearman of reactivity against the unpaired ground truth over the core region,
-and the summary reports each dataset's delta against cmuts' default spread mode.
+and the summary reports each dataset's delta against cmuts' default spread mode,
+averaged over the references that every dataset scored (so coverage filters that
+drop different references per tool do not bias the comparison).
 
 Requires ciffy, biopython, and scipy in addition to the cmuts deps.
 
@@ -330,20 +332,43 @@ def main() -> None:
         for r in rows:
             f.write("\t".join(str(r[c]) for c in cols) + "\n")
 
+    present = [d for d in DATASETS if any(r["dataset"] == d for r in rows)]
+
+    # Apples-to-apples: average each dataset only over references that EVERY
+    # present dataset scored. Coverage/quality filters drop different references
+    # per tool, so the per-dataset valid sets differ; comparing on their
+    # intersection removes that selection bias from the means. Computed per
+    # condition (DMS and 2A3 score different references).
+    scored: dict[tuple[str, str], set[str]] = {
+        (d, cond): {r["reference"] for r in rows if r["dataset"] == d and r["condition"] == cond}
+        for d in present
+        for cond in CONDITIONS
+    }
+    common: dict[str, set[str]] = {
+        cond: set.intersection(*(scored[(d, cond)] for d in present)) if present else set()
+        for cond in CONDITIONS
+    }
+
     def agg(metric: str, dataset: str, cond: str) -> tuple[int, float, float]:
         vals = np.array(
             [
                 r[metric]
                 for r in rows
-                if r["dataset"] == dataset and r["condition"] == cond and not np.isnan(r[metric])
+                if r["dataset"] == dataset
+                and r["condition"] == cond
+                and r["reference"] in common[cond]
+                and not np.isnan(r[metric])
             ]
         )
         if len(vals) == 0:
             return 0, np.nan, np.nan
         return len(vals), float(np.mean(vals)), float(np.median(vals))
 
-    present = [d for d in DATASETS if any(r["dataset"] == d for r in rows)]
     with open(args.summary, "w") as f:
+        for cond in CONDITIONS:
+            f.write(
+                f"# {cond}: {len(common[cond])} references scored by all {len(present)} datasets\n"
+            )
         f.write(f"condition\tmetric\tdataset\tn\tmean\tmedian\tmean_minus_{BASELINE}\n")
         for cond in CONDITIONS:
             for metric in ("auc", "pearson", "spearman"):
