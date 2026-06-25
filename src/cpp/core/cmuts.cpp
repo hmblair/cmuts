@@ -396,6 +396,13 @@ std::vector<dtype> _enumerate_deletions(const seq_t& reference, const std::vecto
 
     int32_t max = 32;
     Stack<DeletionData> stack(max);
+    // Cap the number of deletion segments. The enumeration of compatible
+    // deletions is exponential in the number of segments, and in repetitive
+    // references (e.g. long homopolymers) a single deletion can otherwise
+    // explode to hundreds of millions of iterations. Placements with more
+    // segments carry negligible weight, so capping leaves the result unchanged
+    // without spreading and within ~1e-4 of total deletion mass with it.
+    const int32_t MAX_IX = 3;
 
     DeletionData init;
     init.M = M;
@@ -427,6 +434,14 @@ std::vector<dtype> _enumerate_deletions(const seq_t& reference, const std::vecto
         while (M < N && N < reference.size()) {
 
             if (reference[M] == reference[N]) {
+
+                // Cap the number of deletion segments to bound the otherwise
+                // exponential enumeration; skip splits beyond MAX_IX segments.
+                if (!contig && static_cast<int32_t>(stack.top().ix.size()) >= MAX_IX) {
+                    M++;
+                    contig = false;
+                    continue;
+                }
 
                 M++;
                 N++;
