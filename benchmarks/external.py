@@ -65,12 +65,9 @@ class CountParams:
 
     insertions: bool = True
     deletions: bool = True
-    right_align_deletions: bool = True
     collapse: int = 2  # >1 -> collapse mods within (collapse - 1) of each other
     eval_surrounding: bool = True
     cov_low_qual: bool = False  # count low-quality positions toward coverage
-    discard_duplicates: bool = True
-    fast: bool = False  # rf-count --fast
     threads: int = 1
     min_mapq: int | None = None
     min_phred: int | None = None
@@ -79,8 +76,6 @@ class CountParams:
     max_indel: int | None = None
     quality_window: int | None = None  # cmuts --quality-window
     cmuts_spread: str = "default"  # cmuts core: default | nospread | uniform
-    max_edit_distance: float | None = None  # rf-count only
-    median_quality: int | None = None  # rf-count only
     max_internal_match: int | None = None  # shapemapper parser only
 
 
@@ -285,27 +280,31 @@ def rfcount_command(
     bam, fasta, outdir, params: CountParams, *, overwrite: bool = True
 ) -> list[str]:
     """Build the rf-count argv from `params`. Long flags throughout; this is the
-    single home for the flag spelling the profile and correctness benchmarks
-    both relied on.
+    single home for the flag spelling the benchmarks rely on.
     """
     rf = os.environ.get("RF_COUNT", "rf-count")
     cmd = [rf, "-m", "-f", str(fasta), "-o", str(outdir), "-wt", str(params.threads)]
     if overwrite:
         cmd.append("--overwrite")
-    if params.fast:
-        cmd.append("--fast")
+    # Settings fixed for every benchmark (not carried in CountParams): fast mode,
+    # right-aligned deletions, duplicates kept, edit-distance 1.0, median-quality 0.
+    cmd += [
+        "--fast",
+        "--right-deletion",
+        "--no-discard-duplicates",
+        "--max-edit-distance",
+        "1.0",
+        "--median-quality",
+        "0",
+    ]
     if params.eval_surrounding:
         cmd.append("--eval-surrounding")
     if not params.insertions:
         cmd.append("--no-insertions")
     if not params.deletions:
         cmd.append("--no-deletions")
-    if params.right_align_deletions:
-        cmd.append("--right-deletion")
     if not params.cov_low_qual:
         cmd.append("--no-cov-low-qual")
-    if not params.discard_duplicates:
-        cmd.append("--no-discard-duplicates")
     if params.collapse and params.collapse > 1:
         cmd += ["--collapse-consecutive", "--max-collapse-distance", str(params.collapse - 1)]
     if params.min_mapq is not None:
@@ -316,10 +315,6 @@ def rfcount_command(
         cmd += ["--discard-shorter", str(params.min_length)]
     if params.max_indel is not None:
         cmd += ["--max-deletion-len", str(params.max_indel)]
-    if params.max_edit_distance is not None:
-        cmd += ["--max-edit-distance", str(params.max_edit_distance)]
-    if params.median_quality is not None:
-        cmd += ["--median-quality", str(params.median_quality)]
     cmd.append(str(bam))
     return cmd
 
@@ -502,8 +497,7 @@ def _sm_parser_flags(params: CountParams) -> list[str]:
         flags += ["--min_qual", str(params.min_phred)]
     if params.max_internal_match is not None:
         flags += ["--max_internal_match", str(params.max_internal_match)]
-    if params.right_align_deletions:
-        flags.append("--right_align_ambig_dels")
+    flags.append("--right_align_ambig_dels")  # always right-align ambiguous deletions
     return flags
 
 

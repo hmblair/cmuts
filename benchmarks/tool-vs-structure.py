@@ -65,17 +65,13 @@ BASELINE = "cmuts-default"  # the summary reports each dataset's delta against t
 MAP = external.CountParams(
     insertions=False,
     deletions=True,
-    right_align_deletions=True,
     collapse=2,
     eval_surrounding=True,
     quality_window=1,
     cov_low_qual=True,
-    discard_duplicates=False,
     min_mapq=10,
     min_phred=10,
     min_length=2,
-    median_quality=0,
-    max_edit_distance=1.0,
     max_internal_match=2,
 )
 

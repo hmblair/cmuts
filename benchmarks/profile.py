@@ -223,11 +223,8 @@ def _count_params(case: Case) -> external.CountParams:
     synthetic data was generated with so all three measure the same work."""
     return external.CountParams(
         insertions=True,
-        right_align_deletions=True,
         collapse=COLLAPSE,
         cov_low_qual=False,
-        discard_duplicates=False,
-        fast=True,
         threads=case.threads,
         min_mapq=MIN_MAPQ,
         min_phred=MIN_PHRED,
@@ -236,8 +233,6 @@ def _count_params(case: Case) -> external.CountParams:
         max_indel=MAX_INDEL,
         quality_window=WINDOW,
         cmuts_spread="default",
-        max_edit_distance=1.0,
-        median_quality=0,
     )
 
 
