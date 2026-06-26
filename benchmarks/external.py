@@ -944,6 +944,45 @@ def to_array(per_ref: dict[str, np.ndarray], names: list[str], length: int) -> n
     return out
 
 
+def build_profiles(
+    datasets: dict[str, tuple[str, CountParams, NormParams]],
+    inputs_by_condition: dict[str, Inputs],
+    *,
+    sm_dir: str | None = None,
+    min_depth: int = MIN_DEPTH,
+    workdir=None,
+) -> dict[str, dict[str, dict[str, np.ndarray]]]:
+    """Run each `(tool, count, norm)` recipe for each condition. Returns
+    {label: {condition: {ref_name: reactivity array}}}.
+
+    The caller owns `datasets` (the recipes and their labels); this is just the
+    loop. Recipes whose tool is unavailable (rf-count missing, no `sm_dir`) are
+    skipped, so the result holds only datasets that could be built. (Use
+    `to_array` to stack one {ref: array} dict into a 2-D array.)
+    """
+    base = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="profiles-"))
+    out: dict[str, dict[str, dict[str, np.ndarray]]] = {}
+    for label, (tool, count, norm) in datasets.items():
+        if tool == "rnaframework" and not rfcount_available():
+            continue
+        if tool == "shapemapper2" and sm_dir is None:
+            continue
+        out[label] = {
+            cond: reactivity(
+                tool,
+                count,
+                norm,
+                inputs,
+                cond,
+                sm_dir=sm_dir,
+                min_depth=min_depth,
+                workdir=base / f"{label}-{cond}",
+            )
+            for cond, inputs in inputs_by_condition.items()
+        }
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Command-line entry point (lets profile.py time `reactivity` under GNU time)
 # ---------------------------------------------------------------------------
