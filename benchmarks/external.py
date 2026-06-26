@@ -43,8 +43,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import numpy as np
 
-# A position needs at least this many reads for a rate to be meaningful.
+# A position needs at least this many reads for a rate to be meaningful (used by
+# the standalone rate parsers).
 MIN_DEPTH = 10
+
+# `reactivity` imposes no coverage floor of its own -- it only blanks zero-coverage
+# positions, the most permissive each tool allows -- and exposes per-reference
+# depth as `/reads` so consumers filter as they choose.
+_FLOOR = 1
 
 
 @dataclass
@@ -211,14 +217,14 @@ def run_cmuts_normalize(
     norm: str,
     per_reference: bool,
     out_h5,
-    *,
-    min_depth: int = MIN_DEPTH,
 ):
-    """`cmuts normalize` (mod vs nomod) -> the (n_ref, length) reactivity array.
+    """`cmuts normalize` (mod vs nomod) -> (reactivity, reads) for the experiment.
 
-    `condition` names the experiment and output HDF5 group; `per_reference`
-    selects rf-norm-like per-reference normalization. Samples are identified by
-    their BAM basename (without extension), as written by `cmuts core`.
+    `reactivity` is the (n_ref, length) array; `reads` is the (n_ref,) per-
+    reference depth cmuts reports (the max per-position coverage). `condition`
+    names the experiment and output HDF5 group; `per_reference` selects rf-norm-
+    like per-reference normalization. Samples are identified by their BAM
+    basename (without extension), as written by `cmuts core`.
     """
     import h5py
     import numpy as np
@@ -237,7 +243,7 @@ def run_cmuts_normalize(
         "--norm",
         norm,
         "--blank-cutoff",
-        str(min_depth),
+        str(_FLOOR),
         "--experiment",
         *experiment,
         "--overwrite",
@@ -246,7 +252,7 @@ def run_cmuts_normalize(
         cmd.append("--per-reference-norm")
     run_checked(cmd)
     with h5py.File(out_h5, "r") as f:
-        return np.asarray(f[f"{condition}/reactivity"])
+        return np.asarray(f[f"{condition}/reactivity"]), np.asarray(f[f"{condition}/reads"])
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +351,23 @@ def _parse_rctools_view(text: str, *, min_depth: int = MIN_DEPTH) -> dict[str, n
             rates[name] = np.where(coverage >= min_depth, counts / coverage, np.nan)
         i += 4
     return rates
+
+
+def rfcount_max_coverage(rc_path) -> dict[str, float]:
+    """Max per-position coverage per reference from an rf-count .rc (the
+    per-reference depth, matching cmuts' `reads`)."""
+    rc = os.environ.get("RF_RCTOOLS", "rf-rctools")
+    proc = subprocess.run([rc, "view", str(rc_path)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"rf-rctools view failed: {proc.stderr[-2000:]}")
+    out: dict[str, float] = {}
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip() != ""]
+    i = 0
+    while i + 4 <= len(lines):
+        cov = [float(x) for x in lines[i + 3].split(",") if x != ""]
+        out[lines[i].strip()] = max(cov) if cov else 0.0
+        i += 4
+    return out
 
 
 def rfnorm_available() -> bool:
@@ -517,6 +540,25 @@ def parse_shapemapper_counts(
             if depth >= min_depth:
                 rate[pos] = sum(float(cells[i]) for i in mut_idx) / depth
     return rate
+
+
+def _counts_max_depth(path) -> float:
+    """Max `effective_depth` over positions in a shapemapper counts file (the
+    per-reference depth, matching cmuts' `reads`)."""
+    with open(path) as f:
+        header = f.readline().rstrip("\n").split("\t")
+        if "effective_depth" not in header:
+            return 0.0
+        idx = header.index("effective_depth")
+        best = 0.0
+        for line in f:
+            cells = line.rstrip("\n").split("\t")
+            if idx < len(cells):
+                try:
+                    best = max(best, float(cells[idx]))
+                except ValueError:
+                    pass
+        return best
 
 
 def _count_reference(
@@ -697,7 +739,7 @@ def run_shapemapper_reactivity(
     samtools: str | None = None,
     min_depth: int = MIN_DEPTH,
     workdir=None,
-) -> dict[str, np.ndarray]:
+) -> tuple[dict[str, np.ndarray], dict[str, float]]:
     """shapemapper2 native reactivity per reference (mod + untreated control).
 
     Per reference: parser+counter on the modified and (if given) untreated
@@ -705,8 +747,9 @@ def run_shapemapper_reactivity(
     per-reference profiles are then normalized together in a single
     `normalize_profiles.py` call -- its factor is computed across the whole set,
     since one short reference is too sparse to normalize alone. Returns
-    {ref_name: normalized reactivity}, falling back per reference to the
-    un-normalized Reactivity_profile where normalization could not be applied.
+    ({ref: normalized reactivity}, {ref: depth}), the reactivity falling back per
+    reference to the un-normalized Reactivity_profile where normalization could
+    not be applied, and depth being the max effective_depth of the mod counts.
     """
     env = shapemapper_env(sm_dir)
     py = shapemapper_python(sm_dir)
@@ -714,7 +757,7 @@ def run_shapemapper_reactivity(
     norm_prof = f"{sm_dir}/internals/bin/normalize_profiles.py"
     st = samtools or samtools_bin()
     if not os.path.exists(make_prof):
-        return {}
+        return {}, {}
 
     wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="sm-react-"))
     (wd / "prof").mkdir(parents=True, exist_ok=True)
@@ -789,13 +832,15 @@ def run_shapemapper_reactivity(
             ncmd.append("--dms")
         subprocess.run(ncmd, env=env, capture_output=True)
 
-    # 4. Read each reference's profile (normalized if produced, else raw).
+    # 4. Read each reference's profile (normalized if produced, else raw), and
+    #    its per-reference depth (max effective_depth of the modified counts).
     out: dict[str, np.ndarray] = {}
     for i, name in enumerate(order):
         normed = Path(normout[i])
         src = normed if normed.exists() else Path(tonorm[i])
         out[name] = parse_shapemapper_profile(src, lengths[name])
-    return out
+    reads = {name: _counts_max_depth(path) for name, path in mod_counts.items()}
+    return out, reads
 
 
 # ---------------------------------------------------------------------------
@@ -849,22 +894,30 @@ def reactivity(
     norm: NormParams,
     inputs: Inputs,
     condition: str,
+    out_h5,
     *,
     sm_dir: str | None = None,
     workdir=None,
-    min_depth: int = MIN_DEPTH,
-) -> dict[str, np.ndarray]:
-    """Run `tool`'s full reactivity pipeline on `inputs`, returning {ref: array}.
+) -> Path:
+    """Run `tool`'s full reactivity pipeline on `inputs` and write `out_h5`.
 
     The single entry point: adapt each input to the format the tool needs
     (conversion is part of the work), then count + normalize. `condition` (DMS /
     2A3) names the experiment and selects condition-dependent knobs (shapemapper2
-    DMS mode; cmuts `cmuts_norm == "sm"` -> sm-dms/sm-shape).
+    DMS mode; cmuts `cmuts_norm == "sm"` -> sm-dms/sm-shape). Writes a unified
+    HDF5 (`/names`, `/reactivity` (n_ref, length), `/reads` (n_ref,) per-reference
+    depth) and returns its path. It applies no coverage floor of its own --
+    downstream filtering on `/reads` is the caller's choice.
     """
+    import h5py
+    import numpy as np
+
     st = samtools_bin()
     wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="react-"))
     wd.mkdir(parents=True, exist_ok=True)
     fasta_list = read_fasta(inputs.fasta)
+    names = [n for n, _ in fasta_list]
+    length = max((len(s) for _, s in fasta_list), default=0)
     mod = _prepare_input(tool, inputs.mod, inputs.fasta, wd, samtools=st)
     nomod = (
         _prepare_input(tool, inputs.nomod, inputs.fasta, wd, samtools=st)
@@ -872,15 +925,15 @@ def reactivity(
         else None
     )
     if tool == "cmuts":
-        return _cmuts_reactivity(
-            count, norm, inputs.fasta, mod, nomod, condition, fasta_list, wd, min_depth
+        react_d, reads_d = _cmuts_reactivity(
+            count, norm, inputs.fasta, mod, nomod, condition, names, wd
         )
-    if tool == "rnaframework":
-        return _rf_reactivity(count, norm, inputs.fasta, mod, nomod, wd, min_depth)
-    if tool == "shapemapper2":
+    elif tool == "rnaframework":
+        react_d, reads_d = _rf_reactivity(count, norm, inputs.fasta, mod, nomod, wd)
+    elif tool == "shapemapper2":
         if sm_dir is None:
             raise ValueError("shapemapper2 requires sm_dir")
-        return run_shapemapper_reactivity(
+        react_d, reads_d = run_shapemapper_reactivity(
             mod,
             nomod,
             fasta_list,
@@ -889,20 +942,40 @@ def reactivity(
             dms=(condition == "DMS"),
             reference=str(inputs.fasta),
             samtools=st,
-            min_depth=min_depth,
+            min_depth=_FLOOR,
             workdir=wd,
         )
-    raise ValueError(f"unknown tool: {tool}")
+    else:
+        raise ValueError(f"unknown tool: {tool}")
+
+    react = to_array(react_d, names, length).astype(np.float32)
+    reads = np.array([reads_d.get(n, 0.0) for n in names], dtype=np.float32)
+    with h5py.File(out_h5, "w") as f:
+        f.create_dataset("names", data=np.array(names, dtype="S"))
+        f.create_dataset("reactivity", data=react)
+        f.create_dataset("reads", data=reads)
+    return Path(out_h5)
 
 
-def _cmuts_reactivity(count, norm, fasta, mod, nomod, condition, fasta_list, wd, min_depth):
+def read_profiles(h5) -> tuple[list[str], np.ndarray, np.ndarray]:
+    """Load a unified profiles HDF5 -> (names, reactivity (n_ref, length), reads
+    (n_ref,)), written by `reactivity`."""
+    import h5py
+    import numpy as np
+
+    with h5py.File(h5, "r") as f:
+        names = [n.decode() for n in f["names"][:]]
+        return names, np.asarray(f["reactivity"]), np.asarray(f["reads"])
+
+
+def _cmuts_reactivity(count, norm, fasta, mod, nomod, condition, names, wd):
     bams = [mod] + ([nomod] if nomod is not None else [])
     counts_h5 = Path(wd) / "cmuts-counts.h5"
     run_checked(cmuts_core_command(bams, fasta, counts_h5, count))
     method = norm.cmuts_norm
     if method == "sm":
         method = "sm-dms" if condition == "DMS" else "sm-shape"
-    arr = run_cmuts_normalize(
+    react, reads = run_cmuts_normalize(
         counts_h5,
         mod,
         nomod,
@@ -911,12 +984,15 @@ def _cmuts_reactivity(count, norm, fasta, mod, nomod, condition, fasta_list, wd,
         method,
         norm.cmuts_per_reference,
         Path(wd) / "cmuts-norm.h5",
-        min_depth=min_depth,
     )
-    return {name: arr[i] for i, (name, _) in enumerate(fasta_list) if i < arr.shape[0]}
+    n = min(len(names), react.shape[0])
+    return (
+        {names[i]: react[i] for i in range(n)},
+        {names[i]: float(reads[i]) for i in range(min(len(names), len(reads)))},
+    )
 
 
-def _rf_reactivity(count, norm, fasta, mod, nomod, wd, min_depth):
+def _rf_reactivity(count, norm, fasta, mod, nomod, wd):
     rc_mod = run_rfcount(mod, fasta, Path(wd) / "rf-mod", count)
     rc_nomod = (
         run_rfcount(nomod, fasta, Path(wd) / "rf-nomod", count) if nomod is not None else None
@@ -928,7 +1004,7 @@ def _rf_reactivity(count, norm, fasta, mod, nomod, wd, min_depth):
         norm_method=norm.rf_norm_method,
         untreated=rc_nomod,
     )
-    return parse_rfnorm(norm_dir)
+    return parse_rfnorm(norm_dir), rfcount_max_coverage(rc_mod)
 
 
 def to_array(per_ref: dict[str, np.ndarray], names: list[str], length: int) -> np.ndarray:
@@ -947,39 +1023,40 @@ def to_array(per_ref: dict[str, np.ndarray], names: list[str], length: int) -> n
 def build_profiles(
     datasets: dict[str, tuple[str, CountParams, NormParams]],
     inputs_by_condition: dict[str, Inputs],
+    outdir,
     *,
     sm_dir: str | None = None,
-    min_depth: int = MIN_DEPTH,
-    workdir=None,
-) -> dict[str, dict[str, dict[str, np.ndarray]]]:
-    """Run each `(tool, count, norm)` recipe for each condition. Returns
-    {label: {condition: {ref_name: reactivity array}}}.
+) -> dict[str, dict[str, Path]]:
+    """Run each `(tool, count, norm)` recipe for each condition, writing one
+    unified HDF5 per (label, condition) under `outdir`. Returns
+    {label: {condition: h5_path}} (load with `read_profiles`).
 
     The caller owns `datasets` (the recipes and their labels); this is just the
     loop. Recipes whose tool is unavailable (rf-count missing, no `sm_dir`) are
-    skipped, so the result holds only datasets that could be built. (Use
-    `to_array` to stack one {ref: array} dict into a 2-D array.)
+    skipped, so the result holds only datasets that could be built.
     """
-    base = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="profiles-"))
-    out: dict[str, dict[str, dict[str, np.ndarray]]] = {}
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    out: dict[str, dict[str, Path]] = {}
     for label, (tool, count, norm) in datasets.items():
         if tool == "rnaframework" and not rfcount_available():
             continue
         if tool == "shapemapper2" and sm_dir is None:
             continue
-        out[label] = {
-            cond: reactivity(
+        out[label] = {}
+        for cond, inputs in inputs_by_condition.items():
+            h5 = outdir / f"{label}__{cond}.h5"
+            reactivity(
                 tool,
                 count,
                 norm,
                 inputs,
                 cond,
+                h5,
                 sm_dir=sm_dir,
-                min_depth=min_depth,
-                workdir=base / f"{label}-{cond}",
+                workdir=outdir / f"_wd-{label}-{cond}",
             )
-            for cond, inputs in inputs_by_condition.items()
-        }
+            out[label][cond] = h5
     return out
 
 
@@ -1006,7 +1083,7 @@ def _main(argv: list[str]) -> int:
     r.add_argument("--condition", default="DMS")
     r.add_argument("--sm-dir", default=None)
     r.add_argument("--workdir", required=True)
-    r.add_argument("--min-depth", type=int, default=MIN_DEPTH)
+    r.add_argument("--out", required=True, help="output profiles HDF5")
     args = p.parse_args(argv)
 
     if args.cmd == "reactivity":
@@ -1020,9 +1097,9 @@ def _main(argv: list[str]) -> int:
             norm,
             Inputs(Path(args.fasta), Path(args.mod), Path(args.nomod) if args.nomod else None),
             args.condition,
+            args.out,
             sm_dir=args.sm_dir,
             workdir=args.workdir,
-            min_depth=args.min_depth,
         )
     return 0
 

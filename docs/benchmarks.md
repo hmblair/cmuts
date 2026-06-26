@@ -24,12 +24,15 @@ cmuts, rf-count, and shapemapper2 read different formats and take different flag
 is the single place that knows how to *run* each of them, so no benchmark
 re-implements any tool invocation, format conversion, or output parsing.
 
-The entry point is `reactivity(tool, count, norm, inputs, condition)`: given an
-`Inputs` struct (modified + untreated alignments in any of bam/cram/sam) and the
-two stage-parameter structs, it adapts each input to the format that tool needs
-(cmuts reads all natively; rf-count converts to BAM; shapemapper2 sorts/indexes
-to an indexed BAM), counts, and normalizes, returning a uniform `{ref: array}`.
-Two stage structs map to each tool's flags:
+The entry point is `reactivity(tool, count, norm, inputs, condition, out_h5)`:
+given an `Inputs` struct (modified + untreated alignments in any of bam/cram/sam)
+and the two stage-parameter structs, it adapts each input to the format that tool
+needs (cmuts reads all natively; rf-count converts to BAM; shapemapper2
+sorts/indexes to an indexed BAM), counts, and normalizes, and writes a unified
+HDF5 (`/names`, `/reactivity` `(n_ref, length)`, and `/reads` `(n_ref,)` —
+per-reference depth, the max post-filter per-position coverage). It applies no
+coverage floor of its own; filtering on `/reads` is the consumer's choice. Load
+it with `read_profiles`. Two stage structs map to each tool's flags:
 
 - **`CountParams`** — count-stage knobs (quality thresholds, collapse, cmuts
   spread mode, and a few tool-specific knobs).
@@ -41,9 +44,9 @@ configurations. The two scoring scripts share one map-seq counting config (`MAP`
 defined in each): insertions off, deletions on and right-aligned, collapse 2,
 mapq/phred 10, eval-surrounding (cmuts quality window 1), duplicates kept; only
 the cmuts spread mode and the normalization vary across the cmuts datasets.
-`external.build_profiles(datasets, inputs_by_condition, ...)` runs a dict of
-`(tool, CountParams, NormParams)` recipes for each condition and returns the
-per-reference arrays.
+`external.build_profiles(datasets, inputs_by_condition, outdir, ...)` runs a dict
+of `(tool, CountParams, NormParams)` recipes for each condition, writes one
+unified HDF5 per (dataset, condition) under `outdir`, and returns their paths.
 
 ## Environment
 

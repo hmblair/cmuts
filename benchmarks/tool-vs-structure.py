@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import os
+import tempfile
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -334,15 +335,20 @@ def main() -> None:
         "2A3": external.Inputs(args.fasta, args.mod_2a3, args.nomod_2a3),
     }
     built = external.build_profiles(
-        _datasets(args.threads), inputs, sm_dir=os.environ.get("SM2_DIR")
+        _datasets(args.threads),
+        inputs,
+        Path(tempfile.mkdtemp(prefix="tool-vs-structure-")),
+        sm_dir=os.environ.get("SM2_DIR"),
     )
-    profiles: dict[tuple[str, str], dict[str, np.ndarray]] = {
-        (dataset, cond): built[dataset][cond]
-        for dataset in DATASETS
-        if dataset in built
-        for cond in CONDITIONS
-        if cond in built[dataset]
-    }
+    profiles: dict[tuple[str, str], dict[str, np.ndarray]] = {}
+    for dataset in DATASETS:
+        if dataset not in built:
+            continue
+        for cond in CONDITIONS:
+            if cond not in built[dataset]:
+                continue
+            ref_names, react, _ = external.read_profiles(built[dataset][cond])
+            profiles[(dataset, cond)] = {ref_names[i]: react[i] for i in range(len(ref_names))}
     if not profiles:
         ap.error("no datasets built; need samtools, rf-count, and SM2_DIR for shapemapper2")
 

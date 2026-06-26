@@ -24,6 +24,7 @@ import argparse
 import csv
 import dataclasses
 import os
+import tempfile
 from pathlib import Path
 
 import external
@@ -104,7 +105,10 @@ def main() -> None:
         "2A3": external.Inputs(args.fasta, args.mod_2a3, args.nomod_2a3),
     }
     built = external.build_profiles(
-        _datasets(args.threads), inputs, sm_dir=os.environ.get("SM2_DIR")
+        _datasets(args.threads),
+        inputs,
+        Path(tempfile.mkdtemp(prefix="tool-vs-tool-")),
+        sm_dir=os.environ.get("SM2_DIR"),
     )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -119,8 +123,8 @@ def main() -> None:
                 print(f"  {tool_ds}: dataset unavailable, skipping")
                 continue
             for cond in CONDITIONS:
-                cmuts = external.to_array(built[cmuts_ds][cond], names, length)
-                tool = external.to_array(built[tool_ds][cond], names, length)
+                _, cmuts, _ = external.read_profiles(built[cmuts_ds][cond])
+                _, tool, _ = external.read_profiles(built[tool_ds][cond])
                 for i in range(len(names)):
                     cv, tv = cmuts[i], tool[i]
                     for pos in range(length):

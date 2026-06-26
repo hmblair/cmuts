@@ -267,7 +267,7 @@ def _bench(
     if tool == "shapemapper2" and not sm_dir:
         return None
 
-    work, count_json, norm_json = "_react_work", "_count.json", "_norm.json"
+    work, count_json, norm_json, out_h5 = "_react_work", "_count.json", "_norm.json", "_react.h5"
     with open(count_json, "w") as fh:
         json.dump(dataclasses.asdict(count), fh)
     with open(norm_json, "w") as fh:
@@ -293,18 +293,19 @@ def _bench(
         "DMS",
         "--workdir",
         work,
-        "--min-depth",
-        "1",
+        "--out",
+        out_h5,
     ]
     if sm_dir:
         cmd += ["--sm-dir", sm_dir]
 
     def reset() -> None:
         shutil.rmtree(work, ignore_errors=True)
+        Path(out_h5).unlink(missing_ok=True)
 
     t, m = measure(cmd, runs, pre=reset)
     shutil.rmtree(work, ignore_errors=True)
-    for f in (count_json, norm_json):
+    for f in (count_json, norm_json, out_h5):
         Path(f).unlink(missing_ok=True)
     _print_tool(f"{tool} [{fmt}]", t, m)
     return Result(case, tool, fmt, t, m)
