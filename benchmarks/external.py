@@ -74,7 +74,6 @@ class CountParams:
     min_length: int | None = None
     max_length: int | None = None  # cmuts --max-length (max read length)
     max_indel: int | None = None
-    quality_window: int | None = None  # cmuts --quality-window
     cmuts_spread: str = "default"  # cmuts core: default | nospread | uniform
     max_internal_match: int | None = None  # shapemapper parser only
 
@@ -209,8 +208,7 @@ def cmuts_core_command(
         cmd += ["--max-indel-length", str(params.max_indel)]
     if params.collapse and params.collapse > 1:
         cmd += ["--collapse", str(params.collapse)]
-    if params.quality_window is not None:
-        cmd += ["--quality-window", str(params.quality_window)]
+    cmd += ["--quality-window", "1" if params.eval_surrounding else "0"]
     if downsample:
         cmd += ["--downsample", str(downsample)]
     cmd += [str(b) for b in bams]

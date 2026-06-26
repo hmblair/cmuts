@@ -231,7 +231,6 @@ def _count_params(case: Case) -> external.CountParams:
         min_length=MIN_LENGTH,
         max_length=case.max_length,
         max_indel=MAX_INDEL,
-        quality_window=WINDOW,
         cmuts_spread="default",
     )
 

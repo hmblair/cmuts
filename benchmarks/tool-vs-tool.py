@@ -40,7 +40,6 @@ MAP = external.CountParams(
     deletions=True,
     collapse=2,
     eval_surrounding=True,
-    quality_window=1,
     cov_low_qual=True,
     min_mapq=10,
     min_phred=10,
