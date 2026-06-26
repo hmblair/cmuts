@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""Benchmark cmuts core against rf-count and shapemapper2.
+"""Benchmark the full reactivity pipeline of cmuts, rf-count, and shapemapper2.
 
-Measures wall-clock time and peak memory for cmuts core, rf-count
-(RNAFramework), and the shapemapper2 mutation parser/counter, across three
-sweeps: number of queries, number of references, and reference length.
+Measures wall-clock time and peak memory for each tool's whole pipeline (count +
+normalize, via `external.reactivity`), across three sweeps: number of queries,
+number of references, and reference length. Timing the full pipeline -- not just
+counting -- reflects what users actually run.
 
-cmuts reads BAM, CRAM, and SAM natively; the formats to benchmark are chosen
-with --formats (comma-separated, default bam). rf-count reads only BAM and
-shapemapper2 only SAM, so a requested non-native format adds a one-off samtools
-conversion to their native runtime (timed separately and added); the tools
-themselves are never re-run.
+Each tool is timed on each requested input format (--format, default bam).
+external.py adapts each format to what the tool needs (cmuts reads all natively;
+rf-count and shapemapper2 convert as required), so any conversion cost is part of
+the measured pipeline. Synthetic modified + untreated alignments are generated
+with `cmuts generate` and cached under ./.cases; the untreated sample is a copy
+of the modified one, so the reactivity values are degenerate but the work is
+representative for timing.
 
-With --convert, each non-BAM format is also reported as a "cmuts-via-bam" row:
-the samtools cost of converting it to BAM plus cmuts' BAM runtime, to compare
-pre-converting against reading the format directly.
-
-Synthetic data is generated with `cmuts generate` and cached under ./.cases.
 Results are printed and appended to a CSV (--output). Plotting is left to the
-figure sources, which can read the CSV.
+figure sources, which read the CSV.
 
 Hamish M. Blair, 2026
 """
@@ -26,6 +24,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
+import json
 import os
 import shutil
 import subprocess
@@ -37,8 +37,8 @@ from pathlib import Path
 import external
 
 # Quality/processing parameters, set to cmuts' defaults so cmuts runs out of the
-# box; rf-count and shapemapper2 are configured to match (see _profile_params),
-# and the synthetic data is generated with the same thresholds.
+# box; rf-count and shapemapper2 are configured to match (see _count_params), and
+# the synthetic data is generated with the same thresholds.
 MIN_MAPQ = 10
 MIN_PHRED = 10
 WINDOW = 2
@@ -49,8 +49,6 @@ COLLAPSE = 2
 FORMATS = ("bam", "cram", "sam")  # canonical order for parsing/dedup
 
 EXP_H5 = "expected.h5"  # cmuts generate ground-truth counts (unused downstream)
-CMUTS_H5 = "cmuts.h5"  # cmuts core output, removed after each run
-RF_DIR = "_rf_count"  # rf-count writes here; recreated each run
 
 SEP = " ─────────────────────────────"
 
@@ -151,23 +149,30 @@ class Result:
     tool: str
     fmt: str
     time_s: float
-    mem_mb: float | None  # None for convert+run sums (memory is not additive)
+    mem_mb: float
 
 
-def _print_tool(label: str, time_s: float, mem_mb: float | None = None) -> None:
+def _print_tool(label: str, time_s: float, mem_mb: float) -> None:
     print(f"   {label}:")
     print(f"    Execution time:    {time_s:.2f} seconds")
-    if mem_mb is not None:
-        print(f"    Peak memory usage: {mem_mb:.2f} MB")
+    print(f"    Peak memory usage: {mem_mb:.2f} MB")
 
 
 def generate(case: Case, formats: list[str]) -> None:
-    """Generate the requested synthetic alignments + reference FASTA, unless
-    already cached. All formats are produced in one invocation so the reads are
-    identical across them, so regenerate only when some requested file is missing."""
-    if all(Path(f"{case.base}.{fmt}").exists() for fmt in formats):
+    """Generate synthetic modified + untreated alignments (+ FASTA) for each
+    format, unless cached. The untreated sample is a copy of the modified one
+    (a distinct name so cmuts sees two samples); reactivity is degenerate but the
+    pipeline work is representative for timing."""
+    have = all(
+        Path(f"{case.base}.{fmt}").exists() and Path(f"{case.base}.nomod.{fmt}").exists()
+        for fmt in formats
+    )
+    if have:
         return
     fmt_flags = [f"--{fmt}" for fmt in formats]
+    # Removing EXP_H5 first avoids cmuts generate's "dataset already exists" when
+    # the cached ground-truth HDF5 is reused across cases; it is unused downstream.
+    Path(EXP_H5).unlink(missing_ok=True)
     subprocess.run(
         [
             "cmuts",
@@ -200,45 +205,23 @@ def generate(case: Case, formats: list[str]) -> None:
             str(COLLAPSE),
             *fmt_flags,
         ],
-        check=True,
+        check=False,
     )
+    missing = [f"{case.base}.{fmt}" for fmt in formats if not Path(f"{case.base}.{fmt}").exists()]
+    if missing:
+        raise RuntimeError(f"cmuts generate did not produce {missing}")
+    for fmt in formats:
+        src, dst = f"{case.base}.{fmt}", f"{case.base}.nomod.{fmt}"
+        shutil.copyfile(src, dst)
+        for ext in (".bai", ".crai"):  # copy the index companion if cmuts generate wrote one
+            if Path(src + ext).exists():
+                shutil.copyfile(src + ext, dst + ext)
 
 
-def _bench_cmuts(case: Case, fmt: str, runs: int) -> Result:
-    cmd = [
-        "cmuts",
-        "core",
-        "--fasta",
-        case.fasta,
-        "--output",
-        CMUTS_H5,
-        "--min-mapq",
-        str(MIN_MAPQ),
-        "--min-phred",
-        str(MIN_PHRED),
-        "--quality-window",
-        str(WINDOW),
-        "--min-length",
-        str(MIN_LENGTH),
-        "--max-length",
-        str(case.max_length),
-        "--max-indel-length",
-        str(MAX_INDEL),
-        "--threads",
-        str(case.threads),
-        "--overwrite",
-        f"{case.base}.{fmt}",
-    ]
-    t, m = measure(cmd, runs, pre=lambda: shutil.rmtree(CMUTS_H5, ignore_errors=True))
-    shutil.rmtree(CMUTS_H5, ignore_errors=True)
-    _print_tool(f"cmuts [{fmt}]", t, m)
-    return Result(case, "cmuts", fmt, t, m)
-
-
-def _profile_params(case: Case) -> external.Params:
-    """Quality/processing settings applied to every external tool, matching the
-    cmuts core flags above so all three measure the same work."""
-    return external.Params(
+def _count_params(case: Case) -> external.CountParams:
+    """Count-stage settings for every tool, mirroring the cmuts core flags the
+    synthetic data was generated with so all three measure the same work."""
+    return external.CountParams(
         insertions=True,
         right_align_deletions=True,
         collapse=COLLAPSE,
@@ -249,152 +232,92 @@ def _profile_params(case: Case) -> external.Params:
         min_mapq=MIN_MAPQ,
         min_phred=MIN_PHRED,
         min_length=MIN_LENGTH,
+        max_length=case.max_length,
         max_indel=MAX_INDEL,
+        quality_window=WINDOW,
+        cmuts_spread="default",
         max_edit_distance=1.0,
         median_quality=0,
     )
 
 
-def _bench_rf_count(case: Case, runs: int) -> tuple[float, float]:
-    """Time rf-count on its native BAM input; returns (time_s, mem_mb)."""
-
-    def reset() -> None:
-        shutil.rmtree(RF_DIR, ignore_errors=True)
-        os.mkdir(RF_DIR)
-
-    cmd = external.rfcount_command(f"{case.base}.bam", case.fasta, RF_DIR, _profile_params(case))
-    t, m = measure(cmd, runs, pre=reset)
-    _print_tool("rf-count [bam] (native run)", t, m)
-    return t, m
+def _datasets(case: Case) -> list[tuple[str, external.CountParams, external.NormParams]]:
+    """One timing dataset per tool: (tool, count params, norm params)."""
+    count = _count_params(case)
+    return [
+        ("cmuts", count, external.NormParams(cmuts_norm="ubr")),
+        ("rnaframework", count, external.NormParams(rf_scoring=3, rf_norm_method=1)),
+        ("shapemapper2", count, external.NormParams()),
+    ]
 
 
-def _bench_shapemapper(case: Case, sm_dir: str, runs: int) -> tuple[float, float]:
-    """Time shapemapper2 on its native SAM input; returns (time_s, mem_mb)."""
-    parsed, counts, sam_in = "_sm_parsed.mut", "_sm_counts.txt", "_sm_input.sam"
-
-    # Drop unmapped reads up front (untimed), matching the input rf-count/cmuts see.
-    external.samtools_view_mapped(f"{case.base}.sam", sam_in)
-
-    script = external.shapemapper_command(
-        sam_in, parsed, counts, case.length, sm_dir, _profile_params(case)
-    )
-
-    def reset() -> None:
-        for f in (parsed, counts):
-            Path(f).unlink(missing_ok=True)
-
-    t, m = measure([], runs, shell_script=script, pre=reset)
-    for f in (parsed, counts, sam_in):
-        Path(f).unlink(missing_ok=True)
-    _print_tool("shapemapper2 [sam] (native run)", t, m)
-    return t, m
-
-
-def _time_conversion(case: Case, src_fmt: str, dst_fmt: str, runs: int) -> tuple[float, float]:
-    """Time a one-off samtools conversion of the case's src_fmt file to dst_fmt
-    ('bam' or 'sam'); returns (time_s, mem_mb)."""
-    src = f"{case.base}.{src_fmt}"
-    if dst_fmt == "bam":
-        out = "_conv.bam"
-        cmd = ["samtools", "view", "-@", str(case.threads), "-T", case.fasta, "-b", "-o", out, src]
-        t, m = measure(cmd, runs, pre=lambda: Path(out).unlink(missing_ok=True))
-    else:  # sam: keep mapped reads only, matching shapemapper2's native input
-        out = "_conv.sam"
-        script = f"samtools view -h -F 4 -T {case.fasta} {src} > {out}"
-        t, m = measure([], runs, shell_script=script, pre=lambda: Path(out).unlink(missing_ok=True))
-    Path(out).unlink(missing_ok=True)
-    return t, m
-
-
-def _bench_external_formats(
+def _bench(
+    dataset: tuple[str, external.CountParams, external.NormParams],
+    fmt: str,
     case: Case,
-    formats: list[str],
+    sm_dir: str,
     runs: int,
-    rf: tuple[float, float] | None,
-    sm: tuple[float, float] | None,
-) -> list[Result]:
-    """For BAM-only rf-count and SAM-only shapemapper2, report each requested
-    format: the native run alone when the format matches the tool's input, else
-    the native runtime plus a one-off samtools conversion. The tools are not re-run."""
+) -> Result | None:
+    """Time one tool's full reactivity pipeline on one input format, via the
+    `external.py reactivity` subprocess under GNU time. Returns None if the tool
+    is unavailable. `--min-depth 1` counts every reference with reads."""
+    tool, count, norm = dataset
+    if tool == "rnaframework" and not external.rfcount_available():
+        return None
+    if tool == "shapemapper2" and not sm_dir:
+        return None
+
+    work, count_json, norm_json = "_react_work", "_count.json", "_norm.json"
+    with open(count_json, "w") as fh:
+        json.dump(dataclasses.asdict(count), fh)
+    with open(norm_json, "w") as fh:
+        json.dump(dataclasses.asdict(norm), fh)
+
+    cmd = [
+        sys.executable,
+        external.__file__,
+        "reactivity",
+        "--tool",
+        tool,
+        "--count",
+        count_json,
+        "--norm",
+        norm_json,
+        "--fasta",
+        case.fasta,
+        "--mod",
+        f"{case.base}.{fmt}",
+        "--nomod",
+        f"{case.base}.nomod.{fmt}",
+        "--condition",
+        "DMS",
+        "--workdir",
+        work,
+        "--min-depth",
+        "1",
+    ]
+    if sm_dir:
+        cmd += ["--sm-dir", sm_dir]
+
+    def reset() -> None:
+        shutil.rmtree(work, ignore_errors=True)
+
+    t, m = measure(cmd, runs, pre=reset)
+    shutil.rmtree(work, ignore_errors=True)
+    for f in (count_json, norm_json):
+        Path(f).unlink(missing_ok=True)
+    _print_tool(f"{tool} [{fmt}]", t, m)
+    return Result(case, tool, fmt, t, m)
+
+
+def profile(case: Case, formats: list[str], runs: int, sm_dir: str) -> list[Result]:
+    """Time every (tool, format) for one case."""
     results: list[Result] = []
-    if rf is None and sm is None:
-        return results
-
-    # A FASTA index is needed for CRAM decode and samtools -T.
-    subprocess.run(
-        ["samtools", "faidx", case.fasta],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    for tool, native, base in (("rf-count", "bam", rf), ("shapemapper2", "sam", sm)):
-        if base is None:
-            continue
-        base_t, base_m = base
+    for dataset in _datasets(case):
         for fmt in formats:
-            if fmt == native:
-                results.append(Result(case, tool, native, base_t, base_m))
-                continue
-            ct, cm = _time_conversion(case, fmt, native, runs)
-            _print_tool(f"samtools {fmt}->{native}", ct, cm)
-            _print_tool(f"{tool} [{fmt}] (= {fmt}->{native} + {native} run)", ct + base_t)
-            results.append(Result(case, "samtools", f"{fmt}->{native}", ct, cm))
-            results.append(Result(case, tool, fmt, ct + base_t, None))
-
-    return results
-
-
-def _bench_cmuts_via_bam(
-    case: Case, formats: list[str], runs: int, cmuts_times: dict[str, float]
-) -> list[Result]:
-    """For each non-BAM format, measure the alternative of converting it to BAM
-    with samtools and then running cmuts, to compare against reading the format
-    directly. cmuts reads every format natively, so the question is whether the
-    one-off conversion ever beats the (small) direct-read overhead. The cmuts BAM
-    runtime is reused, not re-run; the summed convert+process time is recorded
-    under the "cmuts-via-bam" tool so the CSV holds both sides of the comparison."""
-    targets = [f for f in formats if f != "bam"]
-    bam_time = cmuts_times.get("bam")
-    if not targets or bam_time is None:
-        return []
-
-    results: list[Result] = []
-    # A FASTA index is needed for CRAM decode and samtools -T.
-    subprocess.run(
-        ["samtools", "faidx", case.fasta],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    for fmt in targets:
-        ct, cm = _time_conversion(case, fmt, "bam", runs)
-        _print_tool(f"samtools {fmt}->bam", ct, cm)
-        _print_tool(f"cmuts via bam [{fmt}] (= {fmt}->bam + bam run)", ct + bam_time)
-        results.append(Result(case, "samtools", f"{fmt}->bam", ct, cm))
-        results.append(Result(case, "cmuts-via-bam", fmt, ct + bam_time, None))
-
-    return results
-
-
-def profile(case: Case, formats: list[str], runs: int, sm_dir: str, convert: bool) -> list[Result]:
-    results: list[Result] = []
-
-    # cmuts reads BAM, CRAM, and SAM natively, so benchmark every requested format.
-    cmuts_times: dict[str, float] = {}
-    for fmt in formats:
-        r = _bench_cmuts(case, fmt, runs)
-        cmuts_times[fmt] = r.time_s
-        results.append(r)
-
-    # rf-count (native BAM) and shapemapper2 (native SAM) run once on their input.
-    rf = _bench_rf_count(case, runs) if shutil.which("rf-count") else None
-    sm = _bench_shapemapper(case, sm_dir, runs) if sm_dir else None
-    results += _bench_external_formats(case, formats, runs, rf, sm)
-
-    # Optionally compare direct reads against converting to BAM first.
-    if convert:
-        results += _bench_cmuts_via_bam(case, formats, runs, cmuts_times)
-
+            r = _bench(dataset, fmt, case, sm_dir, runs)
+            if r is not None:
+                results.append(r)
     return results
 
 
@@ -446,11 +369,11 @@ def _run_sweep(spec, args, output: Path, all_rows: list[Result]) -> None:
         print(f"   {var_label + ':':<18}{v}")
         print(SEP)
         # Data is thread-independent, so generate once and reuse for each count.
-        generate(make_case(v, args.threads[0]), args.gen_formats)
+        generate(make_case(v, args.threads[0]), args.formats)
         for t in args.threads:
             print(f"   {'THREADS:':<18}{t}")
             case = make_case(v, t)
-            rows = profile(case, args.formats, args.runs, args.shapemapper_dir, args.convert)
+            rows = profile(case, args.formats, args.runs, args.shapemapper_dir)
             _append_csv(output, rows, args.runs)
             all_rows.extend(rows)
             print(SEP)
@@ -492,7 +415,7 @@ def _append_csv(path: Path, rows: list[Result], runs: int) -> None:
                     r.case.length,
                     runs,
                     f"{r.time_s:.4f}",
-                    "" if r.mem_mb is None else f"{r.mem_mb:.2f}",
+                    f"{r.mem_mb:.2f}",
                 ]
             )
         fh.flush()
@@ -540,12 +463,6 @@ def main() -> None:
         metavar="LIST",
         help="Comma-separated input formats to benchmark (bam,cram,sam); default: bam",
     )
-    p.add_argument(
-        "--convert",
-        action="store_true",
-        help="Also measure converting each non-BAM format to BAM (samtools) then running "
-        "cmuts, to compare against reading it directly. Forces BAM into the benchmark.",
-    )
     p.add_argument("--shapemapper-dir", default="", metavar="DIR", help="ShapeMapper2 install dir")
     p.add_argument(
         "--output",
@@ -568,20 +485,6 @@ def main() -> None:
     args.formats = [f for f in FORMATS if f in requested]  # canonical order, deduped
     if not args.formats:
         sys.exit("Nothing to do: --formats is empty.")
-
-    # The --convert comparison needs cmuts' direct BAM runtime as the baseline, so
-    # ensure BAM is benchmarked (and generated) even if the user didn't request it.
-    if args.convert and "bam" not in args.formats:
-        args.formats = [f for f in FORMATS if f in (*args.formats, "bam")]
-
-    # rf-count and shapemapper2 run on their native BAM/SAM, so those must exist
-    # even when not benchmarked directly (they back the conversion-cost rows).
-    gen = set(args.formats)
-    if shutil.which("rf-count"):
-        gen.add("bam")
-    if args.shapemapper_dir:
-        gen.add("sam")
-    args.gen_formats = [f for f in FORMATS if f in gen]
 
     global TIME_BIN
     TIME_BIN = _gnu_time_bin()
