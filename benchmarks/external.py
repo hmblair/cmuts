@@ -1,20 +1,21 @@
-"""Shared invocation and output parsing for the external comparison tools.
+"""The unified tool layer for the benchmarks.
 
-cmuts is benchmarked against rf-count (RNAFramework) and shapemapper2. Those two
-read different formats and take different flags; this module is the single place
-that knows how to *call* each tool and *parse* its output, so the profile,
-correctness, and accuracy benchmarks do not each re-implement it.
+cmuts, rf-count (RNAFramework), and shapemapper2 read different formats and take
+different flags. This module is the single place that knows how to *run* each
+tool's full reactivity pipeline and return a uniform per-reference array, so the
+timing and scoring benchmarks re-implement no tool invocation or format
+conversion.
 
-Quality/processing knobs live in `Params` and are mapped to each tool's own
-flags here. Every benchmark passes the `Params` matching its intent:
-
-    profile      mirrors the synthetic-data generation (counts insertions)
-    correctness  matches cmuts defaults so the rate is the same quantity
-    accuracy     tunes each tool for accuracy (its standard mutation set)
+The entry point is `reactivity(tool, count, norm, inputs, condition)`: it adapts
+the inputs to whatever format `tool` needs, counts, and normalizes. Count- and
+normalize-stage knobs live in `CountParams` / `NormParams` and are mapped to each
+tool's flags here; callers own the actual configurations (which datasets, which
+params).
 
 Tools are resolved from the environment so a machine without them still runs the
 cmuts-only paths:
 
+    CMUTS       cmuts          (default: "cmuts" on PATH)
     RF_COUNT    rf-count       (default: "rf-count" on PATH)
     RF_RCTOOLS  rf-rctools     (default: "rf-rctools" on PATH)
     RF_NORM     rf-norm        (default: "rf-norm" on PATH)
@@ -27,7 +28,6 @@ Hamish M. Blair, 2026
 
 from __future__ import annotations
 
-import functools
 import os
 import shutil
 import subprocess
@@ -35,22 +35,26 @@ import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
+# numpy is imported lazily in the functions that build arrays, so paths that only
+# build/run commands do not pay its import cost. The type annotations still refer
+# to np.ndarray, resolved here for type-checkers/linters without a runtime import.
+if TYPE_CHECKING:
+    import numpy as np
 
 # A position needs at least this many reads for a rate to be meaningful.
 MIN_DEPTH = 10
 
 
 @dataclass
-class Params:
-    """Quality/processing knobs, mapped to each tool's flags by the builders below.
+class CountParams:
+    """Count-stage knobs, mapped to each tool's count flags by the builders below.
 
-    The quality fields default to None: the corresponding flag is then omitted
-    and the tool's own default applies. Fields with concrete defaults are always
-    emitted, so a `Params()` is a sensible baseline (insertions counted, deletions
-    right-aligned, consecutive mods collapsed within 1, low-quality coverage not
-    counted).
+    Fields defaulting to None omit their flag (the tool's own default applies);
+    fields with concrete defaults are always emitted, so `CountParams()` is a
+    sensible baseline. A few fields apply to only one tool (noted inline) and are
+    ignored by the others.
     """
 
     insertions: bool = True
@@ -65,10 +69,38 @@ class Params:
     min_mapq: int | None = None
     min_phred: int | None = None
     min_length: int | None = None
+    max_length: int | None = None  # cmuts --max-length (max read length)
     max_indel: int | None = None
+    quality_window: int | None = None  # cmuts --quality-window
+    cmuts_spread: str = "default"  # cmuts core: default | nospread | uniform
     max_edit_distance: float | None = None  # rf-count only
     median_quality: int | None = None  # rf-count only
     max_internal_match: int | None = None  # shapemapper parser only
+
+
+@dataclass
+class NormParams:
+    """Normalize-stage knobs, mapped to each tool's normalize step.
+
+    cmuts uses `cmuts_norm`/`cmuts_per_reference`; rf-count uses
+    `rf_scoring`/`rf_norm_method`; shapemapper2 normalizes internally (its only
+    knob, DMS vs SHAPE, is derived from the condition). `cmuts_norm == "sm"`
+    resolves to `sm-dms`/`sm-shape` by condition.
+    """
+
+    cmuts_norm: str = "ubr"  # ubr | outlier | sm-dms | sm-shape | sm
+    cmuts_per_reference: bool = False
+    rf_scoring: int = 3  # rf-norm -sm
+    rf_norm_method: int = 1  # rf-norm -nm
+
+
+@dataclass
+class Inputs:
+    """Alignment inputs for a reactivity run (any of bam/cram/sam)."""
+
+    fasta: Path
+    mod: Path
+    nomod: Path | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -90,18 +122,13 @@ def samtools_bin() -> str:
     return os.environ.get("SAMTOOLS", "samtools")
 
 
-def samtools_view_mapped(
-    src, out_sam, *, region: str | None = None, samtools: str | None = None
-) -> None:
-    """Write the mapped reads of `src` (BAM/CRAM/SAM) to `out_sam` as SAM, with
-    header. Optionally restrict to one reference `region`. Untimed input prep
-    that mirrors the unmapped-read filtering rf-count/cmuts apply internally.
-    """
-    cmd = [samtools or samtools_bin(), "view", "-h", "-F", "4", str(src)]
-    if region:
-        cmd.append(region)
-    with open(out_sam, "w") as fh:
-        subprocess.run(cmd, stdout=fh, check=True)
+def _strip_ext(path) -> str:
+    """Drop a trailing .bam/.cram/.sam extension (cmuts sample identifiers)."""
+    s = str(path)
+    for ext in (".bam", ".cram", ".sam"):
+        if s.endswith(ext):
+            return s[: -len(ext)]
+    return s
 
 
 def covered_references(bam, *, min_reads: int, samtools: str | None = None) -> set[str]:
@@ -122,6 +149,107 @@ def covered_references(bam, *, min_reads: int, samtools: str | None = None) -> s
 
 
 # ---------------------------------------------------------------------------
+# cmuts
+# ---------------------------------------------------------------------------
+
+
+def cmuts_bin() -> str:
+    return os.environ.get("CMUTS", "cmuts")
+
+
+# cmuts core spread mode -> flag ("" / None = the mutation-informed default).
+_CMUTS_SPREAD = {"default": None, "nospread": "--no-spread", "uniform": "--uniform-spread"}
+
+
+def cmuts_core_command(
+    bams, fasta, out_h5, params: CountParams, *, downsample: int = 0
+) -> list[str]:
+    """Build the `cmuts core` argv from `params` (counts one or more BAM/CRAM/SAM,
+    which cmuts reads natively, into one HDF5)."""
+    cmd = [
+        cmuts_bin(),
+        "core",
+        "--threads",
+        str(params.threads),
+        "-f",
+        str(fasta),
+        "-o",
+        str(out_h5),
+        "--overwrite",
+    ]
+    spread = _CMUTS_SPREAD[params.cmuts_spread]
+    if spread:
+        cmd.append(spread)
+    if not params.insertions:
+        cmd.append("--no-insertions")
+    if params.min_mapq is not None:
+        cmd += ["--min-mapq", str(params.min_mapq)]
+    if params.min_phred is not None:
+        cmd += ["--min-phred", str(params.min_phred)]
+    if params.min_length is not None:
+        cmd += ["--min-length", str(params.min_length)]
+    if params.max_length is not None:
+        cmd += ["--max-length", str(params.max_length)]
+    if params.max_indel is not None:
+        cmd += ["--max-indel-length", str(params.max_indel)]
+    if params.collapse and params.collapse > 1:
+        cmd += ["--collapse", str(params.collapse)]
+    if params.quality_window is not None:
+        cmd += ["--quality-window", str(params.quality_window)]
+    if downsample:
+        cmd += ["--downsample", str(downsample)]
+    cmd += [str(b) for b in bams]
+    return cmd
+
+
+def run_cmuts_normalize(
+    counts_h5,
+    mod,
+    nomod,
+    fasta,
+    condition: str,
+    norm: str,
+    per_reference: bool,
+    out_h5,
+    *,
+    min_depth: int = MIN_DEPTH,
+):
+    """`cmuts normalize` (mod vs nomod) -> the (n_ref, length) reactivity array.
+
+    `condition` names the experiment and output HDF5 group; `per_reference`
+    selects rf-norm-like per-reference normalization. Samples are identified by
+    their BAM basename (without extension), as written by `cmuts core`.
+    """
+    import h5py
+    import numpy as np
+
+    experiment = [condition, f"mod={_strip_ext(mod)}"]
+    if nomod is not None:
+        experiment.append(f"nomod={_strip_ext(nomod)}")
+    cmd = [
+        cmuts_bin(),
+        "normalize",
+        str(counts_h5),
+        "-o",
+        str(out_h5),
+        "--fasta",
+        str(fasta),
+        "--norm",
+        norm,
+        "--blank-cutoff",
+        str(min_depth),
+        "--experiment",
+        *experiment,
+        "--overwrite",
+    ]
+    if per_reference:
+        cmd.append("--per-reference-norm")
+    run_checked(cmd)
+    with h5py.File(out_h5, "r") as f:
+        return np.asarray(f[f"{condition}/reactivity"])
+
+
+# ---------------------------------------------------------------------------
 # rf-count (RNAFramework)
 # ---------------------------------------------------------------------------
 
@@ -133,7 +261,9 @@ def rfcount_available() -> bool:
     )
 
 
-def rfcount_command(bam, fasta, outdir, params: Params, *, overwrite: bool = True) -> list[str]:
+def rfcount_command(
+    bam, fasta, outdir, params: CountParams, *, overwrite: bool = True
+) -> list[str]:
     """Build the rf-count argv from `params`. Long flags throughout; this is the
     single home for the flag spelling the profile and correctness benchmarks
     both relied on.
@@ -174,7 +304,7 @@ def rfcount_command(bam, fasta, outdir, params: Params, *, overwrite: bool = Tru
     return cmd
 
 
-def run_rfcount(bam, fasta, outdir, params: Params) -> Path:
+def run_rfcount(bam, fasta, outdir, params: CountParams) -> Path:
     """Run rf-count and return the path to the resulting .rc file."""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -202,6 +332,8 @@ def _parse_rctools_view(text: str, *, min_depth: int = MIN_DEPTH) -> dict[str, n
     Each transcript is four lines: id, sequence, comma-separated raw counts,
     comma-separated coverage. rate = count / coverage (NaN below min_depth).
     """
+    import numpy as np
+
     rates: dict[str, np.ndarray] = {}
     lines = [ln for ln in text.splitlines() if ln.strip() != ""]
     i = 0
@@ -263,6 +395,8 @@ def parse_rfnorm(norm_dir) -> dict[str, np.ndarray]:
     rf-norm writes one <id>.xml per transcript (id = FASTA header); the
     <reactivity> element is comma-separated with NaN for unscored positions.
     """
+    import numpy as np
+
     rates: dict[str, np.ndarray] = {}
     for xml in Path(norm_dir).glob("*.xml"):
         root = ET.parse(xml).getroot()
@@ -323,7 +457,7 @@ def shapemapper_env(sm_dir: str) -> dict[str, str]:
     return env
 
 
-def _sm_parser_flags(params: Params) -> list[str]:
+def _sm_parser_flags(params: CountParams) -> list[str]:
     flags = ["--input_is_unpaired"]
     if params.min_mapq is not None:
         flags += ["-m", str(params.min_mapq)]
@@ -336,32 +470,33 @@ def _sm_parser_flags(params: Params) -> list[str]:
     return flags
 
 
-def shapemapper_command(sam, parsed, counts, length: int, sm_dir: str, params: Params) -> str:
-    """A bash one-liner (parser -> counter), with LD scoping, for timing in the
-    profile benchmark. The same parser flags as the per-reference runner.
-    """
-    parser, counter = shapemapper_paths(sm_dir)
-    libdir = _shapemapper_libdir(sm_dir)
-    ld = (
-        f'export LD_LIBRARY_PATH="{libdir}:${{LD_LIBRARY_PATH:-}}"; '
-        if Path(libdir).is_dir()
-        else ""
-    )
-    pflags = " ".join(_sm_parser_flags(params))
-    return (
-        f"{ld}{parser} -i {sam} -o {parsed} {pflags} && "
-        f"{counter} -i {parsed} -c {counts} -n {length} --warn_on_no_mapped"
-    )
+def read_fasta(path) -> list[tuple[str, str]]:
+    """Parse a FASTA into [(name, sequence)], the name taken up to first whitespace."""
+    out: list[tuple[str, str]] = []
+    name: str | None = None
+    seq: list[str] = []
+    for line in Path(path).read_text().splitlines():
+        if line.startswith(">"):
+            if name is not None:
+                out.append((name, "".join(seq)))
+            name, seq = line[1:].split()[0], []
+        elif line.strip():
+            seq.append(line.strip())
+    if name is not None:
+        out.append((name, "".join(seq)))
+    return out
 
 
 def parse_shapemapper_counts(
-    path, length: int, params: Params, *, min_depth: int = MIN_DEPTH
+    path, length: int, params: CountParams, *, min_depth: int = MIN_DEPTH
 ) -> np.ndarray:
     """Per-position mutation rate from a shapemapper2 counts file.
 
     rate = (selected mutation categories) / effective_depth. Insertion columns
     are excluded when params.insertions is False (to match cmuts --no-insertions).
     """
+    import numpy as np
+
     rate = np.full(length, np.nan)
     with open(path) as f:
         header = f.readline().rstrip("\n").split("\t")
@@ -391,21 +526,29 @@ def _count_reference(
     *,
     parser: str,
     counter: str,
-    params: Params,
+    params: CountParams,
     env: dict[str, str],
     samtools: str,
     workdir: Path,
-    prefix: str = "sm",
+    counts: Path,
+    sam_prefix: str = "sm",
+    reference: str | None = None,
 ) -> Path | None:
-    """Extract one reference's reads and run the shapemapper parser then counter.
+    """Extract one reference's reads and run the parser then counter.
 
-    Returns the per-position counts file, or None if extraction/counting failed.
+    Counts go to `counts` (kept per reference so they coexist); the SAM/`.mut`
+    intermediates (named from `sam_prefix`) are transient. `reference` is the
+    FASTA passed to `samtools view -T` so CRAM input decodes (ignored for BAM).
+    Returns the counts file, or None on failure.
     """
-    sam = workdir / f"{prefix}.sam"
-    parsed = workdir / f"{prefix}.mut"
-    counts = workdir / f"{prefix}-counts.txt"
+    sam = workdir / f"{sam_prefix}.sam"
+    parsed = workdir / f"{sam_prefix}.mut"
+    counts = Path(counts)
+    view_cmd = [samtools, "view", "-h", "-F", "4"]
+    if reference is not None:
+        view_cmd += ["-T", str(reference)]
     with open(sam, "w") as fh:
-        view = subprocess.run([samtools, "view", "-h", "-F", "4", str(bam), name], stdout=fh)
+        view = subprocess.run([*view_cmd, str(bam), name], stdout=fh)
     if view.returncode != 0:
         return None
     subprocess.run(
@@ -421,50 +564,96 @@ def _count_reference(
     return counts if (cp.returncode == 0 and counts.exists()) else None
 
 
+def run_shapemapper_counts(
+    bam,
+    fasta: list[tuple[str, str]],
+    sm_dir: str,
+    params: CountParams,
+    *,
+    references: set[str] | None = None,
+    reference: str | None = None,
+    samtools: str | None = None,
+    min_depth: int = MIN_DEPTH,
+    workdir=None,
+    prefix: str = "sm",
+) -> dict[str, Path]:
+    """Per-reference shapemapper parser+counter over a multi-reference BAM/CRAM.
+
+    The counter is single-reference (one `-n length`, no RNAME), so each covered
+    reference is extracted to its own SAM and counted separately. Returns
+    {ref_name: counts_file}, each distinct so all coexist. References below
+    `min_depth` reads are skipped via an idxstats pre-filter; `references`
+    overrides it (to count a control over its modified mate's references).
+    `reference` is the FASTA for `samtools view -T` (CRAM decode; ignored for
+    BAM). Requires an indexed BAM/CRAM.
+    """
+    parser, counter = shapemapper_paths(sm_dir)
+    st = samtools or samtools_bin()
+    env = shapemapper_env(sm_dir)
+    covered = (
+        references
+        if references is not None
+        else covered_references(bam, min_reads=min_depth, samtools=st)
+    )
+
+    wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="sm-counts-"))
+    wd.mkdir(parents=True, exist_ok=True)
+
+    out: dict[str, Path] = {}
+    for idx, (name, seq) in enumerate(fasta):
+        if name not in covered:
+            continue
+        counts = _count_reference(
+            bam,
+            name,
+            len(seq),
+            parser=parser,
+            counter=counter,
+            params=params,
+            env=env,
+            samtools=st,
+            workdir=wd,
+            counts=wd / f"{prefix}-{idx}-counts.txt",
+            sam_prefix=prefix,
+            reference=reference,
+        )
+        if counts is not None:
+            out[name] = counts
+    return out
+
+
 def run_shapemapper_rates(
     bam,
     fasta: list[tuple[str, str]],
     sm_dir: str,
-    params: Params,
+    params: CountParams,
     *,
+    reference: str | None = None,
     samtools: str | None = None,
     min_depth: int = MIN_DEPTH,
     workdir=None,
 ) -> dict[str, np.ndarray]:
     """Per-position raw mutation rate per reference from shapemapper2.
 
-    The shapemapper2 counter is single-reference (length via -n), so each
-    reference with coverage is processed independently: extract its reads, run
-    the parser then the counter, and read the per-position counts. References
-    below `min_depth` total reads are skipped (idxstats pre-filter), so the loop
-    is bounded by covered references rather than the whole FASTA. Requires an
-    indexed BAM. (For the normalized reactivity profile, see
+    Thin wrapper over `run_shapemapper_counts`: count each covered reference,
+    then read its per-position rate. (For the normalized reactivity profile, see
     `run_shapemapper_reactivity`.)
     """
-    parser, counter = shapemapper_paths(sm_dir)
-    st = samtools or samtools_bin()
-    covered = covered_references(bam, min_reads=min_depth, samtools=st)
-
-    wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="sm-"))
-    wd.mkdir(parents=True, exist_ok=True)
-    count = functools.partial(
-        _count_reference,
-        parser=parser,
-        counter=counter,
-        params=params,
-        env=shapemapper_env(sm_dir),
-        samtools=st,
-        workdir=wd,
+    lengths = {name: len(seq) for name, seq in fasta}
+    counts = run_shapemapper_counts(
+        bam,
+        fasta,
+        sm_dir,
+        params,
+        reference=reference,
+        samtools=samtools,
+        min_depth=min_depth,
+        workdir=workdir,
     )
-
-    rates: dict[str, np.ndarray] = {}
-    for name, seq in fasta:
-        if name not in covered:
-            continue
-        counts = count(bam, name, len(seq))
-        if counts is not None:
-            rates[name] = parse_shapemapper_counts(counts, len(seq), params, min_depth=min_depth)
-    return rates
+    return {
+        name: parse_shapemapper_counts(path, lengths[name], params, min_depth=min_depth)
+        for name, path in counts.items()
+    }
 
 
 def parse_shapemapper_profile(path, length: int) -> np.ndarray:
@@ -473,6 +662,8 @@ def parse_shapemapper_profile(path, length: int) -> np.ndarray:
     Prefers `Norm_profile` (normalized) and falls back to `Reactivity_profile`
     (background-subtracted but un-normalized). Non-finite entries become NaN.
     """
+    import numpy as np
+
     out = np.full(length, np.nan)
     with open(path) as f:
         header = f.readline().rstrip("\n").split("\t")
@@ -499,9 +690,10 @@ def run_shapemapper_reactivity(
     nomod_bam,
     fasta: list[tuple[str, str]],
     sm_dir: str,
-    params: Params,
+    params: CountParams,
     *,
     dms: bool = False,
+    reference: str | None = None,
     samtools: str | None = None,
     min_depth: int = MIN_DEPTH,
     workdir=None,
@@ -516,7 +708,6 @@ def run_shapemapper_reactivity(
     {ref_name: normalized reactivity}, falling back per reference to the
     un-normalized Reactivity_profile where normalization could not be applied.
     """
-    parser, counter = shapemapper_paths(sm_dir)
     env = shapemapper_env(sm_dir)
     py = shapemapper_python(sm_dir)
     make_prof = f"{sm_dir}/internals/bin/make_reactivity_profiles.py"
@@ -524,35 +715,49 @@ def run_shapemapper_reactivity(
     st = samtools or samtools_bin()
     if not os.path.exists(make_prof):
         return {}
-    covered = covered_references(mod_bam, min_reads=min_depth, samtools=st)
 
     wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="sm-react-"))
     (wd / "prof").mkdir(parents=True, exist_ok=True)
     (wd / "norm").mkdir(parents=True, exist_ok=True)
     lengths = {name: len(seq) for name, seq in fasta}
-    count = functools.partial(
-        _count_reference,
-        parser=parser,
-        counter=counter,
-        params=params,
-        env=env,
+
+    # 1. Count mod and the untreated control over the same references.
+    mod_counts = run_shapemapper_counts(
+        mod_bam,
+        fasta,
+        sm_dir,
+        params,
+        reference=reference,
         samtools=st,
+        min_depth=min_depth,
         workdir=wd,
+        prefix="mod",
+    )
+    nomod_counts = (
+        run_shapemapper_counts(
+            nomod_bam,
+            fasta,
+            sm_dir,
+            params,
+            references=set(mod_counts),
+            reference=reference,
+            samtools=st,
+            min_depth=min_depth,
+            workdir=wd,
+            prefix="nomod",
+        )
+        if nomod_bam is not None
+        else {}
     )
 
-    # 1. Per reference: count mod (+ untreated) and build a reactivity profile.
+    # 2. Per reference: build a reactivity profile (background-subtract).
     order: list[str] = []
     for name, seq in fasta:
-        if name not in covered:
+        if name not in mod_counts:
             continue
-        mod_counts = count(mod_bam, name, len(seq), prefix="mod")
-        if mod_counts is None:
-            continue
-        count_files = [str(mod_counts)]
-        if nomod_bam is not None:
-            nomod_counts = count(nomod_bam, name, len(seq), prefix="nomod")
-            if nomod_counts is not None:
-                count_files.append(str(nomod_counts))
+        count_files = [str(mod_counts[name])]
+        if name in nomod_counts:
+            count_files.append(str(nomod_counts[name]))
         ref_fa = wd / "ref.fa"
         ref_fa.write_text(f">{name}\n{seq}\n")
         idx = len(order)
@@ -575,7 +780,7 @@ def run_shapemapper_reactivity(
         if prof_path.exists():
             order.append(name)
 
-    # 2. Normalize all profiles together (one library-wide factor).
+    # 3. Normalize all profiles together (one library-wide factor).
     tonorm = [str(wd / "prof" / f"{i}.txt") for i in range(len(order))]
     normout = [str(wd / "norm" / f"{i}.txt") for i in range(len(order))]
     if tonorm:
@@ -584,10 +789,206 @@ def run_shapemapper_reactivity(
             ncmd.append("--dms")
         subprocess.run(ncmd, env=env, capture_output=True)
 
-    # 3. Read each reference's profile (normalized if produced, else raw).
+    # 4. Read each reference's profile (normalized if produced, else raw).
     out: dict[str, np.ndarray] = {}
     for i, name in enumerate(order):
         normed = Path(normout[i])
         src = normed if normed.exists() else Path(tonorm[i])
         out[name] = parse_shapemapper_profile(src, lengths[name])
     return out
+
+
+# ---------------------------------------------------------------------------
+# Unified interface
+# ---------------------------------------------------------------------------
+
+TOOLS = ("cmuts", "rnaframework", "shapemapper2")
+
+
+def _ensure_index(path, samtools: str) -> None:
+    """Index a coordinate-sorted BAM/CRAM if its companion index is missing."""
+    path = Path(path)
+    suffix = ".crai" if path.suffix.lower() == ".cram" else ".bai"
+    if not Path(str(path) + suffix).exists():
+        run_checked([samtools, "index", str(path)])
+
+
+def _prepare_input(tool: str, path, fasta, workdir, *, samtools: str | None = None) -> Path:
+    """Adapt one alignment to the format `tool` consumes, converting in `workdir`.
+
+    cmuts reads bam/cram/sam natively (passthrough); rf-count needs a BAM;
+    shapemapper2 needs an indexed bam/cram (a SAM is sorted+indexed to BAM). This
+    is the single home for the per-tool format handling, so callers just pass
+    whatever format they have.
+    """
+    st = samtools or samtools_bin()
+    path = Path(path)
+    ext = path.suffix.lower()
+    if tool == "cmuts":
+        return path
+    if tool == "rnaframework":
+        if ext == ".bam":
+            return path
+        out = Path(workdir) / f"{path.stem}.bam"
+        run_checked([st, "view", "-b", "-T", str(fasta), "-o", str(out), str(path)])
+        return out
+    if tool == "shapemapper2":
+        if ext in (".bam", ".cram"):
+            _ensure_index(path, st)
+            return path
+        out = Path(workdir) / f"{path.stem}.bam"
+        run_checked([st, "sort", "-o", str(out), str(path)])
+        run_checked([st, "index", str(out)])
+        return out
+    raise ValueError(f"unknown tool: {tool}")
+
+
+def reactivity(
+    tool: str,
+    count: CountParams,
+    norm: NormParams,
+    inputs: Inputs,
+    condition: str,
+    *,
+    sm_dir: str | None = None,
+    workdir=None,
+    min_depth: int = MIN_DEPTH,
+) -> dict[str, np.ndarray]:
+    """Run `tool`'s full reactivity pipeline on `inputs`, returning {ref: array}.
+
+    The single entry point: adapt each input to the format the tool needs
+    (conversion is part of the work), then count + normalize. `condition` (DMS /
+    2A3) names the experiment and selects condition-dependent knobs (shapemapper2
+    DMS mode; cmuts `cmuts_norm == "sm"` -> sm-dms/sm-shape).
+    """
+    st = samtools_bin()
+    wd = Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="react-"))
+    wd.mkdir(parents=True, exist_ok=True)
+    fasta_list = read_fasta(inputs.fasta)
+    mod = _prepare_input(tool, inputs.mod, inputs.fasta, wd, samtools=st)
+    nomod = (
+        _prepare_input(tool, inputs.nomod, inputs.fasta, wd, samtools=st)
+        if inputs.nomod is not None
+        else None
+    )
+    if tool == "cmuts":
+        return _cmuts_reactivity(
+            count, norm, inputs.fasta, mod, nomod, condition, fasta_list, wd, min_depth
+        )
+    if tool == "rnaframework":
+        return _rf_reactivity(count, norm, inputs.fasta, mod, nomod, wd, min_depth)
+    if tool == "shapemapper2":
+        if sm_dir is None:
+            raise ValueError("shapemapper2 requires sm_dir")
+        return run_shapemapper_reactivity(
+            mod,
+            nomod,
+            fasta_list,
+            sm_dir,
+            count,
+            dms=(condition == "DMS"),
+            reference=str(inputs.fasta),
+            samtools=st,
+            min_depth=min_depth,
+            workdir=wd,
+        )
+    raise ValueError(f"unknown tool: {tool}")
+
+
+def _cmuts_reactivity(count, norm, fasta, mod, nomod, condition, fasta_list, wd, min_depth):
+    bams = [mod] + ([nomod] if nomod is not None else [])
+    counts_h5 = Path(wd) / "cmuts-counts.h5"
+    run_checked(cmuts_core_command(bams, fasta, counts_h5, count))
+    method = norm.cmuts_norm
+    if method == "sm":
+        method = "sm-dms" if condition == "DMS" else "sm-shape"
+    arr = run_cmuts_normalize(
+        counts_h5,
+        mod,
+        nomod,
+        fasta,
+        condition,
+        method,
+        norm.cmuts_per_reference,
+        Path(wd) / "cmuts-norm.h5",
+        min_depth=min_depth,
+    )
+    return {name: arr[i] for i, (name, _) in enumerate(fasta_list) if i < arr.shape[0]}
+
+
+def _rf_reactivity(count, norm, fasta, mod, nomod, wd, min_depth):
+    rc_mod = run_rfcount(mod, fasta, Path(wd) / "rf-mod", count)
+    rc_nomod = (
+        run_rfcount(nomod, fasta, Path(wd) / "rf-nomod", count) if nomod is not None else None
+    )
+    norm_dir = run_rfnorm(
+        rc_mod,
+        Path(wd) / "rf-norm",
+        scoring_method=norm.rf_scoring,
+        norm_method=norm.rf_norm_method,
+        untreated=rc_nomod,
+    )
+    return parse_rfnorm(norm_dir)
+
+
+def to_array(per_ref: dict[str, np.ndarray], names: list[str], length: int) -> np.ndarray:
+    """Stack {ref_name: 1-D reactivity} into a (len(names), length) array in
+    `names` order; missing references/positions are NaN."""
+    import numpy as np
+
+    out = np.full((len(names), length), np.nan)
+    for i, name in enumerate(names):
+        v = per_ref.get(name)
+        if v is not None:
+            out[i, : len(v)] = v[:length]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Command-line entry point (lets profile.py time `reactivity` under GNU time)
+# ---------------------------------------------------------------------------
+
+
+def _main(argv: list[str]) -> int:
+    """Run `reactivity` from the command line so the profile benchmark can time a
+    tool's whole pipeline in a subprocess. Output is discarded (timing only)."""
+    import argparse
+    import json
+
+    p = argparse.ArgumentParser(prog="external.py")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("reactivity", help="run a tool's full reactivity pipeline")
+    r.add_argument("--tool", required=True, choices=TOOLS)
+    r.add_argument("--count", required=True, help="JSON file of CountParams fields")
+    r.add_argument("--norm", required=True, help="JSON file of NormParams fields")
+    r.add_argument("--fasta", required=True)
+    r.add_argument("--mod", required=True)
+    r.add_argument("--nomod", default=None)
+    r.add_argument("--condition", default="DMS")
+    r.add_argument("--sm-dir", default=None)
+    r.add_argument("--workdir", required=True)
+    r.add_argument("--min-depth", type=int, default=MIN_DEPTH)
+    args = p.parse_args(argv)
+
+    if args.cmd == "reactivity":
+        with open(args.count) as fh:
+            count = CountParams(**json.load(fh))
+        with open(args.norm) as fh:
+            norm = NormParams(**json.load(fh))
+        reactivity(
+            args.tool,
+            count,
+            norm,
+            Inputs(Path(args.fasta), Path(args.mod), Path(args.nomod) if args.nomod else None),
+            args.condition,
+            sm_dir=args.sm_dir,
+            workdir=args.workdir,
+            min_depth=args.min_depth,
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(_main(sys.argv[1:]))
