@@ -154,6 +154,20 @@ def covered_references(bam, *, min_reads: int, samtools: str | None = None) -> s
     }
 
 
+def _max_combined(arrays) -> float:
+    """Max over positions of the element-wise sum of per-position depth arrays --
+    the combined (mod + untreated) reference depth, matching cmuts' `reads`."""
+    import numpy as np
+
+    arrays = [np.asarray(a, dtype=float) for a in arrays if len(a)]
+    if not arrays:
+        return 0.0
+    total = np.zeros(max(len(a) for a in arrays))
+    for a in arrays:
+        total[: len(a)] += a
+    return float(total.max())
+
+
 # ---------------------------------------------------------------------------
 # cmuts
 # ---------------------------------------------------------------------------
@@ -353,19 +367,19 @@ def _parse_rctools_view(text: str, *, min_depth: int = MIN_DEPTH) -> dict[str, n
     return rates
 
 
-def rfcount_max_coverage(rc_path) -> dict[str, float]:
-    """Max per-position coverage per reference from an rf-count .rc (the
-    per-reference depth, matching cmuts' `reads`)."""
+def rfcount_coverage(rc_path) -> dict[str, np.ndarray]:
+    """Per-position coverage per reference from an rf-count .rc (rf-rctools view)."""
+    import numpy as np
+
     rc = os.environ.get("RF_RCTOOLS", "rf-rctools")
     proc = subprocess.run([rc, "view", str(rc_path)], capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"rf-rctools view failed: {proc.stderr[-2000:]}")
-    out: dict[str, float] = {}
+    out: dict[str, np.ndarray] = {}
     lines = [ln for ln in proc.stdout.splitlines() if ln.strip() != ""]
     i = 0
     while i + 4 <= len(lines):
-        cov = [float(x) for x in lines[i + 3].split(",") if x != ""]
-        out[lines[i].strip()] = max(cov) if cov else 0.0
+        out[lines[i].strip()] = np.array([float(x) for x in lines[i + 3].split(",") if x != ""])
         i += 4
     return out
 
@@ -542,23 +556,24 @@ def parse_shapemapper_counts(
     return rate
 
 
-def _counts_max_depth(path) -> float:
-    """Max `effective_depth` over positions in a shapemapper counts file (the
-    per-reference depth, matching cmuts' `reads`)."""
+def _counts_depth(path) -> np.ndarray:
+    """Per-position `effective_depth` from a shapemapper counts file."""
+    import numpy as np
+
     with open(path) as f:
         header = f.readline().rstrip("\n").split("\t")
         if "effective_depth" not in header:
-            return 0.0
+            return np.zeros(0)
         idx = header.index("effective_depth")
-        best = 0.0
+        vals: list[float] = []
         for line in f:
             cells = line.rstrip("\n").split("\t")
             if idx < len(cells):
                 try:
-                    best = max(best, float(cells[idx]))
+                    vals.append(float(cells[idx]))
                 except ValueError:
-                    pass
-        return best
+                    vals.append(0.0)
+    return np.asarray(vals)
 
 
 def _count_reference(
@@ -749,7 +764,8 @@ def run_shapemapper_reactivity(
     since one short reference is too sparse to normalize alone. Returns
     ({ref: normalized reactivity}, {ref: depth}), the reactivity falling back per
     reference to the un-normalized Reactivity_profile where normalization could
-    not be applied, and depth being the max effective_depth of the mod counts.
+    not be applied, and depth being the combined (mod + untreated) max
+    per-position effective_depth.
     """
     env = shapemapper_env(sm_dir)
     py = shapemapper_python(sm_dir)
@@ -839,7 +855,13 @@ def run_shapemapper_reactivity(
         normed = Path(normout[i])
         src = normed if normed.exists() else Path(tonorm[i])
         out[name] = parse_shapemapper_profile(src, lengths[name])
-    reads = {name: _counts_max_depth(path) for name, path in mod_counts.items()}
+    reads = {
+        name: _max_combined(
+            [_counts_depth(path)]
+            + ([_counts_depth(nomod_counts[name])] if name in nomod_counts else [])
+        )
+        for name, path in mod_counts.items()
+    }
     return out, reads
 
 
@@ -1004,7 +1026,13 @@ def _rf_reactivity(count, norm, fasta, mod, nomod, wd):
         norm_method=norm.rf_norm_method,
         untreated=rc_nomod,
     )
-    return parse_rfnorm(norm_dir), rfcount_max_coverage(rc_mod)
+    cov_mod = rfcount_coverage(rc_mod)
+    cov_nomod = rfcount_coverage(rc_nomod) if rc_nomod is not None else {}
+    reads = {
+        name: _max_combined([c] + ([cov_nomod[name]] if name in cov_nomod else []))
+        for name, c in cov_mod.items()
+    }
+    return parse_rfnorm(norm_dir), reads
 
 
 def to_array(per_ref: dict[str, np.ndarray], names: list[str], length: int) -> np.ndarray:
