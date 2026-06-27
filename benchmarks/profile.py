@@ -7,7 +7,7 @@ number of references, and reference length. Timing the full pipeline -- not just
 counting -- reflects what users actually run.
 
 Each tool is timed on each requested input format (--format, default bam).
-external.py adapts each format to what the tool needs (cmuts reads all natively;
+the external package adapts each format to what the tool needs (cmuts reads all natively;
 rf-count and shapemapper2 convert as required), so any conversion cost is part of
 the measured pipeline. Synthetic modified + untreated alignments are generated
 with `cmuts generate` and cached under ./.cases; the untreated sample is a copy
@@ -78,12 +78,13 @@ def _gnu_time_bin() -> str:
 TIME_BIN = ""  # set in main once samtools/time are confirmed available
 
 
-def measure(cmd, runs, *, cwd=None, shell_script=None, pre=None):
+def measure(cmd, runs, *, cwd=None, shell_script=None, pre=None, env=None):
     """Run a command `runs` times under GNU time; return (min_time_s, min_mem_mb).
 
     Time and memory minima are taken independently (as in the original harness).
     `pre` is an untimed callback run before each iteration (e.g. to clear output).
-    `shell_script` runs a string via `bash -c` instead of an argv list.
+    `shell_script` runs a string via `bash -c` instead of an argv list. `env`
+    overrides the subprocess environment (e.g. to set PYTHONPATH).
     """
     best_t = None
     best_m = None
@@ -97,6 +98,7 @@ def measure(cmd, runs, *, cwd=None, shell_script=None, pre=None):
             proc = subprocess.run(
                 [TIME_BIN, "--format", "%e %M", "-o", tmp, *inner],
                 cwd=cwd,
+                env=env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -252,9 +254,9 @@ def _bench(
     sm_dir: str,
     runs: int,
 ) -> Result | None:
-    """Time one tool's full reactivity pipeline on one input format, via the
-    `external.py reactivity` subprocess under GNU time. Returns None if the tool
-    is unavailable. `--min-depth 1` counts every reference with reads."""
+    """Time one tool's full reactivity pipeline on one input format, via a
+    `python -m external reactivity` subprocess under GNU time. Returns None if the
+    tool is unavailable."""
     tool, count, norm = dataset
     if tool == "rnaframework" and not external.rfcount_available():
         return None
@@ -269,7 +271,8 @@ def _bench(
 
     cmd = [
         sys.executable,
-        external.__file__,
+        "-m",
+        "external",
         "reactivity",
         "--tool",
         tool,
@@ -293,11 +296,17 @@ def _bench(
     if sm_dir:
         cmd += ["--sm-dir", sm_dir]
 
+    # The subprocess runs from the cached-data dir, so put the package's parent
+    # (the benchmarks dir) on PYTHONPATH for `python -m external` to resolve it.
+    env = dict(os.environ)
+    pkg_root = str(Path(external.__file__).resolve().parent.parent)
+    env["PYTHONPATH"] = pkg_root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+
     def reset() -> None:
         shutil.rmtree(work, ignore_errors=True)
         Path(out_h5).unlink(missing_ok=True)
 
-    t, m = measure(cmd, runs, pre=reset)
+    t, m = measure(cmd, runs, pre=reset, env=env)
     shutil.rmtree(work, ignore_errors=True)
     for f in (count_json, norm_json, out_h5):
         Path(f).unlink(missing_ok=True)

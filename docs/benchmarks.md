@@ -20,11 +20,18 @@ are run as plain scripts rather than `cmuts` subcommands.
 ## Shared tool layer
 
 cmuts, rf-count, and shapemapper2 read different formats and take different flags.
-[`benchmarks/external.py`](https://github.com/hmblair/cmuts/blob/master/benchmarks/external.py)
-is the single place that knows how to *run* each of them, so no benchmark
-re-implements any tool invocation, format conversion, or output parsing.
+The [`benchmarks/external/`](https://github.com/hmblair/cmuts/tree/master/benchmarks/external)
+package is the single place that knows how to *run* each of them, so no benchmark
+re-implements any tool invocation, format conversion, or output parsing. Each
+tool's complete usage lives in its own module — [`cmuts.py`](https://github.com/hmblair/cmuts/blob/master/benchmarks/external/cmuts.py),
+[`rnaframework.py`](https://github.com/hmblair/cmuts/blob/master/benchmarks/external/rnaframework.py),
+[`shapemapper.py`](https://github.com/hmblair/cmuts/blob/master/benchmarks/external/shapemapper.py),
+each exposing one `reactivity(...) -> ({ref: reactivity}, {ref: depth})` that
+adapts the input format, counts, and normalizes — with shared types/helpers in
+`common.py` and the dispatch + HDF5 I/O in `__init__.py`. To audit how one tool is
+driven, read that one module.
 
-The entry point is `reactivity(tool, count, norm, inputs, condition, out_h5)`:
+The package entry point is `reactivity(tool, count, norm, inputs, condition, out_h5)`:
 given an `Inputs` struct (modified + untreated alignments in any of bam/cram/sam)
 and the two stage-parameter structs, it adapts each input to the format that tool
 needs (cmuts reads all natively; rf-count converts to BAM; shapemapper2
@@ -39,7 +46,7 @@ it with `read_profiles`. Two stage structs map to each tool's flags:
 - **`NormParams`** — normalize-stage knobs (rf-norm scoring/method, cmuts norm
   method / per-reference).
 
-`external.py` holds **no** named-dataset registry — each benchmark owns its own
+The package holds **no** named-dataset registry — each benchmark owns its own
 configurations. The two scoring scripts share one map-seq counting config (`MAP`,
 defined in each): insertions off, deletions on and right-aligned, collapse 2,
 mapq/phred 10, eval-surrounding (cmuts quality window 1), duplicates kept; only
@@ -66,8 +73,8 @@ All three scripts invoke the external tools (each builds the reactivity it
 needs), so each needs samtools, optionally rf-count, and `SM2_DIR` for the
 shapemapper2 datasets. `tool-vs-structure` additionally requires **ciffy**,
 **biopython**, and **scipy** (cmuts already depends on the latter two). Input
-alignments should be coordinate-sorted; `external.py` indexes/converts them per
-tool as needed.
+alignments should be coordinate-sorted; the `external` package indexes/converts
+them per tool as needed.
 
 ## Running
 
