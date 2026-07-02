@@ -129,6 +129,7 @@ _shtab_cmuts_normalize_options=(
   "--no-insertions[Do not use insertions to compute the reactivity profile.]"
   "--no-deletions[Do not use deletions to compute the reactivity profile.]"
   "--sig[The significance level for correlation plots.]:sig:"
+  "--no-snr-curves[Skip computing the SNR-vs-read-depth curves. The reactivity HDF5 is still written in full\; only the plotting-prep curves (used by \`cmuts plot\`) are omitted. Much faster on reference-heavy datasets.]"
   ":The HDF5 file containing the input data.:_files -g '*.(h5)'"
 )
 

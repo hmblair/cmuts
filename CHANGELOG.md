@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `cmuts normalize --no-snr-curves` to skip the SNR-vs-read-depth curve computation. The reactivity HDF5 is still written in full (reactivity, SNR, error, coverage, terminations); only the plotting-prep curves consumed by `cmuts plot` are omitted. On reference-heavy datasets the curve step dominates runtime — it ran in `compute_snr_curves` well after the reactivities were already saved — so this makes reactivity-only runs return in seconds instead of over an hour. Shell completions regenerated.
+
 ## [1.4.11] - 2026-06-23
 
 ### Added
