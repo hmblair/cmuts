@@ -124,6 +124,13 @@ parser.add_argument(
     type=float,
     default=0.05,
 )
+parser.add_argument(
+    "--no-snr-curves",
+    help="Skip computing the SNR-vs-read-depth curves. The reactivity HDF5 is "
+    "still written in full; only the plotting-prep curves (used by `cmuts plot`) "
+    "are omitted. Much faster on reference-heavy datasets.",
+    action="store_true",
+)
 
 
 def _load_toml(path: str) -> dict[str, Any]:
@@ -241,14 +248,17 @@ def main():
 
     cmuts.save_groups(args.out, [(r.group.name, r.combined) for r in results])
 
-    # Print stats and save the SNR-vs-depth curves alongside each group. Plotting
-    # is decoupled: `cmuts plot <out.h5>` renders the figures from this file.
+    # Print stats and (unless skipped) save the SNR-vs-depth curves alongside each
+    # group. Plotting is decoupled: `cmuts plot <out.h5>` renders the figures from
+    # this file. The curves are plotting-prep only and can dominate runtime on
+    # reference-heavy datasets, so allow opting out with --no-snr-curves.
     for r in results:
         if len(results) > 1:
             print()
             print(cmuts.subtitle(r.group.name))
         cmuts.stats(r.mod, r.nomod, r.combined)
-        cmuts.compute_snr_curves(r.mod, r.nomod, r.combined).save(r.group.name, args.out)
+        if not args.no_snr_curves:
+            cmuts.compute_snr_curves(r.mod, r.nomod, r.combined).save(r.group.name, args.out)
 
 
 if __name__ == "__main__":
