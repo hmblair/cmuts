@@ -1012,7 +1012,7 @@ _SNR_DEPTH_MIN = 0.1  # relative-depth axis lower bound (0.1x current depth)
 _SNR_DEPTH_MAX = 10.0  # relative-depth axis upper bound (10x current depth)
 _SNR_DEPTH_POINTS = 1000  # samples along the relative-depth axis
 _SNR_PARETO_SPLITS = 200  # mod/nomod read-allocation fractions for the pareto frontier
-_SNR_PARETO_CHUNK = 500  # depth points per chunk (bounds the pareto loop's memory)
+_SNR_DEPTH_CHUNK = 100  # depth points per chunk (bounds the mod/nomod curve memory)
 _SNR_PRIOR = 0.001  # Beta prior on the mutation rate; sets the per-position variance floor
 
 _SNR_CURVE_KEYS = ("xi", "mod", "mod_sem", "nomod", "nomod_sem", "pareto", "pareto_sem")
@@ -1096,12 +1096,18 @@ def compute_snr_curves(
     snr_sem_at_1 = valid.std() / np.sqrt(len(valid)) if len(valid) > 1 else 0.0
 
     def mean_snr(mod_scales: np.ndarray, nomod_scales: np.ndarray) -> np.ndarray:
-        se2 = mod_err2[None] / mod_scales[:, None, None]
-        if nomod_err2 is not None:
-            se2 = se2 + nomod_err2[None] / nomod_scales[:, None, None]
-        se = np.sqrt(se2)
-        snr = np.where(se > 0, reactivity[None] / se, 0.0)
-        return np.nanmean(snr, axis=-1).mean(axis=-1)
+        # Chunk the depth axis so the intermediate ``(depth, refs, positions)``
+        # array stays bounded on reference-heavy libraries.
+        out = np.empty(len(mod_scales))
+        for i in range(0, len(mod_scales), _SNR_DEPTH_CHUNK):
+            sl = slice(i, i + _SNR_DEPTH_CHUNK)
+            se2 = mod_err2[None] / mod_scales[sl, None, None]
+            if nomod_err2 is not None:
+                se2 = se2 + nomod_err2[None] / nomod_scales[sl, None, None]
+            se = np.sqrt(se2)
+            snr = np.where(se > 0, reactivity[None] / se, 0.0)
+            out[sl] = np.nanmean(snr, axis=-1).mean(axis=-1)
+        return out
 
     def band(curve: np.ndarray) -> np.ndarray:
         ratio = np.where(snr_at_1 > 0, curve / snr_at_1, 0.0)
@@ -1119,15 +1125,24 @@ def compute_snr_curves(
     nomod_scales = np.maximum((xi * total_reads - mod_reads) / nomod_reads, 1e-10)
     snr_nomod = mean_snr(np.ones_like(nomod_scales), nomod_scales)
 
-    # Pareto frontier: best mod/nomod read split at each depth (chunked).
+    # Pareto frontier: best mod/nomod read split at each depth. At a split
+    # fraction ``f`` and relative depth ``xi``, ``mean_snr`` factorizes as
+    # ``sqrt(xi * total_reads) * G(f)`` with
+    # ``G(f) = mean_r nanmean_p [ reactivity / sqrt(a/f + b/(1-f)) ]``,
+    # where ``a = mod_err2 * mod_reads`` and ``b = nomod_err2 * nomod_reads``.
+    # Depth only rescales the objective by a positive constant, so the optimal
+    # split is depth-independent: evaluate ``G`` over the fraction grid once,
+    # then scale its maximum across all depths.
+    assert nomod_err2 is not None  # guaranteed by the nomod-is-None early return
     fracs = np.linspace(0.01, 0.99, _SNR_PARETO_SPLITS)
-    snr_pareto = np.empty(len(xi))
-    for i in range(0, len(xi), _SNR_PARETO_CHUNK):
-        xi_c = xi[i : i + _SNR_PARETO_CHUNK]
-        ms = xi_c[:, None] * total_reads * fracs[None, :] / mod_reads
-        ns = xi_c[:, None] * total_reads * (1 - fracs[None, :]) / nomod_reads
-        grid = np.column_stack([mean_snr(ms[:, j], ns[:, j]) for j in range(len(fracs))])
-        snr_pareto[i : i + _SNR_PARETO_CHUNK] = grid.max(axis=1)
+    a = mod_err2 * mod_reads
+    b = nomod_err2 * nomod_reads
+    g_of_f = np.empty(len(fracs))
+    for j, f in enumerate(fracs):
+        se = np.sqrt(a / f + b / (1 - f))
+        snr = np.where(se > 0, reactivity / se, 0.0)
+        g_of_f[j] = np.nanmean(snr, axis=-1).mean()
+    snr_pareto = np.sqrt(xi * total_reads) * g_of_f.max()
 
     return SNRCurves(
         xi=xi,
