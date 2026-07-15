@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Clone Space repo
         run: |
-          git clone https://hamishmilsonblair:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/daslab-stanford/cmuts space
+          GIT_LFS_SKIP_SMUDGE=1 git clone https://hamishmilsonblair:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/daslab-stanford/cmuts space
 
       - name: Update pinned commit SHA
         run: |
