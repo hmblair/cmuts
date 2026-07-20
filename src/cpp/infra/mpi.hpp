@@ -8,9 +8,11 @@
 #include <string>
 
 #ifdef MPI_BUILD
-extern "C" {
+// Suppress the deprecated MPI C++ bindings, whose `namespace MPI` collides
+// with our own MPI namespace below.
+#define OMPI_SKIP_MPICXX 1
+#define MPICH_SKIP_MPICXX 1
 #include <mpi.h>
-}
 #else
 #include <chrono>
 #endif

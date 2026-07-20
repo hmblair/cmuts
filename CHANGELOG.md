@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- `configure --mpi` failed to compile: including `<mpi.h>` pulled in OpenMPI's deprecated C++ bindings, whose `namespace MPI` collided with cmuts' own `MPI` namespace (redeclaration of `MPI::Init_thread`). The MPI header now defines `OMPI_SKIP_MPICXX`/`MPICH_SKIP_MPICXX` before the include to suppress those bindings, and drops the unneeded `extern "C"` wrapper (`mpi.h` supplies its own linkage guards)
 - `cmuts normalize` could be OOM-killed on reference-heavy datasets: the SNR-vs-read-depth plot materialized a `(grid × references × positions)` array (tens of GB at 10,000 grid points across thousands of references). The SNR curves are now computed once in the data layer with a memory-bounded reduction and a 1,000-point grid, and saved into the HDF5 for the plotter to render
 - Shell completions for `normalize`, `plot`, and `visualize` had drifted from the actual CLIs (they offered a nonexistent `--norm-independent`, and omitted `--groups` and several `cmuts visualize` flags). Completions are now generated from the argparse parsers via shtab, so they stay in sync
 - The reactivity HDF5 now stores per-position coverage and termination densities (previously reconstructed or zeroed on load), so `cmuts plot` reproduces the coverage and termination figures faithfully
