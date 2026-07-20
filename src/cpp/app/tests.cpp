@@ -394,8 +394,13 @@ void write_sam_header(size_t num_references, size_t ref_length, std::ostream& ou
 void generate_test_data(const MPI::Manager& mpi, size_t num_references, size_t reads_per_reference,
                         size_t reference_length, const Params& params, const std::string& sam_path,
                         const std::string& fasta_path, const std::string& hdf5_path, int seed) {
-    // Use provided seed if non-negative, otherwise use time-based seed
-    Random rng = (seed >= 0) ? Random(static_cast<unsigned>(seed)) : Random();
+    // Derive a base seed once. Each reference is then generated with its own
+    // Random seeded as base_seed + ref_ix, so output is reproducible and
+    // independent of the number of threads used to generate it.
+    unsigned base_seed =
+        (seed >= 0)
+            ? static_cast<unsigned>(seed)
+            : static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
 
     // Determine chunking for HDF5 output
     size_t chunk_size = std::min(DEFAULT_CHUNK_SIZE, num_references);
@@ -425,33 +430,69 @@ void generate_test_data(const MPI::Manager& mpi, size_t num_references, size_t r
     };
     HDF5::Memspace memspace = hdf5.memspace<float, 4>(dims, _path(sam_path) + "/counts-1d");
 
-    // Generate test data for each reference
+    // Generate test data for each reference. References within a chunk are
+    // independent -- each writes to its own slice of the in-memory HDF5 buffer
+    // (memspace.view(ref_in_chunk)) and uses its own RNG -- so the inner loop
+    // parallelizes cleanly. The HDF5 write stays serial: it happens once per
+    // chunk, after the parallel region's implicit barrier.
+    //
+    // cmuts assigns each reference an index by its position in the FASTA file,
+    // and that index must line up with the SAM @SQ header order and the HDF5
+    // expected-value layout (both keyed by ref_ix). The SAM header is written in
+    // order and records are matched by name, so SAM records may be emitted in any
+    // order; but the FASTA must stay in reference-index order. We therefore
+    // buffer each chunk's sequences by index and write the FASTA serially after
+    // the parallel region, while SAM records are appended under a lock inside it.
     for (size_t chunk_ix = 0; chunk_ix < num_chunks; chunk_ix++) {
-        for (size_t ref_in_chunk = 0; ref_in_chunk < chunk_size; ref_in_chunk++) {
-            size_t ref_ix = chunk_ix * chunk_size + ref_in_chunk;
-            if (ref_ix >= num_references)
-                break;
+
+        int32_t chunk_start = static_cast<int32_t>(chunk_ix * chunk_size);
+        int32_t refs_in_chunk = static_cast<int32_t>(
+            std::min(chunk_size, num_references - static_cast<size_t>(chunk_start)));
+
+        std::vector<std::string> fasta_seqs(static_cast<size_t>(refs_in_chunk));
+
+#ifdef HAVE_OPENMP
+#pragma omp parallel for schedule(dynamic)
+#endif
+        for (int32_t ref_in_chunk = 0; ref_in_chunk < refs_in_chunk; ref_in_chunk++) {
+            size_t ref_ix = static_cast<size_t>(chunk_start) + ref_in_chunk;
+
+            // Per-reference RNG, seeded deterministically
+            Random rng(base_seed + static_cast<unsigned>(ref_ix));
 
             // Generate random reference sequence
             seq_t reference = random_sequence(static_cast<int32_t>(reference_length), rng);
             std::string ref_name = "ref" + std::to_string(ref_ix);
 
-            // Write reference to FASTA
-            fasta.write(ref_name, HTS::str(reference));
-
             // Get view into expected output array for this reference
             view_t<float, 4> expected = memspace.view(ref_in_chunk);
 
-            // Generate alignments for this reference
+            // Generate alignments for this reference, accumulating the SAM
+            // records into a local buffer to minimize time under the lock.
+            std::string sam_records;
             for (size_t read_ix = 0; read_ix < reads_per_reference; read_ix++) {
                 AlignmentGenerator alignment(reference, params, expected, rng);
                 SamRecord record(ref_name, alignment);
-                sam << record.str() << "\n";
+                sam_records += record.str();
+                sam_records += "\n";
             }
+
+            // Stash the sequence at its index for the ordered FASTA write below.
+            fasta_seqs[ref_in_chunk] = HTS::str(reference);
+#ifdef HAVE_OPENMP
+#pragma omp critical(testgen_sam)
+#endif
+            sam << sam_records;
         }
 
-        // Write chunk to HDF5
-        memspace.safe_write(chunk_ix * chunk_size);
+        // Write the FASTA in reference-index order (see note above).
+        for (int32_t ref_in_chunk = 0; ref_in_chunk < refs_in_chunk; ref_in_chunk++) {
+            size_t ref_ix = static_cast<size_t>(chunk_start) + ref_in_chunk;
+            fasta.write("ref" + std::to_string(ref_ix), fasta_seqs[ref_in_chunk]);
+        }
+
+        // Write chunk to HDF5 (serial; every thread has finished filling the buffer)
+        memspace.safe_write(chunk_start);
         memspace.clear();
     }
 }

@@ -209,6 +209,7 @@ function(setup_target _target)
 
     if (OpenMP_FOUND)
         target_link_libraries(${_target} PRIVATE OpenMP::OpenMP_CXX)
+        target_compile_definitions(${_target} PRIVATE HAVE_OPENMP)
     endif()
 
     set_target_properties(${_target} PROPERTIES
