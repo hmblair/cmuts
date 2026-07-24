@@ -430,11 +430,41 @@ def _data_from_counts(
     # Store the mean coverage as a function of position for later.
 
     coverage = da.sum(counts[..., :IX_DEL], axis=(2, 3))
-    mc = da.mean(coverage, axis=0)
+
+    # Base-call coverage excludes deletion outcomes entirely: a deletion
+    # increments only the (rbase, IX_DEL) cell, never a match/mismatch cell.
+    # When deletions also contribute to the modification numerator below
+    # (--deletions on), pair them with the same mass in the denominator so
+    # mismatch/deletion counts are drawn from a coherent event total, rather
+    # than a numerator that can exceed a denominator that never counted
+    # deletions at all. Left uncorrected, modifications/coverage can exceed
+    # 1 at deletion-heavy positions -- silently absorbed by the unconditional
+    # clip(0, 1) in _reactivity below, so the failure mode is a saturated
+    # reactivity value, not a visible error.
+    #
+    # This is an *effective, weighted* event denominator, not a literal
+    # unique-read coverage count: under ambiguous-deletion spreading (the
+    # default), a single deletion's mass is distributed as real-valued
+    # weights across a homopolymer run, so `coverage_denom` need not equal
+    # the number of distinct reads exposed at a position, and is not
+    # generally an integer. Insertions are deliberately not given the same
+    # treatment -- an insertion is anchored to a position that already gets
+    # its own independent match/mismatch call from elsewhere in the same
+    # read's CIGAR (insertions don't consume a reference position), so it
+    # never displaces coverage the way a deletion does. Note this does not
+    # make the overall ratio bounded by 1 in general: with --insertions also
+    # on, insertion counts still add to the numerator without appearing in
+    # either coverage variant, so clip(0, 1) remains necessary, not just a
+    # safety net for this specific gap.
+    coverage_denom = coverage
+    if opts.dels:
+        coverage_denom = coverage + da.sum(counts[..., IX_DEL], axis=-1)
+
+    mc = da.mean(coverage_denom, axis=0)
 
     # Compute the coverage mask
 
-    mask = coverage >= opts.cutoff
+    mask = coverage_denom >= opts.cutoff
     mask[~roi] = False
 
     # Compute termination events
@@ -458,15 +488,15 @@ def _data_from_counts(
 
     # Divide by the coverage to get the un-normalised reactivity
 
-    reactivity = _reactivity(modifications, coverage, mask)
+    reactivity = _reactivity(modifications, coverage_denom, mask)
 
     # SEM of a Bernoulli random variable
 
-    err = _error(reactivity, coverage, mask)
+    err = _error(reactivity, coverage_denom, mask)
 
     # Get the read counts and compute all values
 
-    reads = da.max(coverage, axis=(-1,))
+    reads = da.max(coverage_denom, axis=(-1,))
 
     # Signal-to-noise
 
