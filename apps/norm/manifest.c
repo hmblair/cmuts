@@ -34,6 +34,7 @@ static const fmt_written WRITTEN[] = {
     { .id = FMT_COVERAGE,  .how = COPIED, .depends = FMT_DEPENDS(FMT_COVERAGE) },
     { .id = FMT_SEQUENCE,  .how = COPIED, .depends = FMT_DEPENDS(FMT_SEQUENCE) },
     { .id = FMT_LENGTHS,   .how = COPIED, .depends = FMT_DEPENDS(FMT_LENGTHS) },
+    { .id = FMT_QUALITIES, .how = COPIED, .depends = FMT_DEPENDS(FMT_QUALITIES) },
     { .id = FMT_PRIMARY_COUNTED,
       .how = COPIED, .depends = FMT_DEPENDS(FMT_PRIMARY_COUNTED) },
     { .id = FMT_PRIMARY_REJECTED,

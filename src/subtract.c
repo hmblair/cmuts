@@ -37,6 +37,7 @@ static const sub_rule RULES[FMT_N_FIELDS] = {
     FMT_CHANNELS(CHANNEL)
     [FMT_COVERAGE]                 = SUB_SUM,
     [FMT_LENGTHS]                  = SUB_SUM,
+    [FMT_QUALITIES]                = SUB_SUM,
     [FMT_PRIMARY_COUNTED]          = SUB_SUM,
     [FMT_PRIMARY_REJECTED]         = SUB_SUM,
     [FMT_SUPPLEMENTARY_COUNTED]    = SUB_SUM,

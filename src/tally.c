@@ -59,6 +59,28 @@ static void add_length(const context *ctx)
     }
 }
 
+/* The histogram has a bin for every quality the filter lets through, so the guard below
+ * is against that filter changing and not against anything reachable from here. */
+_Static_assert(SHAPE_QUALITY_BINS == FILTER_MAPQ_UNAVAILABLE,
+               "the quality histogram must have a bin for every quality the filter passes");
+
+/* Counts the read's mapping quality in its bin. Only primary reads are counted, so the
+ * histogram sums to the primary reads counted, as the length histogram does. */
+static void add_quality(const context *ctx)
+{
+    double *bins;
+
+    if (filter_is_supplementary(ctx->read)) {
+        return;
+    }
+
+    bins = accum_data(ctx->target, ACCUM_QUALITIES);
+
+    if (ctx->read->mapq < SHAPE_QUALITY_BINS) {
+        bins[ctx->read->mapq] += 1.0;
+    }
+}
+
 /* Adds the window's stretch on the reference to the per-base fields, clipping once
  * rather than testing each position. The window holds one read, so each event value is
  * the posterior chance this read carries an event of that kind at the position. */
@@ -266,6 +288,7 @@ phmm_status tally(const cm_bam_record *read, const cm_fasta_record *ref,
     *accum_data(target, counted_field(read)) += 1.0;
 
     add_length(&ctx);
+    add_quality(&ctx);
 
     return PHMM_OK;
 }

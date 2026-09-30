@@ -26,6 +26,14 @@ shape_extents shape_per_length(size_t len, size_t cap)
     return (shape_extents){ .rank = 1, .dim = { SHAPE_LENGTH_BINS(cap) } };
 }
 
+shape_extents shape_per_quality(size_t len, size_t cap)
+{
+    (void)len;
+    (void)cap;
+
+    return (shape_extents){ .rank = 1, .dim = { SHAPE_QUALITY_BINS } };
+}
+
 shape_extents shape_none(size_t len, size_t cap)
 {
     (void)len;
@@ -59,6 +67,10 @@ const char *shape_name(shape_fn shape)
 
     if (shape == shape_per_length) {
         return "per length";
+    }
+
+    if (shape == shape_per_quality) {
+        return "per quality";
     }
 
     if (shape == shape_none) {

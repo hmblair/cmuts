@@ -36,6 +36,7 @@ static const div_rule RULES[FMT_N_FIELDS] = {
     FMT_CHANNELS(CHANNEL)
     [FMT_COVERAGE]                 = DIV_SUM,
     [FMT_LENGTHS]                  = DIV_SUM,
+    [FMT_QUALITIES]                = DIV_SUM,
     [FMT_PRIMARY_COUNTED]          = DIV_SUM,
     [FMT_PRIMARY_REJECTED]         = DIV_SUM,
     [FMT_SUPPLEMENTARY_COUNTED]    = DIV_SUM,

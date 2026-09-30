@@ -22,6 +22,7 @@ static const fmt_written WRITTEN[] = {
     { .id = FMT_COVERAGE,  .how = HMM },
     { .id = FMT_SEQUENCE,  .how = "Tokenized from the FASTA." },
     { .id = FMT_LENGTHS,   .how = "The read length reported in the alignment." },
+    { .id = FMT_QUALITIES, .how = "The mapping quality reported in the alignment." },
     { .id = FMT_PRIMARY_COUNTED,
       .how = "The number of primary reads the HMM successfully processed." },
     { .id = FMT_PRIMARY_REJECTED,

@@ -58,7 +58,8 @@ PRIMARY_COUNTED = "reads/primary/counted"
 PRIMARY_REJECTED = "reads/primary/rejected"
 SUPPLEMENTARY_COUNTED = "reads/supplementary/counted"
 SUPPLEMENTARY_REJECTED = "reads/supplementary/rejected"
-LENGTHS = "reads/lengths"
+LENGTHS = "reads/length-histogram"
+QUALITIES = "reads/quality-histogram"
 UNMAPPED = "reads/unmapped"
 PAIRWISE_CORRELATION = "pairwise/correlation"
 PAIRWISE_CONDITIONAL = "pairwise/conditional"
@@ -904,6 +905,8 @@ SUPPLEMENTARY_GROUP = "Supplementary Reads"
 # The thresholds the library view reports the SNR against.
 SNR_THRESHOLDS = (1, 10)
 
+MAPQ_GROUP = "MAPQ"
+
 
 @dataclass(frozen=True)
 class Stat:
@@ -981,6 +984,48 @@ def unmapped_read_stats(handle, ref):
     return [Stat("Unmapped", float(unmapped), "int", group=PRIMARY_GROUP)]
 
 
+def histogram_mean(counts):
+    """Returns the mean of a histogram whose bin i holds value i, or NaN if it
+    holds nothing."""
+    counts = np.asarray(counts, dtype=float)
+    total = counts.sum()
+
+    if total == 0:
+        return float("nan")
+
+    return float((np.arange(counts.size) * counts).sum() / total)
+
+
+def histogram_median(counts):
+    """Returns the median of a histogram whose bin i holds value i, or NaN if
+    it holds nothing. The median is the first bin at which half of the counts
+    have been reached."""
+    counts = np.asarray(counts, dtype=float)
+    total = counts.sum()
+
+    if total == 0:
+        return float("nan")
+
+    return float(np.searchsorted(np.cumsum(counts), total / 2))
+
+
+def mapq_stats(handle, ref):
+    """Returns the MAPQ group: the mean and median mapping quality of the reads
+    counted at the reference in view, or of every read counted in the library
+    where no reference is in view."""
+    counts = dataset(handle, QUALITIES)
+
+    if counts is None:
+        return []
+
+    counts = counts[ref] if ref is not None else counts.sum(0)
+
+    return [
+        Stat("Mean", histogram_mean(counts), "float", group=MAPQ_GROUP),
+        Stat("Median", histogram_median(counts), "int", group=MAPQ_GROUP),
+    ]
+
+
 def read_stats(handle, ref):
     """Returns the two read groups: the primary reads counted, rejected and
     unmapped, and the supplementary reads counted and rejected."""
@@ -1021,7 +1066,7 @@ def reactivity_stats(handle, channels, ref):
 
 def condition_stats(handle, channels, ref):
     return (library_stats(handle, ref) + read_stats(handle, ref)
-            + reactivity_stats(handle, channels, ref))
+            + mapq_stats(handle, ref) + reactivity_stats(handle, channels, ref))
 
 
 # ===========================================================================

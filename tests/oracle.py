@@ -183,6 +183,18 @@ def samtools_length_histogram(
     return counts
 
 
+def samtools_quality_histogram(
+    data, min_mapq: int = 0, strand: str = "forward,reverse",
+) -> dict:
+    """Returns the mapping quality of every passing read, counted per reference."""
+    counts = defaultdict(Counter)
+
+    for record in surviving_records(data, min_mapq, strand):
+        counts[record.reference][record.mapq] += 1
+
+    return counts
+
+
 def assert_counts_agree(summary, data, criteria: dict):
     """Asserts every claim a run makes about how many reads it saw, against
     samtools and against the run's own totals."""

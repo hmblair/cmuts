@@ -58,7 +58,8 @@ Unmapped reads are rejected by nature of having no reference to compute mutation
 | [`terminations/error`](format.md#terminationserror) | The binomial standard error of the rate at the position's depth. |
 | [`coverage`](format.md#coverage) | Estimated by the HMM. |
 | [`sequence`](format.md#sequence) | Tokenized from the FASTA. |
-| [`reads/lengths`](format.md#readslengths) | The read length reported in the alignment. |
+| [`reads/length-histogram`](format.md#readslength-histogram) | The read length reported in the alignment. |
+| [`reads/quality-histogram`](format.md#readsquality-histogram) | The mapping quality reported in the alignment. |
 | [`reads/primary/counted`](format.md#readsprimarycounted) | The number of primary reads the HMM successfully processed. |
 | [`reads/primary/rejected`](format.md#readsprimaryrejected) | The number of primary reads rejected by a filter or by the HMM. |
 | [`reads/supplementary/counted`](format.md#readssupplementarycounted) | The number of supplementary reads the HMM successfully processed. |

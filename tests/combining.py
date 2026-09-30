@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from outputs import (COVERAGE, ERROR_FIELDS, LENGTHS, PRIMARY_COUNTED,
-                     PRIMARY_REJECTED, RATE_FIELDS, RATE_OF, SEQUENCE,
+                     PRIMARY_REJECTED, QUALITIES, RATE_FIELDS, RATE_OF, SEQUENCE,
                      SUPPLEMENTARY_COUNTED, SUPPLEMENTARY_REJECTED, UNMAPPED)
 from outputs import field_of
 
@@ -69,6 +69,7 @@ SUB_RULES = {
     **dict.fromkeys(RATE_FIELDS, _subtract),
     **dict.fromkeys(ERROR_FIELDS, _quadrature),
     LENGTHS: _add,
+    QUALITIES: _add,
     PRIMARY_COUNTED: _add,
     PRIMARY_REJECTED: _add,
     SUPPLEMENTARY_COUNTED: _add,
@@ -82,6 +83,7 @@ DIV_RULES = {
     **dict.fromkeys(RATE_FIELDS, _ratio),
     **dict.fromkeys(ERROR_FIELDS, _ratio_error),
     LENGTHS: _add,
+    QUALITIES: _add,
     PRIMARY_COUNTED: _add,
     PRIMARY_REJECTED: _add,
     SUPPLEMENTARY_COUNTED: _add,

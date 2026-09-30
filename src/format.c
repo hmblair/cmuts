@@ -84,9 +84,17 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
         .fill    = (double)NAN,
     },
     [FMT_LENGTHS] = {
-        .name    = "reads/lengths",
+        .name    = "reads/length-histogram",
         .detail  = "The number of reads contributing to the rates, binned by length.",
         .row     = shape_per_length,
+        .per_ref = true,
+        .stored  = FMT_U64,
+        .fill    = 0.0,
+    },
+    [FMT_QUALITIES] = {
+        .name    = "reads/quality-histogram",
+        .detail  = "The number of reads contributing to the rates, binned by mapping quality.",
+        .row     = shape_per_quality,
         .per_ref = true,
         .stored  = FMT_U64,
         .fill    = 0.0,

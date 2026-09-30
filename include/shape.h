@@ -15,6 +15,11 @@
  * longest reference. */
 #define SHAPE_LENGTH_BINS(cap) (2 * (cap))
 
+/* The bins a mapping-quality histogram holds: one for each quality from 0 to 254. The SAM
+ * specification reserves 255 for "unavailable", and a read carrying it is rejected before
+ * it reaches any histogram. */
+#define SHAPE_QUALITY_BINS 255
+
 /* The largest number of extents any of the shapes below writes. Raise it alongside a shape
  * that writes more. */
 #define SHAPE_RANK_MAX 2
@@ -34,6 +39,7 @@ typedef shape_extents (*shape_fn)(size_t len, size_t cap);
 shape_extents shape_per_base(size_t len, size_t cap);
 shape_extents shape_per_pair(size_t len, size_t cap);
 shape_extents shape_per_length(size_t len, size_t cap);
+shape_extents shape_per_quality(size_t len, size_t cap);
 shape_extents shape_none(size_t len, size_t cap);
 
 /* Gives the name of a shape, for the JSON description of a field, or "unknown" for a

@@ -15,6 +15,7 @@ const accum_field ACCUM_FIELDS[ACCUM_N_FIELDS] = {
     [ACCUM_DELETIONS]              = { shape_per_base },
     [ACCUM_ENDS]                   = { shape_per_base },
     [ACCUM_LENGTHS]                = { shape_per_length },
+    [ACCUM_QUALITIES]              = { shape_per_quality },
     [ACCUM_PRIMARY_COUNTED]        = { shape_none },
     [ACCUM_PRIMARY_REJECTED]       = { shape_none },
     [ACCUM_SUPPLEMENTARY_COUNTED]  = { shape_none },

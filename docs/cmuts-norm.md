@@ -49,7 +49,8 @@ A norm that comes out as zero, negative, or undefined is not applied and is reco
 | [`norm`](format.md#norm) | Estimated from the input per the specified scheme. |
 | [`coverage`](format.md#coverage) | Copied from the input. |
 | [`sequence`](format.md#sequence) | Copied from the input. |
-| [`reads/lengths`](format.md#readslengths) | Copied from the input. |
+| [`reads/length-histogram`](format.md#readslength-histogram) | Copied from the input. |
+| [`reads/quality-histogram`](format.md#readsquality-histogram) | Copied from the input. |
 | [`reads/primary/counted`](format.md#readsprimarycounted) | Copied from the input. |
 | [`reads/primary/rejected`](format.md#readsprimaryrejected) | Copied from the input. |
 | [`reads/supplementary/counted`](format.md#readssupplementarycounted) | Copied from the input. |

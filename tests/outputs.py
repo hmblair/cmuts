@@ -16,7 +16,8 @@ DELETION_RATE = "deletions/rate"
 DELETION_ERROR = "deletions/error"
 TERMINATION_RATE = "terminations/rate"
 TERMINATION_ERROR = "terminations/error"
-LENGTHS = "reads/lengths"
+LENGTHS = "reads/length-histogram"
+QUALITIES = "reads/quality-histogram"
 PRIMARY_COUNTED = "reads/primary/counted"
 PRIMARY_REJECTED = "reads/primary/rejected"
 SUPPLEMENTARY_COUNTED = "reads/supplementary/counted"
@@ -27,10 +28,16 @@ SEQUENCE = "sequence"
 
 READS_GROUP = "reads"
 
-# One value per reference base, one per read length, one per reference.
+# One value per reference base, one per read length, one per mapping quality,
+# one per reference.
 PER_BASE = "per base"
 PER_LENGTH = "per length"
+PER_QUALITY = "per quality"
 SCALAR = "scalar"
+
+# The mapping qualities a histogram has a bin for: 0 to 254. The SAM
+# specification reserves 255 for "unavailable", and cmuts hmm rejects it.
+QUALITY_BINS = 255
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,7 @@ FIELDS = (
     Field(TERMINATION_RATE, PER_BASE, "f4", np.nan, rate=True),
     Field(TERMINATION_ERROR, PER_BASE, "f4", np.nan, rate=True),
     Field(LENGTHS, PER_LENGTH, "u8", 0),
+    Field(QUALITIES, PER_QUALITY, "u8", 0),
     Field(PRIMARY_COUNTED, SCALAR, "u8", 0),
     Field(PRIMARY_REJECTED, SCALAR, "u8", 0),
     Field(SUPPLEMENTARY_COUNTED, SCALAR, "u8", 0),
@@ -105,9 +113,14 @@ def width(kind: str, cap: int) -> int:
 
     Insertions and soft-clipped ends make a read longer than what it aligns to,
     so the length histogram reaches to twice the longest reference. It starts
-    at length 1, so bin i holds length i + 1.
+    at length 1, so bin i holds length i + 1. The quality histogram has one bin
+    per mapping quality, so its width does not vary with the file.
     """
-    return cap if kind == PER_BASE else 2 * cap
+    if kind == PER_BASE:
+        return cap
+    if kind == PER_QUALITY:
+        return QUALITY_BINS
+    return 2 * cap
 
 
 def shape(field: Field, n_refs: int, cap: int) -> tuple:

@@ -39,7 +39,8 @@ If any dataset does not match the expected shape or the sequences do not match, 
 | [`terminations/error`](format.md#terminationserror) | Propagated from the inputs. |
 | [`coverage`](format.md#coverage) | Summed over the inputs. |
 | [`sequence`](format.md#sequence) | Copied from the inputs. |
-| [`reads/lengths`](format.md#readslengths) | Summed over the inputs. |
+| [`reads/length-histogram`](format.md#readslength-histogram) | Summed over the inputs. |
+| [`reads/quality-histogram`](format.md#readsquality-histogram) | Summed over the inputs. |
 | [`reads/primary/counted`](format.md#readsprimarycounted) | Summed over the inputs. |
 | [`reads/primary/rejected`](format.md#readsprimaryrejected) | Summed over the inputs. |
 | [`reads/supplementary/counted`](format.md#readssupplementarycounted) | Summed over the inputs. |

@@ -115,11 +115,18 @@ The number of further pieces of split reads contributing to the rates.
 The number of further pieces of split reads aligned to the reference but not contributing to the rates.
 
 {.field}
-### `reads/lengths`
+### `reads/length-histogram`
 
 **Shape** `(n, 2l)` · **Type** `uint64` · **Fill** `0`
 
 The number of reads contributing to the rates, binned by length.
+
+{.field}
+### `reads/quality-histogram`
+
+**Shape** `(n, 255)` · **Type** `uint64` · **Fill** `0`
+
+The number of reads contributing to the rates, binned by mapping quality.
 
 {.field}
 ### `reads/unmapped`

@@ -112,6 +112,7 @@ static const double *values(refrow *r, fmt_field_id id, const char *seq, const a
     switch (id) {
         case FMT_COVERAGE:   return accum_const_data(acc, ACCUM_COVERAGE);
         case FMT_LENGTHS:    return accum_const_data(acc, ACCUM_LENGTHS);
+        case FMT_QUALITIES:  return accum_const_data(acc, ACCUM_QUALITIES);
         case FMT_PRIMARY_COUNTED:
             return accum_const_data(acc, ACCUM_PRIMARY_COUNTED);
         case FMT_PRIMARY_REJECTED:

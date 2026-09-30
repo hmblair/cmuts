@@ -35,6 +35,7 @@ static const fmt_written WRITTEN[] = {
       .how = "Copied from the inputs.",
       .depends = FMT_DEPENDS(FMT_SEQUENCE) },
     { .id = FMT_LENGTHS,   .how = SUMMED, .depends = FMT_DEPENDS(FMT_LENGTHS) },
+    { .id = FMT_QUALITIES, .how = SUMMED, .depends = FMT_DEPENDS(FMT_QUALITIES) },
     { .id = FMT_PRIMARY_COUNTED,
       .how = SUMMED, .depends = FMT_DEPENDS(FMT_PRIMARY_COUNTED) },
     { .id = FMT_PRIMARY_REJECTED,

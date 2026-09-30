@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `cmuts hmm` writes `reads/quality-histogram`, a histogram of the mapping qualities of the primary reads contributing to the rates, with one row per reference and one bin per quality from 0 to 254. `cmuts sub` and `cmuts div` sum it over their inputs, and `cmuts norm` copies it.
+- `cmuts plot` reports the mean and median mapping quality of the counted reads, for the reference in view and for the library as a whole.
+
+### Changed
+
+- `reads/lengths` is renamed `reads/length-histogram`. A file written by 2.0.0 carries the old name, which the programs no longer read.
+
 ## [2.0.0] - 2026-09-16
 
 cmuts v2 is a rewrite of cmuts. The pipeline is one binary. The counting runs on a pair HMM, and each output file holds finished rates rather than raw counts.
