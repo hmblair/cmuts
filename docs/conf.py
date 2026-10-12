@@ -28,16 +28,28 @@ html_theme = "furo"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
-# Where the site is served from, which the canonical link of each page needs.
-# The organization's root site carries a custom domain, so a project page of
-# the organization is served under that rather than under github.io.
-html_baseurl = "https://daslab.stanford.edu/cmuts/"
+# The site holds one rendering per version, and the Makefile renders each with
+# html_baseurl set to where that version is served from, which the canonical
+# link of each page needs. The versions themselves reach the sidebar dropdown
+# through the template context, likewise set by the Makefile.
+templates_path = ["_templates"]
+html_sidebars = {
+    "**": [
+        "sidebar/brand.html",
+        "sidebar/versions.html",
+        "sidebar/search.html",
+        "sidebar/scroll-start.html",
+        "sidebar/navigation.html",
+        "sidebar/scroll-end.html",
+    ]
+}
 
 # Copied to the root of the site. GitHub Pages runs the output through Jekyll
 # otherwise, which drops the _static and _sources directories sphinx writes.
 # The file is empty; its presence is the whole of it.
 html_extra_path = [".nojekyll"]
 
+# The Makefile sets source_branch to the ref each version is rendered from.
 html_theme_options = {
     "source_repository": "https://github.com/DasLab/cmuts",
     "source_branch": "main",

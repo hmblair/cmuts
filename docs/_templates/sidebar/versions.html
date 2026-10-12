@@ -1,0 +1,13 @@
+{#- The dropdown listing every rendered version of the site. The Makefile
+    passes the list and the current version in; a bare sphinx build has
+    neither and renders no dropdown. Each entry points at the same page under
+    its version, a sibling directory of this one. -#}
+{% if versions is defined %}
+<div class="sidebar-versions-container">
+  <select class="sidebar-versions" aria-label="{{ _('Version') }}" onchange="window.location.href = this.value">
+    {%- for version in versions.split(',') %}
+    <option value="{{ pathto('', 1) }}../{{ version }}/{{ pagename }}.html"{% if version == current_version %} selected{% endif %}>{{ version }}</option>
+    {%- endfor %}
+  </select>
+</div>
+{% endif %}

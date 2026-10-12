@@ -29,7 +29,6 @@ docs = [
     "furo",
     "myst-parser",
     "sphinx-inline-tabs",
-    "sphinx-autobuild",
 ]
 
 [tool.pytest.ini_options]

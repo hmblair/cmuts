@@ -112,9 +112,13 @@ jobs:
           merge-multiple: true
 
       # The release says what the changelog says, rather than repeating it by
-      # hand in the draft.
+      # hand in the draft, under a link to the rendering of the documentation
+      # the tag carries. The Documentation workflow renders that from the same
+      # tag push, under the SITE_URL the Makefile sets.
       - name: Take the release notes from the changelog
-        run: bash scripts/release-notes.sh "${GITHUB_REF_NAME#v}" > notes.md
+        run: |
+          printf 'Documentation: https://daslab.stanford.edu/cmuts/%s/\n\n' "$GITHUB_REF_NAME" > notes.md
+          bash scripts/release-notes.sh "${GITHUB_REF_NAME#v}" >> notes.md
 
       # `gh release create` runs only where the tag has no release, and the
       # upload writes over whatever is attached. A re-run of a job which failed

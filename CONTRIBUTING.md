@@ -75,10 +75,12 @@ make site   # additionally render the site into site/
 
 If a program's arguments or output format changes, you must run `make docs` and include its changes in the commit.
 
+The site holds one rendering per release from `v2.0.0` on, each under its tag, beside a rendering of the working tree under `latest`. A dropdown in the sidebar switches between them. The docs tree of each release is read out of its tag, so nothing needs to be checked out, but the tags must be present locally. The root of the site redirects to `latest`.
+
 To preview the site locally:
 
 ```sh
-make serve
+make serve   # serve site/ at http://localhost:8000/
 ```
 
 ## Static Binaries

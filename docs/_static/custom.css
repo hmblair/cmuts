@@ -39,3 +39,19 @@ table.align-default {
   --tabs--label-border--active: var(--color-brand-primary);
   --tabs--label-border--active--hover: var(--color-brand-primary);
 }
+
+/* The version dropdown, between the name and the search box in the sidebar,
+   in the colours of the search box. */
+.sidebar-versions-container {
+  margin: var(--sidebar-search-space-above) var(--sidebar-item-spacing-horizontal) 0;
+}
+
+.sidebar-versions {
+  width: 100%;
+  background: var(--color-sidebar-search-background);
+  color: var(--color-sidebar-search-foreground);
+  border: 1px solid var(--color-sidebar-search-border);
+  border-radius: 0.2rem;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+}

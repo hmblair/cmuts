@@ -8,7 +8,7 @@ The [web server](https://huggingface.co/spaces/DasLab/cmuts) runs `cmuts` on Hug
 
 ## Installing
 
-Each [release](https://github.com/DasLab/cmuts/releases) carries static `cmuts` binaries for Linux (x86_64, aarch64) and macOS (arm64). These bundle htslib and HDF5, so no libraries need to be installed to run them. Alternatively, you can [build from source](https://daslab.stanford.edu/cmuts/from-source), which may provide marginal speedups.
+Each [release](https://github.com/DasLab/cmuts/releases) carries static `cmuts` binaries for Linux (x86_64, aarch64) and macOS (arm64). These bundle htslib and HDF5, so no libraries need to be installed to run them. Alternatively, you can [build from source](https://daslab.stanford.edu/cmuts/latest/from-source), which may provide marginal speedups.
 
 `cmuts align` calls separate programs, which must be on the `PATH`.
 
@@ -64,7 +64,7 @@ cmuts plot \
 
 ## Documentation
 
-See the [docs](https://daslab.stanford.edu/cmuts) for more details on each program, the HDF5 outputs, and special use cases.
+See the [docs](https://daslab.stanford.edu/cmuts/latest/) for more details on each program, the HDF5 outputs, and special use cases.
 
 ## Development
 

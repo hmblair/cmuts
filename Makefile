@@ -210,15 +210,61 @@ check: $(BINS)
 docs: $(BINS)
 	@$(PYTHON) scripts/document.py $(BUILD) docs
 
+# The site carries one rendering per release, from the first that had a docs
+# tree sphinx can build, beside one of the working tree named latest. Each
+# tag's tree comes out of git, so no release has to be checked out.
+SITE_URL      := https://daslab.stanford.edu/cmuts
+SITE_FIRST    := v2.0.0
+SITE_TAGS     := $(shell git tag --list 'v*' --sort=-version:refname \
+                   | awk '{ print } $$0 == "$(SITE_FIRST)" { exit }')
+SITE_VERSIONS := latest $(SITE_TAGS)
+
+comma := ,
+empty :=
+space := $(empty) $(empty)
+
+# Renders the docs tree $(1) into site/$(2), with the source links pointing at
+# the git ref $(3). Every version is rendered under the working tree's conf.py,
+# and so with its templates and stylesheet, so that each carries the current
+# chrome. The version list reaches the sidebar through the template context.
 # -W fails on a broken link or a page missing from the toctree. The doctree
 # cache goes under the build directory, leaving site/ holding the published
 # tree and nothing besides.
-site: docs
-	@$(PYTHON) -m sphinx -W -q -b html -d $(BUILD_ROOT)/doctrees docs site
+define render-version
+$(PYTHON) -m sphinx -W -q -b html -c docs -d $(BUILD_ROOT)/doctrees/$(2) \
+  -D html_baseurl=$(SITE_URL)/$(2)/ \
+  -D html_theme_options.source_branch=$(3) \
+  -A versions=$(subst $(space),$(comma),$(SITE_VERSIONS)) \
+  -A current_version=$(2) \
+  $(1) site/$(2)
+endef
 
-# Serves the rendered site locally, rebuilding it as the sources change
+# A tag's tree never changes, so it is extracted once. Precious, as make
+# otherwise deletes the tree as an intermediate once the site is rendered.
+.PRECIOUS: $(BUILD_ROOT)/versions/%/docs
+$(BUILD_ROOT)/versions/%/docs:
+	@mkdir -p $(@D)
+	@git archive $* docs | tar -x -C $(@D)
+
+site/latest: docs FORCE
+	@$(call render-version,docs,latest,main)
+
+site/v%: $(BUILD_ROOT)/versions/v%/docs FORCE
+	@$(call render-version,$<,v$*,v$*)
+
+# The root of the site sends a visitor to the latest version. .nojekyll keeps
+# GitHub Pages from running the tree through Jekyll, as in each version.
+site/index.html: FORCE
+	@printf '<!DOCTYPE html>\n<meta http-equiv="refresh" content="0; url=latest/">\n' > $@
+
+site/.nojekyll: FORCE
+	@touch $@
+
+site: $(addprefix site/,$(SITE_VERSIONS)) site/index.html site/.nojekyll
+
+# Serves the rendered site locally
 serve: site
-	@$(PYTHON) -m sphinx_autobuild docs site
+	@$(PYTHON) -m http.server --directory site
 
 # A clang that is not the system one needs the SDK spelled out.
 CLANG_TIDY ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang-tidy) clang-tidy)

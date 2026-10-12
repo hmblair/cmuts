@@ -3,6 +3,7 @@ name: Documentation
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
@@ -15,7 +16,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # The site carries one rendering per release, read out of the tags, so
+      # the checkout needs the whole history rather than the one commit.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/dependencies
 
       # Separate from the dev group the shared action installs: sphinx and the
