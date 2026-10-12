@@ -21,6 +21,12 @@ cmuts hmm --dump-params > params.txt
 
 You may specify a subset of the parameters to modify only them.
 
+## Bandwidth
+
+The `--band` argument sets the bandwidth of the pair HMM, which determines the length of the longest deletion the HMM can relocate. The runtime grows linearly with the bandwidth, on top of a fixed cost. At zero, the HMM degenerates and ambiguous deletions are counted wherever the aligner places them.
+
+DMS data is insensitive to the bandwidth, since methylations mostly cause mismatches. On the other hand, SHAPE data requires a bandwidth of at least the default of 2 to locate ambiguous deletions correctly. Larger bandwidths lead to rapidly diminishing returns.
+
 ## Error Checking
 
 `cmuts hmm` verifies the FASTA against the alignment header, by comparing each sequence's name and length, and its MD5 checksum when present. Any mismatch between the header and the FASTA ends the run early. This behavior is configurable via the `--verify` flag.
