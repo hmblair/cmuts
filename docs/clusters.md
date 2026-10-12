@@ -1,10 +1,22 @@
 # Cluster notes
 
-An incomplete list of the clusters `cmuts` has been built and run on.
+An incomplete list of the clusters `cmuts` has been built and run on. Since `cmuts plot` requires a browser to view the report, it should be run locally.
 
 ## Stanford Sherlock
 
-Running needs htslib and HDF5:
+### Pre-Built
+
+Only `cmuts align` has dependencies. minimap2 and samtools are loaded as modules:
+
+```sh
+ml load biology minimap2/2.30 samtools/1.16.1
+```
+
+For paired-end data, `vsearch` must be installed separately; see the [download instructions](https://github.com/torognes/vsearch#download-and-install). Sherlock needs the Linux x86_64 build whose name ends in `-ubi7`.
+
+### Source Builds
+
+The `cmuts align` dependencies listed above are unchanged. Running also needs HDF5 and htslib, the latter provided by the samtools module:
 
 ```sh
 ml load hdf5/1.12.0
@@ -16,8 +28,6 @@ In addition, building needs a later GCC:
 ```sh
 ml load gcc/12.4.0
 ```
-
-The HDF5 modules marked `(m)` in `module avail`, 1.14.4 among them, are built against MPI and bring UCX in with it. UCX installs memory hooks from a constructor, which a sanitized binary crashes on before reaching `main`. 1.12.0 is a serial build and has neither.
 
 ## HHMI Janelia
 
