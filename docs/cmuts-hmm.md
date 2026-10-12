@@ -35,6 +35,10 @@ Both the DNA and the RNA forms of the FASTA sequence are accepted during the che
 
 Reads which do not pass the configured filters are rejected, meaning they are not processed by the HMM and do not contribute to the final rates. A secondary alignment, a read with MAPQ 255, a read missing a sequence, or a read with no CIGAR is automatically rejected.
 
+```{warning}
+`minimap2` and `bowtie2` assign MAPQ scores differently. The default threshold of 20 is tuned for `minimap2`-aligned data, but often rejects high-quality reads for `bowtie2`-aligned data. A lower threshold of 10 is recommended for `bowtie2`.
+```
+
 A read to which the HMM cannot assign a nonzero alignment probability is also rejected; this can only occur if you set one or more transition probabilities to zero.
 
 Unmapped reads are rejected by nature of having no reference with which to compute each rate.
