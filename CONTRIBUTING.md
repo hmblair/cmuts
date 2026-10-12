@@ -83,6 +83,8 @@ To preview the site locally:
 make serve   # serve site/ at http://localhost:8000/
 ```
 
+`PORT` chooses another port, and the target refuses to start where the port is already taken.
+
 ## Static Binaries
 
 `scripts/static-deps.sh` builds htslib, HDF5 and their compression libraries as static archives under one prefix, with sources pinned by version and checksum:

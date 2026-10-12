@@ -262,9 +262,16 @@ site/.nojekyll: FORCE
 
 site: $(addprefix site/,$(SITE_VERSIONS)) site/index.html site/.nojekyll
 
-# Serves the rendered site locally
+# Serves the rendered site locally. http.server prints a traceback where the
+# port is taken, so the port is checked first.
+PORT ?= 8000
+
 serve: site
-	@$(PYTHON) -m http.server --directory site
+	@if lsof -nP -iTCP:$(PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+	    echo "make: port $(PORT) is in use; stop that server or pass PORT=<n>" >&2; \
+	    exit 1; \
+	fi
+	@$(PYTHON) -m http.server --directory site $(PORT)
 
 # A clang that is not the system one needs the SDK spelled out.
 CLANG_TIDY ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang-tidy) clang-tidy)
