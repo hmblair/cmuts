@@ -9,7 +9,7 @@ Aligning raw sequencing data against a reference library.
 - The sequenced reads, either in FASTQ or unaligned BAM format
 - The FASTA library
 
-As well as both `minimap2` and `samtools` on the path, and `vsearch` if processing paired-end input.
+As well as both `minimap2` (version 2.3 or later) and `samtools` on the path, and `vsearch` if processing paired-end input.
 
 ## Usage
 

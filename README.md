@@ -12,7 +12,7 @@ Each [release](https://github.com/DasLab/cmuts/releases) carries static `cmuts` 
 
 `cmuts align` calls separate programs, which must be on the `PATH`.
 
-- [minimap2](https://github.com/lh3/minimap2)
+- [minimap2](https://github.com/lh3/minimap2), version 2.3 or later.
 - [samtools](https://github.com/samtools/samtools)
 - [vsearch](https://github.com/torognes/vsearch) for paired-end input.
 
