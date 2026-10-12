@@ -2,14 +2,14 @@
 
 ## Setting up
 
-Beyond the build dependencies in the README, the tests need `samtools` on `PATH` and a Python environment holding the test dependencies. The tests of `cmuts align` additionally need `minimap2`, and `vsearch` for the paired-end case; without them those tests are skipped.
+The tests need the build dependencies in the README, `samtools` on `PATH`, and a Python environment with the test dependencies. The tests of `cmuts align` also need `minimap2`, and `vsearch` for the paired-end case. Without them, those tests are skipped.
 
 ```sh
 uv venv .venv
 uv pip install --python .venv/bin/python --group dev
 ```
 
-Additionally, rendering the documentation requires the `docs` group:
+Rendering the documentation also needs the `docs` group:
 
 ```sh
 uv pip install --python .venv/bin/python --group docs
@@ -21,9 +21,9 @@ uv pip install --python .venv/bin/python --group docs
 make
 ```
 
-Each variant builds into its own directory under `build/`. `CC` overrides the compiler and `OPT` the optimization flags.
+Each variant builds into its own directory under `build/`. `CC` sets the compiler and `OPT` sets the optimization flags.
 
-Headers and libraries come from `pkg-config` where htslib and HDF5 provide a `.pc` file, and from plain `-l` and `CPATH` otherwise.
+The build finds headers and libraries through `pkg-config` where htslib and HDF5 provide a `.pc` file, and through plain `-l` and `CPATH` otherwise.
 
 ## Tests
 
@@ -31,9 +31,9 @@ Headers and libraries come from `pkg-config` where htslib and HDF5 provide a `.p
 make check
 ```
 
-This builds the programs and runs pytest over `tests/` against the binaries in the build directory. Pass `PYTHON` to `make` to use a binary other than `.venv/bin/python`.
+This builds the programs and runs pytest over `tests/` against the binaries in the build directory. Pass `PYTHON` to `make` to use a Python other than `.venv/bin/python`.
 
-The tests will reject a binary outside the repository, so directly invoking them requires prepending it to `PATH`:
+The tests refuse a binary outside the repository. To run pytest directly, put the build directory first on `PATH`:
 
 ```sh
 PATH=$PWD/build/release:$PATH .venv/bin/python -m pytest tests/test_filtering.py -x
@@ -45,37 +45,37 @@ PATH=$PWD/build/release:$PATH .venv/bin/python -m pytest tests/test_filtering.py
 make lint
 ```
 
-This writes `compile_commands.json` and runs clang-tidy over every source under `src/` and `apps/` with the checks in `.clang-tidy`. Set `CLANG_TIDY` to change the linter binary.
+This writes `compile_commands.json` and runs clang-tidy over every source file under `src/` and `apps/` with the checks in `.clang-tidy`. Set `CLANG_TIDY` to use a different linter binary.
 
 ## Sanitizers
 
-`SAN` names a sanitizer to build under, and applies to whichever target follows it:
+`SAN` names a sanitizer to build with, and applies to the target that follows it:
 
 ```sh
 make SAN=asan         # address and undefined behavior
 make check SAN=tsan   # thread, over the tests
 ```
 
-The tests capture the standard error of every program they run, and a failure reports only the exit status, so `make check` sends each report to a file of its own under the build directory of the variant:
+The tests capture the standard error of every program they run, and a failure reports only the exit status. `make check` therefore writes each sanitizer report to its own file under the build directory of the variant:
 
 ```
 build/tsan/logs/tsan.<pid>
 ```
 
-A value already in `ASAN_OPTIONS` or `TSAN_OPTIONS` is read after the one `make` sets and so overrides it.
+A value already set in `ASAN_OPTIONS` or `TSAN_OPTIONS` overrides the one `make` sets.
 
 ## Documentation
 
-Documentation on program arguments and the output HDF5 structure is automatically generated from the binaries.
+The documentation of the program arguments and of the HDF5 output is generated from the binaries.
 
 ```sh
 make docs   # rewrite the generated blocks under docs/
 make site   # additionally render the site into site/
 ```
 
-If a program's arguments or output format changes, you must run `make docs` and include its changes in the commit.
+When the arguments or the output format of a program change, run `make docs` and include its changes in the commit.
 
-The site holds one rendering per release from `v2.0.0` on, each under its tag, beside a rendering of the working tree under `latest`. A dropdown in the sidebar switches between them. The docs tree of each release is read out of its tag, so nothing needs to be checked out, but the tags must be present locally. The root of the site redirects to `latest`.
+The site holds one rendering per release from `v2.0.0` on, each under its tag, and a rendering of the working tree under `latest`. A dropdown in the sidebar switches between them. `make site` reads the docs tree of each release from its tag, so the tags must be present locally, but nothing needs to be checked out. The root of the site redirects to `latest`.
 
 To preview the site locally:
 
@@ -83,47 +83,53 @@ To preview the site locally:
 make serve   # serve site/ at http://localhost:8000/
 ```
 
-`PORT` chooses another port, and the target refuses to start where the port is already taken.
+`PORT` chooses another port. The target refuses to start when the port is already in use.
 
 ## Static Binaries
 
-`scripts/static-deps.sh` builds htslib, HDF5 and their compression libraries as static archives under one prefix, with sources pinned by version and checksum:
+`scripts/static-deps.sh` builds htslib, HDF5, and their compression libraries as static archives under one prefix. The sources are pinned by version and checksum.
 
 ```sh
 scripts/static-deps.sh deps-static
 make STATIC_PREFIX=deps-static
 ```
 
-On macOS system libraries stay dynamic; a musl compiler (`scripts/static-deps.sh deps-static musl-gcc`, or any Alpine gcc) makes the whole link static. `make check STATIC_PREFIX=deps-static` runs the tests against the result. `scripts/package.sh` wraps the result in the tarball a release carries.
+On macOS, the system libraries stay dynamic. A musl compiler, passed as the second argument of `scripts/static-deps.sh` as in `scripts/static-deps.sh deps-static musl-gcc`, or any Alpine gcc, makes the whole link static. `make check STATIC_PREFIX=deps-static` runs the tests against the result. `scripts/package.sh` wraps the result in the tarball that a release carries.
 
 # Contributing
 
 ## Writing Tests
 
-Tests which run a program over an alignment take the `data` fixture, which is parametrized over the alignments specified in `tests/datasets.py` and over every format htslib reads, yielding one `Dataset` per combination. When adding a new test, ensure it takes this fixture and that it tests a contract which holds regardless of the input alignment and of the format that alignment arrives in. The `catalogue` fixture yields a lookup by name and format, for the few tests needing a second dataset.
+A test that runs a program over an alignment takes the `data` fixture. The fixture is parametrized over the alignments in `tests/datasets.py` and over every format htslib reads, and yields one `Dataset` per combination. A new test must take this fixture and must test a contract that holds for every input alignment and every format. The `catalogue` fixture gives a lookup by name and format, for the few tests that need a second dataset.
 
-A test requiring specific formats pins `fmt` instead of taking all three. A whole module pins it by overriding the fixture, whereas a single test pins it with `indirect`.
+A test that needs specific formats pins `fmt` instead of taking all three. A module pins it by overriding the fixture, and a single test pins it with `indirect`.
 
-To ensure tests are not vacuous, the `falsifiable` fixture is used to signal whether the test is falsifiable on the current dataset. Place the call between the setup and the assertions of the test. A test in which no dataset declares itself falsifiable fails the run, signalling the need for a new dataset in `tests/datasets.py`.
+The `falsifiable` fixture records whether the test can fail on the current dataset, which keeps tests from passing vacuously. Call it between the setup and the assertions of the test. A test that no dataset can falsify fails the run, which shows that `tests/datasets.py` needs a new dataset.
 
 ## Continuous Integration
 
 Two workflows run on every push to `main` and on every pull request against it.
 
-`CI` runs `make check` under gcc and clang on Linux and under clang on macOS, and `make lint` on Linux. The sanitizers are not among them, taking longer than the rest of the run put together; run those locally.
+`CI` runs `make check` with gcc and clang on Linux and with clang on macOS, and `make lint` on Linux. It does not run the sanitizers, which take longer than the rest of the run together. Run those locally.
 
-On a push to `main`, and only once those pass, `CI` goes on to pin the `DasLab/cmuts-space` Dockerfile to the commit. It then waits for the space to rebuild and redeploy, and fails where that fails, so a change which breaks the space is reported here.
+On a push to `main`, after those jobs pass, `CI` pins the `DasLab/cmuts-space` Dockerfile to the commit. It then waits for the space to rebuild and redeploy, and fails if that fails, so a change that breaks the space is reported here.
 
-`Documentation` renders the site, and fails if the generated docs are not current, rather than automatically updating them for you. A push to `main` deploys the rendered site as well.
+`Documentation` renders the site, and fails if the generated docs are not current. It does not update them. A push to `main` also deploys the rendered site.
 
 ## Releasing
 
 A release is a `v*` tag on `main`. Before tagging, set three files to the version the tag will name:
 
-1. `include/version.h`, which the programs report and the tarballs are named from.
-2. `CITATION.cff`, whose `version` and `date-released` a citation of the software carries. Zenodo archives each tag and reads this file for the record's title, authors and license.
+1. `include/version.h`, which the programs report and which names the tarballs.
+2. `CITATION.cff`, whose `version` and `date-released` fields a citation of the software carries. Zenodo archives each tag and reads this file for the title, the authors, and the license of the record.
 3. `CHANGELOG.md`, which needs an entry under `## [<version>]`. The release takes its notes from that entry.
 
-Pushing the tag runs the `Release` workflow. Its first job runs `scripts/check-tag.sh`, which fails where the tag disagrees with the header or the citation file, and `scripts/release-notes.sh`, which fails where the changelog holds no entry for the version. The platform jobs wait on that job, so a tag that disagrees with any of the three files fails before anything is built.
+Pushing the tag runs the `Release` workflow. Its first job runs `scripts/check-tag.sh`, which fails if the tag disagrees with the header or the citation file, and `scripts/release-notes.sh`, which fails if the changelog holds no entry for the version. The platform jobs wait on that job, so a tag that disagrees with any of the three files fails before anything is built.
 
-The platform jobs build the static binaries for Linux (x86_64, aarch64, via Alpine containers) and macOS (arm64), run the test suite against each, and attach the `scripts/package.sh` tarballs to a draft GitHub release with the changelog entry as its notes. Publishing the draft is a manual step.
+The platform jobs build the static binaries for Linux (x86_64 and aarch64, in Alpine containers) and macOS (arm64), run the test suite against each, and attach the `scripts/package.sh` tarballs to a draft GitHub release with the changelog entry as its notes. You publish the draft by hand.
+
+The tarballs are named `cmuts-<version>-<os>-<arch>.tar.gz`, where `<os>` is `uname -s` in lower case and `<arch>` is `uname -m`. The release page lists them only after its scripts run, so a fetch of the page from a terminal shows no assets. Each is served at a fixed URL that a script can build from the pattern:
+
+```sh
+curl -LO https://github.com/DasLab/cmuts/releases/download/v<version>/cmuts-<version>-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).tar.gz
+```
