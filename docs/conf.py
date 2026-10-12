@@ -6,8 +6,7 @@ project = "cmuts"
 html_title = "cmuts"
 author = "Hamish M. Blair"
 
-# The first year is the one in LICENSE, which covers the documentation as well.
-# %Y is the year the site is built, so the footer does not go stale.
+# The first year is the one in LICENSE. %Y is the year the site is built.
 copyright = "2024-%Y, Hamish M. Blair"
 
 extensions = [
@@ -15,23 +14,18 @@ extensions = [
     "sphinx_inline_tabs",
 ]
 
-# colon_fence is for the ::: fences the install tabs are written with.
-# attrs_block is for the {.class} written above a block, which MyST attaches to
-# that block, or to the section where the block is a heading.
-myst_enable_extensions = ["colon_fence", "attrs_block"]
+# ::: fences, {.class} blocks, and $ math.
+myst_enable_extensions = ["colon_fence", "attrs_block", "dollarmath"]
 
-# Gives every heading down to this depth a GitHub-style anchor, which the
-# generated dataset tables link into on the format page.
+# Gives every heading down to this depth an anchor, which the dataset tables link to.
 myst_heading_anchors = 3
 
 html_theme = "furo"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
-# The site holds one rendering per version, and the Makefile renders each with
-# html_baseurl set to where that version is served from, which the canonical
-# link of each page needs. The versions themselves reach the sidebar dropdown
-# through the template context, likewise set by the Makefile.
+# The Makefile renders each version with html_baseurl set to its URL, and passes
+# the version list to the sidebar dropdown through the template context.
 templates_path = ["_templates"]
 html_sidebars = {
     "**": [
@@ -44,9 +38,8 @@ html_sidebars = {
     ]
 }
 
-# Copied to the root of the site. GitHub Pages runs the output through Jekyll
-# otherwise, which drops the _static and _sources directories sphinx writes.
-# The file is empty; its presence is the whole of it.
+# Keeps GitHub Pages from running the site through Jekyll, which drops the
+# _static and _sources directories.
 html_extra_path = [".nojekyll"]
 
 # The Makefile sets source_branch to the ref each version is rendered from.

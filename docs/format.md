@@ -14,7 +14,7 @@ The type indicated only applies when the corresponding dataset is written, as nu
 
 **Shape** `(n, l)` · **Type** `float32` · **Fill** `NaN`
 
-The rate of mismatches at each base, over the coverage.
+The probability that the wrong base was incorporated at this position.
 
 {.field}
 ### `mismatches/error`
@@ -28,7 +28,7 @@ Binomial standard error of the mismatch rate.
 
 **Shape** `(n, l)` · **Type** `float32` · **Fill** `NaN`
 
-The rate of insertions opened after each base, over the reads pairing the base and continuing 5'.
+The probability that one or more bases were inserted directly 5' of this position.
 
 {.field}
 ### `insertions/error`
@@ -42,7 +42,7 @@ Binomial standard error of the insertion rate.
 
 **Shape** `(n, l)` · **Type** `float32` · **Fill** `NaN`
 
-The rate of deletion runs ending at each base, over the reads pairing the base 3' of it and continuing 5'.
+The probability that this position was the 3'-most base in a deletion.
 
 {.field}
 ### `deletions/error`
@@ -56,7 +56,7 @@ Binomial standard error of the deletion rate.
 
 **Shape** `(n, l)` · **Type** `float32` · **Fill** `NaN`
 
-The rate of reads whose 5'-most paired base is each base, over the coverage.
+The hazard rate of read terminations at this position.
 
 {.field}
 ### `terminations/error`

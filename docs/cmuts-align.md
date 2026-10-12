@@ -52,17 +52,17 @@ The program reads only the name, the bases, and the base qualities from an unali
 
 Paired-end data in unaligned BAM format is not supported. BAM files which are already aligned are refused.
 
+## Merging
+
+Paired-end input is merged with `vsearch` before alignment. A pair whose mates do not overlap cannot be merged and is discarded. `vsearch` reports how many pairs it merged on standard error.
+
 ## Checksums
 
 The output header contains the MD5 checksum of each reference in the `M5` field of its `@SQ` line. The checksum is used by [`cmuts hmm`](cmuts-hmm.md) to ensure alignment and processing use the same FASTA.
 
-## MD tags
+## MD Tags
 
-Every alignment carries the `MD` tag, which `minimap2` writes with `--MD`. It describes the mismatches and deletions against the reference, so tools that need it, such as cmuts v1, can read the output without the FASTA file.
-
-## Merging
-
-Paired-end input is merged with `vsearch` before alignment. A pair whose mates do not overlap cannot be merged and is discarded. `vsearch` reports how many pairs it merged on standard error.
+The `--MD` flag is passed to `minimap2` to ensure MD tags are in the outputs. These are not used by `cmuts hmm`, but are written to make the outputs compatible with other tools that require them.
 
 ## Sorting
 

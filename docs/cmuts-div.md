@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Normalization of reactivity rates against a denatured control.
+Normalization of [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates against a denatured control.
 
 ## Requires
 
-- Reactivity rates, usually the output of [`cmuts sub`](cmuts-sub.md)
-- Denatured control reactivity rates
+- A sample to normalize, usually the output of [`cmuts sub`](cmuts-sub.md)
+- A denatured control sample
 
-Both must be in [`cmuts`-compatible HDF5 files](format.md).
+Each must be a [`cmuts`-compatible HDF5 file](format.md) holding at least one of the four rates that `cmuts` works with.
 
 ## Usage
 
@@ -20,7 +20,7 @@ cmuts sub -o difference.h5 treated.h5 untreated.h5
 cmuts div -o normalized.h5 difference.h5 denatured.h5
 ```
 
-Each rate is divided by the control's rate at the same position. The result is NaN if either input is NaN there, or if the control's rate is not above zero.
+Each rate is divided by the control's rate at the same position when both are present. The result is NaN if either input is NaN there, or if the control's rate is not above zero.
 
 If any dataset does not match the expected shape or the sequences do not match, the program exits early.
 

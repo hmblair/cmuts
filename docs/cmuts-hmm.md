@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Computing reactivity rates from alignment files via the pair HMM.
+Computing [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates from alignment files.
 
 ## Requires
 
@@ -31,17 +31,63 @@ The length check is required to avoid buffer overflows and cannot be disabled.
 
 Both the DNA and the RNA forms of the FASTA sequence are accepted during the checksum comparison.
 
-## Error Computation
-
-`cmuts hmm` computes a per-base estimate for the reactivity error. This is purely the statistical error introduced by finite read depths; it does not account for experimental or systemic errors.
-
 ## Rejected Reads
 
-Reads which do not pass the configured filters are rejected, meaning they are not processed by the HMM and do not contribute to the final reactivity. A secondary alignment, a read with MAPQ 255, a read missing a sequence, or a read with no CIGAR is automatically rejected.
+Reads which do not pass the configured filters are rejected, meaning they are not processed by the HMM and do not contribute to the final rates. A secondary alignment, a read with MAPQ 255, a read missing a sequence, or a read with no CIGAR is automatically rejected.
 
 A read to which the HMM cannot assign a nonzero alignment probability is also rejected; this can only occur if you set one or more transition probabilities to zero.
 
-Unmapped reads are rejected by nature of having no reference to compute mutation rates against.
+Unmapped reads are rejected by nature of having no reference with which to compute each rate.
+
+## Rate Computation
+
+For each base $b$, the pair HMM computes five expectations under the posterior distribution over alignments:
+
+| Symbol | Expectation |
+| --- | --- |
+| $C_b$ | coverage |
+| $T_b$ | terminations |
+| $M_b$ | mismatches |
+| $I_b$ | insertion openings |
+| $D_b$ | deletion openings |
+
+Each of the four rates computed by `cmuts hmm` is the ratio of one expectation to the number of reads that could have produced the event.
+
+### Mismatches
+
+The mismatch rate is the probability that the wrong base was incorporated at base $b$, over every read pairing it.
+
+$$
+r_{\mathrm{M},b} = \frac{M_b}{C_b}
+$$
+
+### Insertions
+
+The insertion opening rate is the probability that one or more bases were inserted directly 5' of base $b$. A read that terminates at base $b$ cannot open an insertion past it, so the denominator is the reads that pair base $b$ and continue 5'.
+
+$$
+r_{\mathrm{I},b} = \frac{I_b}{C_b - T_b}
+$$
+
+### Deletions
+
+The deletion opening rate is the probability that base $b$ is the 3'-most base of a run of one or more deleted bases. A deletion at base $b$ is opened from base $b+1$, so the denominator is the reads that pair base $b+1$ and continue 5'.
+
+$$
+r_{\mathrm{D},b} = \frac{D_b}{C_{b+1} - T_{b+1}}
+$$
+
+### Terminations
+
+The termination hazard rate is the probability that a read ends at base $b$, given that it reached it.
+
+$$
+r_{\mathrm{T},b} = \frac{T_b}{C_b}
+$$
+
+## Error Computation
+
+Each rate is accompanied by a per-base estimate for its error, computed as the binomial standard error of the rate at the depth of its denominator. This is purely the statistical error introduced by finite read depths; it does not account for experimental or systemic errors.
 
 ## Output
 

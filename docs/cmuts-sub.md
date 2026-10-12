@@ -2,24 +2,28 @@
 
 ## Purpose
 
-Background subtraction of reactivity rates.
+Background subtraction of [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates.
 
 ## Requires
 
-- Treated reactivity rates
-- Untreated reactivity rates
+- A treated sample
+- An untreated sample
 
-Both must be in [`cmuts`-compatible HDF5 files](format.md).
+Each must be a [`cmuts`-compatible HDF5 file](format.md) holding at least one of the four rates that `cmuts` works with.
 
 ## Usage
 
 ```sh
-cmuts sub -o reactivity.h5 treated.h5 untreated.h5
+cmuts sub -o difference.h5 treated.h5 untreated.h5
 ```
 
-The untreated reactivity is subtracted from the treated reactivity. The result is NaN if either input is NaN there. A negative difference is raised to zero, unless `--keep-negative` is given.
+Each untreated rate is subtracted from its treated counterpart when both are present. The result is NaN if either input is NaN there. A negative difference is raised to zero, unless `--keep-negative` is given.
 
-If any dataset does not match the expected shape or the sequences do not match, the program exits early.
+```{note}
+Subtraction and clipping is the maximum likelihood estimator for non-negative treatment-mediated rates under a mixture model.
+```
+
+If any dataset does not match the expected shape or the stored sequences do not match, the program exits early.
 
 ## Output
 
@@ -70,7 +74,7 @@ High coverage in the output does not imply high-quality data, since it is insens
 
 | Option | Description |
 | --- | --- |
-| `--keep-negative` | leave a negative reactivity as it is |
+| `--keep-negative` | do not clip negative values after subtraction |
 
 ### Information
 

@@ -13,17 +13,17 @@ The `cmuts` pipeline comprises five subcommands of the `cmuts` binary:
 
 {.field}
 [`cmuts hmm`](cmuts-hmm.md)\
-**Purpose:** Computing reactivity rates from alignment files via the pair HMM\
+**Purpose:** Computing [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates from alignment files\
 **Requires:** One or more coordinate-sorted alignment (SAM, BAM, or CRAM) files, the FASTA library
 
 {.field}
 [`cmuts sub`](cmuts-sub.md)\
-**Purpose:** Background subtraction of reactivity rates\
+**Purpose:** Background subtraction of [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates\
 **Requires:** Treated and untreated reactivity rates, in [`cmuts`-compatible HDF5 files](format.md)
 
 {.field}
 [`cmuts div`](cmuts-div.md)\
-**Purpose:** Normalization of reactivity rates against a denatured control\
+**Purpose:** Normalization of [mismatch](cmuts-hmm.md#mismatches), [insertion](cmuts-hmm.md#insertions), [deletion](cmuts-hmm.md#deletions), and [termination](cmuts-hmm.md#terminations) rates against a denatured control\
 **Requires:** Reactivity rates and denatured control rates, in [`cmuts`-compatible HDF5 files](format.md)
 
 {.field}

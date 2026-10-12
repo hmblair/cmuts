@@ -27,7 +27,7 @@ Saving it from the browser provides a static copy that can be viewed and shared 
 
 ## Reactivity
 
-The report computes the reactivity as the sum of the channels selected at the top of the page.
+The report computes the reactivity as the sum of the rates selected at the top of the page.
 
 ## Options
 

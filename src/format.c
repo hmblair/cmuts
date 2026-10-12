@@ -21,7 +21,7 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
     },
     [FMT_MISMATCH_RATE] = {
         .name    = "mismatches/rate",
-        .detail  = "The rate of mismatches at each base, over the coverage.",
+        .detail  = "The probability that the wrong base was incorporated at this position.",
         .row     = shape_per_base,
         .per_ref = true,
         .stored  = FMT_F32,
@@ -37,7 +37,7 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
     },
     [FMT_INSERTION_RATE] = {
         .name    = "insertions/rate",
-        .detail  = "The rate of insertions opened after each base, over the reads pairing the base and continuing 5'.",
+        .detail  = "The probability that one or more bases were inserted directly 5' of this position.",
         .row     = shape_per_base,
         .per_ref = true,
         .stored  = FMT_F32,
@@ -53,7 +53,7 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
     },
     [FMT_DELETION_RATE] = {
         .name    = "deletions/rate",
-        .detail  = "The rate of deletion runs ending at each base, over the reads pairing the base 3' of it and continuing 5'.",
+        .detail  = "The probability that this position was the 3'-most base in a deletion.",
         .row     = shape_per_base,
         .per_ref = true,
         .stored  = FMT_F32,
@@ -69,7 +69,7 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
     },
     [FMT_TERMINATION_RATE] = {
         .name    = "terminations/rate",
-        .detail  = "The rate of reads whose 5'-most paired base is each base, over the coverage.",
+        .detail  = "The hazard rate of read terminations at this position.",
         .row     = shape_per_base,
         .per_ref = true,
         .stored  = FMT_F32,
