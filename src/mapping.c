@@ -571,7 +571,8 @@ static int spawn_merger(const mapping_config *cfg, int out_fd, pid_t *pid,
     return proc_spawn(argv, PROC_INHERIT, out_fd, pid, error, error_len);
 }
 
-/* input is the file that minimap2 reads, or "-" for its standard input. */
+/* input is the file that minimap2 reads, or "-" for its standard input. --MD writes the
+ * MD tag of every alignment, for tools that read it in place of the FASTA file. */
 static int spawn_aligner(const mapping_config *cfg, const char *input, int in_fd,
                          int out_fd, pid_t *pid, char *error, size_t error_len)
 {
@@ -580,7 +581,7 @@ static int spawn_aligner(const mapping_config *cfg, const char *input, int in_fd
     write_threads(threads, sizeof threads, cfg->threads);
 
     const char *const argv[] = {
-        "minimap2", "-a", "-x", preset_name(cfg->preset), "--secondary=no",
+        "minimap2", "-a", "-x", preset_name(cfg->preset), "--secondary=no", "--MD",
         "-t", threads, cfg->fasta_path, input, NULL,
     };
 

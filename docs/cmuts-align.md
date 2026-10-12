@@ -9,7 +9,7 @@ Aligning raw sequencing data against a reference library.
 - The sequenced reads, either in FASTQ or unaligned BAM format
 - The FASTA library
 
-As well as both `minimap2` (version 2.3 or later) and `samtools` on the path, and `vsearch` if processing paired-end input.
+As well as both `minimap2` (version 2.10 or later) and `samtools` on the path, and `vsearch` if processing paired-end input.
 
 ## Usage
 
@@ -55,6 +55,10 @@ Paired-end data in unaligned BAM format is not supported. BAM files which are al
 ## Checksums
 
 The output header contains the MD5 checksum of each reference in the `M5` field of its `@SQ` line. The checksum is used by [`cmuts hmm`](cmuts-hmm.md) to ensure alignment and processing use the same FASTA.
+
+## MD tags
+
+Every alignment carries the `MD` tag, which `minimap2` writes with `--MD`. It describes the mismatches and deletions against the reference, so tools that need it, such as cmuts v1, can read the output without the FASTA file.
 
 ## Merging
 

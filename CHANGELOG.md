@@ -6,6 +6,7 @@
 
 - `cmuts hmm` writes `reads/quality-histogram`, a histogram of the mapping qualities of the primary reads contributing to the rates, with one row per reference and one bin per quality from 0 to 254. `cmuts sub` and `cmuts div` sum it over their inputs, and `cmuts norm` copies it.
 - `cmuts plot` reports the mean and median mapping quality of the counted reads, for the reference in view and for the library as a whole.
+- `cmuts align` writes the `MD` tag of every alignment, which tools such as cmuts v1 need and otherwise had to be added with `samtools calmd`. This requires minimap2 2.10 or later.
 
 ### Changed
 
