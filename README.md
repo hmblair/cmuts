@@ -13,7 +13,7 @@ In a picture:
 
 ![cmuts-overview](./docs/figures/overview.png)
 
-Detailed documentation can be found at [hmblair.github.io/cmuts](https://hmblair.github.io/cmuts). You can also try cmuts directly in the browser via the [Hugging Face Space](https://huggingface.co/spaces/daslab-stanford/cmuts).
+The v1 documentation site is no longer hosted. You can also try cmuts directly in the browser via the [Hugging Face Space](https://huggingface.co/spaces/daslab-stanford/cmuts).
 
 ## Quick Start
 
