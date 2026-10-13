@@ -1,3 +1,7 @@
+# cmuts v1 is not maintained
+
+> **This branch is cmuts v1. It has known bugs in how it counts deletions, and it is no longer maintained. Use [cmuts v2](https://github.com/DasLab/cmuts), whose releases carry static binaries and whose documentation is at [daslab.stanford.edu/cmuts](https://daslab.stanford.edu/cmuts).**
+
 ## Overview
 
 `cmuts` is a suite of programs for counting mutations and computing reactivity profiles from data generated via chemical probing experiments. It features
