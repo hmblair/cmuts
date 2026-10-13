@@ -1,6 +1,6 @@
 # cmuts v1 is not maintained
 
-> **This branch is cmuts v1. It has known bugs in how it counts deletions, and it is no longer maintained. Use [cmuts v2](https://github.com/DasLab/cmuts), whose releases carry static binaries and whose documentation is at [daslab.stanford.edu/cmuts](https://daslab.stanford.edu/cmuts).**
+> **This branch is cmuts v1. It has known bugs in how it counts deletions, and it is no longer maintained. Use [cmuts v2](https://github.com/DasLab/cmuts), which fixes all known bugs from v1 and is actively maintained.**
 
 ## Overview
 
