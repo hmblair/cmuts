@@ -10,6 +10,12 @@ The [web server](https://huggingface.co/spaces/DasLab/cmuts) runs `cmuts` on Hug
 
 Each [release](https://github.com/DasLab/cmuts/releases) carries static `cmuts` binaries for Linux (x86_64, aarch64) and macOS (arm64). These bundle htslib and HDF5, so no libraries need to be installed to run them. Alternatively, you can [build from source](https://daslab.stanford.edu/cmuts/latest/from-source), which may provide marginal speedups.
 
+On macOS, a tarball downloaded through a browser is quarantined, and the binary inside it is refused with "cmuts couldn't be opened". Clear the attribute from the tarball before unpacking it:
+
+```sh
+xattr -d com.apple.quarantine cmuts-<version>-darwin-arm64.tar.gz
+```
+
 `cmuts align` calls separate programs, which must be on the `PATH`.
 
 - [minimap2](https://github.com/lh3/minimap2), version 2.10 or later.
