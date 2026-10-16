@@ -169,7 +169,7 @@ static const cli_option OPTIONS[] = {
         .type    = OPT_INT,
         .offset  = offsetof(cli_args, pipeline.tally_config.ultima_phred),
         .metavar = "Q",
-        .help    = "the substitution PHRED score of every base of an Ultima read, "
+        .help    = "the substitution Phred score of every base of an Ultima read, "
                    "whose quality string describes run lengths only",
         .label   = "Ultima Substitution Quality",
         .minimum = 0,

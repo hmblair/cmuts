@@ -39,7 +39,7 @@ typedef struct {
     double       reverse_fraction;
     double       tagged_fraction;   /* mapped reads carrying the run length tags */
     distribution tp;                /* the tp value of each base of a tagged read */
-    distribution t0;                /* the t0 PHRED score of each base */
+    distribution t0;                /* the t0 Phred score of each base */
 } sim_model;
 
 /* Buffers reused across reads, sized to the largest the model can produce. */

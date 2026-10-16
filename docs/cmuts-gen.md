@@ -25,7 +25,7 @@
 | --- | --- |
 | `--read-length DISTRIBUTION` | reference span each read covers (default 100:400) |
 | `--mapq DISTRIBUTION` | mapping quality of each read (default 0,1,10,30,42,60) |
-| `--base-quality DISTRIBUTION` | PHRED score of each base (default 30:40) |
+| `--base-quality DISTRIBUTION` | Phred score of each base (default 30:40) |
 | `--reverse F` | fraction of reads on the reverse strand (0 to 1; default 0.5) |
 | `--unmapped DISTRIBUTION` | reads aligning nowhere (default 10) |
 
@@ -47,7 +47,7 @@
 | --- | --- |
 | `--tagged F` | fraction of mapped reads carrying the run length tags tp and t0 of an Ultima read (0 to 1; default 0) |
 | `--tp DISTRIBUTION` | tp value of each base of a tagged read (default -1,0,1) |
-| `--t0 DISTRIBUTION` | t0 PHRED score of each base of a tagged read (default 10:40) |
+| `--t0 DISTRIBUTION` | t0 Phred score of each base of a tagged read (default 10:40) |
 | `--flow-order BASES` | flow order of the read group of the tagged reads, or none (default TGCA) |
 
 ### Determinism

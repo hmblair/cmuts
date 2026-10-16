@@ -99,7 +99,7 @@ static const cli_option OPTIONS[] = {
         .type    = OPT_STRING,
         .offset  = offsetof(gen_args, base_quality),
         .metavar = "DISTRIBUTION",
-        .help    = "PHRED score of each base",
+        .help    = "Phred score of each base",
     },
     {
         .group   = "Reads",
@@ -204,7 +204,7 @@ static const cli_option OPTIONS[] = {
         .type    = OPT_STRING,
         .offset  = offsetof(gen_args, t0),
         .metavar = "DISTRIBUTION",
-        .help    = "t0 PHRED score of each base of a tagged read",
+        .help    = "t0 Phred score of each base of a tagged read",
     },
     {
         .group   = "Run length tags",

@@ -15,7 +15,7 @@ typedef struct {
     double error[PHRED_MAX + 1];
 } phred;
 
-/* Returns the chance of error that a PHRED score states. */
+/* Returns the chance of error that a Phred score states. */
 double phred_error_of(unsigned quality);
 
 /* Builds the table. A base that scores below the minimum gives no information about the

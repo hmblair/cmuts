@@ -13,7 +13,7 @@
 #include <htslib/hts.h>
 #include <htslib/sam.h>
 
-/* The offset that a FASTQ adds to a PHRED score to make it printable. */
+/* The offset that a FASTQ adds to a Phred score to make it printable. */
 #define PHRED_OFFSET 33
 
 /* The quality that htslib stores for every base of a record that has no qualities. */

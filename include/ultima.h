@@ -30,7 +30,7 @@
  * MINIMAL_CALL_PROB, which has the same value. */
 #define ULTIMA_MINIMAL_CALL_CHANCE 0.1
 
-/* The offset that the t0 string adds to a PHRED score to make it printable. */
+/* The offset that the t0 string adds to a Phred score to make it printable. */
 #define ULTIMA_PHRED_OFFSET 33
 
 /* The flow order of one read group: the cycle of four bases the sequencer repeats, and

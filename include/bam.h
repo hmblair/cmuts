@@ -31,13 +31,13 @@ typedef struct {
     uint32_t        n_cigar;  /* number of ops in cigar */
     const uint8_t  *seq;      /* bases packed two to a byte; nuc_from_read reads
                                  one. NULL where the record stores no sequence */
-    const uint8_t  *qual;     /* raw PHRED scores, no +33 offset; NULL if absent */
+    const uint8_t  *qual;     /* raw Phred scores, no +33 offset; NULL if absent */
     int32_t         l_qseq;   /* number of bases, and length of seq and qual */
     /* The run length error tags of an Ultima read, one value per base; see ultima.h.
      * NULL if the record has no such tag, or the tag has another length. */
     const int8_t   *tp;       /* the alternative run length of each base's quality,
                                  relative to the called length */
-    const char     *t0;       /* PHRED scores with the +33 offset, of a base unlike
+    const char     *t0;       /* Phred scores with the +33 offset, of a base unlike
                                  either run missing between two runs */
     const char     *rg;       /* the read group id, or NULL if the record has none */
 } cm_bam_record;
