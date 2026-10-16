@@ -62,15 +62,15 @@ void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uni
 
 /* One reference base as every pairing of it reads it: what the pairing pays after no
  * gap, after a deletion whose last base is the one before, and after an insertion; the
- * modification rate; the base as nuc names it; and whether the base is, by itself, a
- * run of one base. */
+ * modification rate; the base as nuc names it; and, where the base is by itself a run
+ * of one named base, that base as a bit indexed by nuc, else zero. */
 typedef struct {
     double  after_no_gap;
     double  after_deletion;
     double  after_insertion;
     double  modification;
     uint8_t code;
-    bool    is_one_base_run;
+    uint8_t run_bit;
 } phmm_base;
 
 /* One reference prepared for the marginal: its runs and each base as the pairings read
