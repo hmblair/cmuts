@@ -506,6 +506,19 @@ static bool cut_after(const context *ctx, const run *piece)
         && nuc_from_read(ctx->read->seq, after) == piece->letter;
 }
 
+/* Returns how many bases past the read run the longest template length with any chance
+ * reaches, which is how many phantom rows the step needs. */
+static int32_t phantom_rows(const double *length)
+{
+    for (int offset = MAX_LENGTH_ERROR; offset > 0; offset--) {
+        if (length[MAX_LENGTH_ERROR + offset] > 0.0) {
+            return offset;
+        }
+    }
+
+    return 0;
+}
+
 /* Writes the chance of each template length of a run. A run whose length the read
  * does not give in full, or a read without the tags, has the read length. */
 static void lay_out_lengths(const context *ctx, row_layout *row, size_t k)
@@ -533,7 +546,7 @@ static void lay_out_lengths(const context *ctx, row_layout *row, size_t k)
     row->length[MAX_LENGTH_ERROR - 2] = shorter * FLOW_TWO_BASE_FRACTION;
     row->length[MAX_LENGTH_ERROR]     = 1.0 - (longer + shorter)
                                             * (1.0 + FLOW_TWO_BASE_FRACTION);
-    row->depth = row->piece.len + MAX_LENGTH_ERROR;
+    row->depth = row->piece.len + phantom_rows(row->length);
 }
 
 static void lay_out_missed(const context *ctx, row_layout *row, size_t k)
