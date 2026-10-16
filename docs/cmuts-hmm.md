@@ -27,6 +27,14 @@ The `--band` argument sets the bandwidth of the pair HMM, which determines the l
 
 DMS data is insensitive to the bandwidth, since methylations mostly cause mismatches. On the other hand, SHAPE data requires a bandwidth of at least the default of 2 to locate ambiguous deletions correctly. Larger bandwidths lead to rapidly diminishing returns.
 
+## Sequencing Errors
+
+Illumina reports a Phred quality per base, which is the probability that the sequencer introduced a substitution error at that base. Substitution errors serve as an alternative explanation for substitutions otherwise attributed to the reverse transcriptase.
+
+Ultima reports a Phred quality per homopolymer run, which is the probability that the run was called one base too long or too short. Run-length errors serve as alternative explanations for insertions and deletions otherwise attributed to the reverse transcriptase. Since Ultima does not report substitution error probabilities, `--ultima-phred` sets one for every base.
+
+A file may hold both kinds of read. `cmuts hmm` selects the error handling of each read from its tags.
+
 ## Error Checking
 
 `cmuts hmm` verifies the FASTA against the alignment header, by comparing each sequence's name and length, and its MD5 checksum when present. Any mismatch between the header and the FASTA ends the run early. This behavior is configurable via the `--verify` flag.
