@@ -107,24 +107,7 @@ static int grow_model(runhmm_model *model, size_t len)
         return -1;
     }
 
-    if (len > model->cap_bases) {
-        int32_t     *run_of = realloc(model->run_of, len * sizeof *run_of);
-        runhmm_base *bases  = realloc(model->bases, len * sizeof *bases);
-
-        if (run_of) {
-            model->run_of = run_of;
-        }
-        if (bases) {
-            model->bases = bases;
-        }
-        if (!run_of || !bases) {
-            return -1;
-        }
-
-        model->cap_bases = len;
-    }
-
-    return 0;
+    return grow((void **)&model->bases, &model->cap_bases, len, sizeof *model->bases);
 }
 
 static runhmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
@@ -139,21 +122,22 @@ static runhmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
         .open_insertion = rate_at(rates->open_insertion, len, b),
         .modification   = rates->modification[b],
         .code           = (uint8_t)nuc_from_char(ref->seq[b]),
+        .one_base_run   = 0,
     };
 }
 
 static void fill_bases(runhmm_model *model, const cm_fasta_record *ref)
 {
+    for (size_t b = 0; b < ref->len; b++) {
+        model->bases[b] = base_at(model->rates, ref, (hts_pos_t)b);
+    }
+
     for (size_t m = 0; m < model->n_runs; m++) {
         const run *r = &model->runs[m];
 
-        for (int32_t b = r->start; b < r->start + r->len; b++) {
-            model->run_of[b] = (int32_t)m;
+        if (r->len == 1 && nuc_is_base(r->letter)) {
+            model->bases[r->start].one_base_run = (uint8_t)(1U << r->letter);
         }
-    }
-
-    for (size_t b = 0; b < ref->len; b++) {
-        model->bases[b] = base_at(model->rates, ref, (hts_pos_t)b);
     }
 }
 
@@ -177,7 +161,6 @@ int runhmm_model_prepare(runhmm_model *model, const phmm_rates *rates,
 void runhmm_model_free(runhmm_model *model)
 {
     free(model->runs);
-    free(model->run_of);
     free(model->bases);
     *model = (runhmm_model){ 0 };
 }
@@ -859,20 +842,22 @@ static void step_forward(const context *ctx, size_t k)
     }
 }
 
+/* Whether the sequencer can have missed a one-base run after the run of row k. */
+static bool may_miss(const context *ctx, size_t k)
+{
+    const row_layout *row = row_of(ctx, k);
+
+    return k != ctx->n_pieces && row->missed > 0.0 && row->missed_letters != 0;
+}
+
 /* Whether reference base x is a run of one base that the sequencer can have missed
  * after the row's run. */
 static bool missed_at(const context *ctx, const row_layout *row, int32_t x)
 {
     const runhmm_model *model = ctx->model;
-    const run          *r;
 
-    if ((size_t)x >= model->len || row->missed <= 0.0) {
-        return false;
-    }
-
-    r = &model->runs[model->run_of[x]];
-
-    return r->len == 1 && (row->missed_letters & (1U << r->letter));
+    return (size_t)x < model->len
+        && (model->bases[x].one_base_run & row->missed_letters) != 0;
 }
 
 /* Leaves the step at each template length, into the outer cells of row k. A deletion
@@ -916,7 +901,7 @@ static void pass_missed_forward(const context *ctx, size_t k)
 {
     const row_layout *row = row_of(ctx, k);
 
-    if (k == ctx->n_pieces) {
+    if (!may_miss(ctx, k)) {
         return;
     }
 
@@ -1029,7 +1014,7 @@ static void pass_missed_backward(const context *ctx, size_t k)
 {
     const row_layout *row = row_of(ctx, k);
 
-    if (k == ctx->n_pieces) {
+    if (!may_miss(ctx, k)) {
         return;
     }
 
