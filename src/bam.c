@@ -19,15 +19,27 @@
  * stream; anything lower is a read error. */
 #define SAM_END_OF_FILE (-1)
 
-/* The fields a cm_bam_record is made of, and no others. CRAM keeps the rest -- names,
- * mate fields, auxiliary tags -- in separate blocks, so what is never read need not be
+/* The fields a cm_bam_record is made of, and no others. CRAM keeps the rest -- names
+ * and mate fields -- in separate blocks, so what is never read need not be
  * decompressed. A field added to the record must be added here or it arrives empty. */
 #define REQUIRED_FIELDS (SAM_FLAG | SAM_RNAME | SAM_POS | SAM_MAPQ | \
-                         SAM_CIGAR | SAM_SEQ | SAM_QUAL)
+                         SAM_CIGAR | SAM_SEQ | SAM_QUAL | SAM_AUX)
 
 /* SAM spells "no qualities" as a QUAL field of "*", which BAM stores as a leading
  * 0xff in an otherwise full-length quality array. */
 #define QUAL_ABSENT 0xff
+
+/* The tags a record view reads. tp and t0 are the run length error tags of an Ultima
+ * read; see flow.h. */
+#define TAG_RUN_LENGTH_ALTERNATIVE "tp"
+#define TAG_MISSED_BASE            "t0"
+#define TAG_READ_GROUP             "RG"
+#define AUX_ARRAY          'B'
+#define AUX_SIGNED_BYTE    'c'
+#define AUX_STRING         'Z'
+
+/* An array tag stores its type, its element type, a four byte count, and the elements. */
+#define AUX_ARRAY_HEADER   6
 
 /* The low bits a BGZF virtual offset spends on the position within a block. */
 #define BGZF_OFFSET_BITS 16
@@ -195,6 +207,39 @@ static const uint8_t *quality_scores(const bam1_t *record)
     return qual;
 }
 
+static const int8_t *signed_bytes_per_base(const bam1_t *record, const char tag[2])
+{
+    const uint8_t *aux = bam_aux_get(record, tag);
+
+    if (!aux || aux[0] != AUX_ARRAY || aux[1] != AUX_SIGNED_BYTE
+        || bam_auxB_len(aux) != (uint32_t)record->core.l_qseq) {
+        return NULL;
+    }
+
+    return (const int8_t *)(aux + AUX_ARRAY_HEADER);
+}
+
+static const char *string_per_base(const bam1_t *record, const char tag[2])
+{
+    const uint8_t *aux = bam_aux_get(record, tag);
+    const char    *text;
+
+    if (!aux || aux[0] != AUX_STRING) {
+        return NULL;
+    }
+
+    text = bam_aux2Z(aux);
+
+    return text && strlen(text) == (size_t)record->core.l_qseq ? text : NULL;
+}
+
+static const char *string_tag(const bam1_t *record, const char tag[2])
+{
+    const uint8_t *aux = bam_aux_get(record, tag);
+
+    return aux && aux[0] == AUX_STRING ? bam_aux2Z(aux) : NULL;
+}
+
 void cm_bam_record_view(const bam1_t *record, cm_bam_record *out)
 {
     out->tid     = record->core.tid;
@@ -206,6 +251,16 @@ void cm_bam_record_view(const bam1_t *record, cm_bam_record *out)
     out->seq     = packed_sequence(record);
     out->qual    = quality_scores(record);
     out->l_qseq  = record->core.l_qseq;
+    out->tp      = NULL;
+    out->t0      = NULL;
+    out->rg      = NULL;
+}
+
+void cm_bam_record_view_tags(const bam1_t *record, cm_bam_record *out)
+{
+    out->tp = signed_bytes_per_base(record, TAG_RUN_LENGTH_ALTERNATIVE);
+    out->t0 = string_per_base(record, TAG_MISSED_BASE);
+    out->rg = string_tag(record, TAG_READ_GROUP);
 }
 
 const bam1_t *cm_bam_raw(const cm_bam_reader *reader)
@@ -419,4 +474,60 @@ const char *cm_bam_sq_checksum(cm_bam_sq_cursor *cursor, int32_t tid, size_t *le
     }
 
     return checksum;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Read groups                                                               */
+/* ------------------------------------------------------------------------ */
+
+static const char *next_read_group(const char *line)
+{
+    for (; line; line = next_line(line)) {
+        if (strncmp(line, "@RG", RECORD_TYPE_LEN) == 0) {
+            return line;
+        }
+    }
+
+    return NULL;
+}
+
+void cm_bam_rg_open(cm_bam_rg_cursor *cursor, const cm_bam_reader *reader)
+{
+    const char *text = sam_hdr_str(reader->header);
+
+    cursor->line = text ? next_read_group(text) : NULL;
+}
+
+static bool read_group_of(const char *line, cm_bam_read_group *out)
+{
+    const char *end = line_end(line);
+
+    out->id = find_tag(line, end, "ID:");
+
+    if (!out->id) {
+        return false;
+    }
+
+    out->id_len     = (size_t)(field_end(out->id, end) - out->id);
+    out->flow_order = find_tag(line, end, "FO:");
+    out->flow_order_len = out->flow_order
+                        ? (size_t)(field_end(out->flow_order, end) - out->flow_order)
+                        : 0;
+
+    return true;
+}
+
+bool cm_bam_rg_next(cm_bam_rg_cursor *cursor, cm_bam_read_group *out)
+{
+    while (cursor->line) {
+        const char *line = cursor->line;
+
+        cursor->line = next_read_group(next_line(line));
+
+        if (read_group_of(line, out)) {
+            return true;
+        }
+    }
+
+    return false;
 }

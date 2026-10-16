@@ -15,6 +15,7 @@
 #include "fasta.h"
 #include "pairs.h"
 #include "phmm.h"
+#include "runhmm.h"
 
 /* Everything a reference accumulates while its reads are in flight.
  *
@@ -30,7 +31,7 @@ typedef struct refctx {
     phmm_rates      rates;          /* filled by the loader before any read is queued,
                                        and only read after */
     double         *rate_storage;   /* owned; PHMM_RATE_ARRAYS values per base */
-    phmm_model      model;          /* prepared from rates and seq by the loader, as
+    runhmm_model    model;          /* prepared from rates and seq by the loader, as
                                        rates is */
     accum           acc;
     bool            accumulated;  /* whether any read reached it; guarded by lock */

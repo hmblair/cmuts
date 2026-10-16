@@ -176,7 +176,7 @@ static const workitem *item_at(void *const *slots, size_t i)
 
 /* Counts every read of a run into the worker's own shadow. */
 static void worker_count_run(worker *w, void **slots, size_t n,
-                             const cm_fasta_record *ref, const phmm_model *model)
+                             const cm_fasta_record *ref, const runhmm_model *model)
 {
     for (size_t i = 0; i < n; i++) {
         const workitem *item = item_at(slots, i);
@@ -184,6 +184,7 @@ static void worker_count_run(worker *w, void **slots, size_t n,
         phmm_status     status;
 
         cm_bam_record_view(item->rec, &read);
+        cm_bam_record_view_tags(item->rec, &read);
         status = tally(&read, ref, model, &w->pipe->tally_tables, w->scratch,
                        &w->shadow,
                        w->shadow_pairs.cells ? &w->shadow_pairs : NULL);
@@ -389,9 +390,8 @@ static refctx *pipeline_open_reference(const pipeline *p, int32_t tid)
     refctx_open(ctx, tid, cm_bam_stream_refname(p->bam, tid), seq);
     tally_rates_fill(&ctx->rates, ctx->rate_storage, ctx->len, &p->tally_tables);
 
-    /* The margin is the band, which is what every row of the marginal is given. */
     refctx_sequence(ctx, &ref);
-    if (phmm_model_prepare(&ctx->model, &ctx->rates, &ref, p->tally_tables.band) < 0) {
+    if (runhmm_model_prepare(&ctx->model, &ctx->rates, &ref, p->tally_tables.band) < 0) {
         ctxpool_give(p->contexts, ctx);
         return NULL;
     }
@@ -895,7 +895,10 @@ int pipeline_run(const pipeline_config *cfg, const char *program,
         goto done;
     }
 
-    tally_tables_build(&p.tally_tables, &cfg->tally_config);
+    if (tally_tables_build(&p.tally_tables, &cfg->tally_config, p.bam) < 0) {
+        snprintf(error, error_len, "out of memory");
+        goto done;
+    }
 
     /* Started last, so that no setup step fails after the bar is drawn. */
     p.bar = progress_start(cm_bam_stream_span(p.bam));
@@ -943,6 +946,7 @@ done:
     }
 
     free(workers);
+    tally_tables_free(&p.tally_tables);
     pipeline_teardown(&p);
     return status;
 }

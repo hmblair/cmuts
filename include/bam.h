@@ -33,6 +33,13 @@ typedef struct {
                                  one. NULL where the record stores no sequence */
     const uint8_t  *qual;     /* raw PHRED scores, no +33 offset; NULL if absent */
     int32_t         l_qseq;   /* number of bases, and length of seq and qual */
+    /* The run length error tags of an Ultima read, one value per base; see flow.h.
+     * NULL if the record has no such tag, or the tag has another length. */
+    const int8_t   *tp;       /* the alternative run length of each base's quality,
+                                 relative to the called length */
+    const char     *t0;       /* PHRED scores with the +33 offset, of a base of another
+                                 letter missing next to each base */
+    const char     *rg;       /* the read group id, or NULL if the record has none */
 } cm_bam_record;
 
 /* Reference index of an unmapped read, and of any tid with no header entry. */
@@ -76,9 +83,12 @@ int cm_bam_use_pool(cm_bam_reader *reader, htsThreadPool *pool);
  * retain a read past the next advance. Copy it with bam_copy1. */
 const bam1_t *cm_bam_raw(const cm_bam_reader *reader);
 
-/* Presents an htslib record as a cm_bam_record. The view borrows from record, so it stays
- * valid exactly as long as record does. */
+/* Presents an htslib record as a cm_bam_record, with the tags left NULL. The view
+ * borrows from record, so it stays valid exactly as long as record does. */
 void cm_bam_record_view(const bam1_t *record, cm_bam_record *out);
+
+/* Fills the tags of a view, which searches the record's auxiliary data. */
+void cm_bam_record_view_tags(const bam1_t *record, cm_bam_record *out);
 
 /* ------------------------------------------------------------------------ */
 /* Header queries                                                            */
@@ -118,3 +128,27 @@ void cm_bam_sq_open(cm_bam_sq_cursor *cursor, const cm_bam_reader *reader);
  * header declares none. The result points into the header text and lives as long as the
  * reader does. References must be requested in non-decreasing order. */
 const char *cm_bam_sq_checksum(cm_bam_sq_cursor *cursor, int32_t tid, size_t *len);
+
+/* ------------------------------------------------------------------------ */
+/* Read groups                                                               */
+/* ------------------------------------------------------------------------ */
+
+/* One @RG line of the header. Both strings point into the header text, have no
+ * terminator, and live as long as the reader does. */
+typedef struct {
+    const char *id;
+    size_t      id_len;
+    const char *flow_order;      /* the FO field, or NULL where the line has none */
+    size_t      flow_order_len;
+} cm_bam_read_group;
+
+/* A forward-only walk over the header's @RG lines. The cursor holds the state of the walk
+ * and belongs to the caller. */
+typedef struct {
+    const char *line;  /* the next @RG line to give, or NULL past the last */
+} cm_bam_rg_cursor;
+
+void cm_bam_rg_open(cm_bam_rg_cursor *cursor, const cm_bam_reader *reader);
+
+/* Returns false after the last read group. A line without an ID is passed over. */
+bool cm_bam_rg_next(cm_bam_rg_cursor *cursor, cm_bam_read_group *out);

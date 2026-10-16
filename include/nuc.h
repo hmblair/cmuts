@@ -46,6 +46,14 @@ static inline bool nuc_is_base(nuc base)
     return base != NUC_N;
 }
 
+extern const nuc NUC_COMPLEMENT[NUC_COUNT];
+
+/* Gives the base that pairs with a base. NUC_N pairs with NUC_N. */
+static inline nuc nuc_complement(nuc base)
+{
+    return NUC_COMPLEMENT[base];
+}
+
 /* Gives the index of a named base among NUC_BASES, for addressing a per-base array. */
 static inline int nuc_index(nuc base)
 {

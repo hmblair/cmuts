@@ -17,19 +17,20 @@
  * paired base within its band equally likely. */
 #define UNIFORM_ENDS 1.0
 
+/* The substitution score of every base of an Ultima read. */
+#define DEFAULT_FLOW_PHRED 40
+
 typedef struct {
     const cm_bam_record   *read;
     const cm_fasta_record *ref;
-    const phmm_model      *model;
+    const runhmm_model    *model;
     const tally_tables    *tables;
     accum                 *target;
     pairs                 *target_pairs;   /* NULL where no pairs are counted */
 } context;
 
 struct tally_scratch {
-    phmm_scratch *phmm;
-    int          *half;   /* the band passed to the marginal, one per row */
-    size_t        rows;   /* rows it is sized for */
+    runhmm_scratch *model;
 };
 
 /* Counts the read in its length bin. Binned by stored length, as the length filters are
@@ -108,47 +109,13 @@ static void add_window(const context *ctx, const phmm_window *window)
     }
 }
 
-/* Gives a band of uniform width, the only shape used so far. It is grown to the longest
- * read seen and filled once, the width being fixed before any read arrives. Returns
- * NULL if it cannot be grown, which ends the run. */
-static const int *uniform_band(tally_scratch *scratch, const cm_bam_record *read,
-                               int band)
-{
-    size_t rows = (size_t)read->l_qseq + 1;
-    int   *half;
-
-    if (rows <= scratch->rows) {
-        return scratch->half;
-    }
-
-    half = realloc(scratch->half, rows * sizeof *half);
-
-    if (!half) {
-        return NULL;
-    }
-
-    for (size_t i = 0; i < rows; i++) {
-        half[i] = band;
-    }
-
-    scratch->half = half;
-    scratch->rows = rows;
-
-    return half;
-}
-
 static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 {
     phmm_window window;
     phmm_status status;
-    const int  *half = uniform_band(scratch, ctx->read, ctx->tables->band);
 
-    if (!half) {
-        return PHMM_NO_MEMORY;
-    }
-
-    status = phmm_run(ctx->model, &ctx->tables->quality, ctx->read, ctx->ref, half,
-                      scratch->phmm, &window);
+    status = runhmm_run(ctx->model, &ctx->tables->quality, &ctx->tables->flow,
+                        ctx->read, scratch->model, &window);
 
     if (status == PHMM_OK) {
         add_window(ctx, &window);
@@ -168,9 +135,10 @@ static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 tally_config tally_defaults(void)
 {
     return (tally_config){
-        .band      = PHMM_DEFAULT_BAND,
-        .min_phred = 0,
-        .uniform   = phmm_uniform_defaults(),
+        .band       = RUNHMM_DEFAULT_BAND,
+        .min_phred  = 0,
+        .flow_phred = DEFAULT_FLOW_PHRED,
+        .uniform    = phmm_uniform_defaults(),
     };
 }
 
@@ -182,11 +150,31 @@ static void fill_uniform(double *values, size_t len, double rate)
     }
 }
 
-void tally_tables_build(tally_tables *tables, const tally_config *config)
+static int add_read_groups(flow_tables *flow, const cm_bam_stream *stream)
+{
+    for (size_t file = 0; file < cm_bam_stream_count(stream); file++) {
+        if (flow_tables_add_read_groups(flow, cm_bam_stream_reader(stream, file)) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int tally_tables_build(tally_tables *tables, const tally_config *config,
+                       const cm_bam_stream *stream)
 {
     phred_build(&tables->quality, config->min_phred);
+    flow_tables_build(&tables->flow, config->flow_phred);
     tables->uniform = config->uniform;
     tables->band    = config->band;
+
+    return add_read_groups(&tables->flow, stream);
+}
+
+void tally_tables_free(tally_tables *tables)
+{
+    flow_tables_free(&tables->flow);
 }
 
 /* Points each array of rates at its own len values of storage. */
@@ -223,9 +211,9 @@ tally_scratch *tally_scratch_create(void)
         return NULL;
     }
 
-    scratch->phmm = phmm_scratch_create();
+    scratch->model = runhmm_scratch_create();
 
-    if (!scratch->phmm) {
+    if (!scratch->model) {
         free(scratch);
         return NULL;
     }
@@ -239,8 +227,7 @@ void tally_scratch_destroy(tally_scratch *scratch)
         return;
     }
 
-    phmm_scratch_destroy(scratch->phmm);
-    free(scratch->half);
+    runhmm_scratch_destroy(scratch->model);
     free(scratch);
 }
 
@@ -260,7 +247,7 @@ static accum_field_id rejected_field(const cm_bam_record *read)
 }
 
 phmm_status tally(const cm_bam_record *read, const cm_fasta_record *ref,
-                  const phmm_model *model, const tally_tables *tables,
+                  const runhmm_model *model, const tally_tables *tables,
                   tally_scratch *scratch, accum *target, pairs *target_pairs)
 {
     context ctx = {

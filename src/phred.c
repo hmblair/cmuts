@@ -17,15 +17,17 @@
  * that agrees with the reference raises the chance of a modification. */
 #define UNINFORMATIVE_ERROR ((double)(NUC_BASES - 1) / NUC_BASES)
 
-/* Fills the table. A PHRED score is ten times the negative log of the chance the call is
- * wrong, so 0 means no confidence at all and 30 one chance in a thousand.
- *
- * A base takes the uninformative error when its score is below the minimum, or when its
- * score gives a larger error. A minimum of 0 keeps every base at its own score. */
+double phred_error_of(unsigned quality)
+{
+    return pow(10.0, -(double)quality / 10.0);
+}
+
+/* A base takes the uninformative error when its score is below the minimum, or when
+ * its score gives a larger error. */
 void phred_build(phred *table, int minimum)
 {
     for (unsigned quality = 0; quality <= PHRED_MAX; quality++) {
-        double called = pow(10.0, -(double)quality / 10.0);
+        double called = phred_error_of(quality);
 
         table->error[quality] = (int)quality < minimum || called > UNINFORMATIVE_ERROR
                               ? UNINFORMATIVE_ERROR
