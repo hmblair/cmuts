@@ -80,7 +80,7 @@ DATASETS = {
     # No reads at all, mapped or not, on references the header still declares.
     "empty":   dict(seed=118, references=10, ref_length=200, covered=0, unmapped=0),
 
-    # Every read carrying the run length tags of an Ultima read, under a read
+    # Every read carrying the run-length tags of an Ultima read, under a read
     # group that declares a flow order.
     "tagged":  dict(seed=119, references=20, reads_per_ref=20, tagged=1.0),
 
@@ -92,7 +92,7 @@ DATASETS = {
     "cycleless": dict(seed=121, references=20, reads_per_ref=20, tagged=1.0,
                       flow_order="none"),
 
-    # Every read tagged with low scores, so that the chances of a run length
+    # Every read tagged with low scores, so that the chances of a run-length
     # error and of a missing base are large.
     "doubtful": dict(seed=122, references=20, reads_per_ref=20, tagged=1.0,
                      base_quality="0:10", t0="0:10"),

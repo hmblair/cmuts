@@ -1,6 +1,6 @@
 /* phmm.c -- a banded pair HMM.
  *
- * The read is cut into segments. A read whose sequencer reports run length errors has
+ * The read is cut into segments. A read whose sequencer reports run-length errors has
  * one segment per run of one base, since the errors enter where a run ends. A read
  * without them has segments of up to SEGMENT_BASES bases, since nothing enters where
  * such a segment ends.
@@ -55,7 +55,7 @@ enum { PAIRED, GAP_DELETION, GAP_INSERTION, N_INNER };
 /* Forward times backward sums to one on the first row within this tolerance. */
 #define NORMALIZATION_TOLERANCE 1e-6
 
-/* The most bases a segment of a read without run length errors holds. The paths
+/* The most bases a segment of a read without run-length errors holds. The paths
  * through this many bases stay far above the smallest double. */
 #define SEGMENT_BASES 32
 

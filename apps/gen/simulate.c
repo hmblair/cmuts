@@ -412,7 +412,7 @@ static int attach_tags(bam1_t *rec, int nm, const char *md)
 }
 
 /* ------------------------------------------------------------------------ */
-/* Run length tags                                                           */
+/* Run-length tags                                                           */
 /* ------------------------------------------------------------------------ */
 
 /* Returns the character of a t0 score, held to the printable range. */

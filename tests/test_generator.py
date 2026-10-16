@@ -122,7 +122,7 @@ def test_a_read_can_store_less_than_the_span_it_aligns_to(data, falsifiable):
 
 
 # ---------------------------------------------------------------------------
-# The run length tags
+# The run-length tags
 # ---------------------------------------------------------------------------
 
 TP, T0, READ_GROUP = RUN_LENGTH_TAGS

@@ -1,4 +1,4 @@
-/* ultima.c -- decoding the run length errors of an Ultima read, per run.
+/* ultima.c -- decoding the run-length errors of an Ultima read, per run.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */

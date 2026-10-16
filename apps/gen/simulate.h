@@ -22,7 +22,7 @@
  * insertion, leaving a read far longer than the reference it aligns to, that an upper
  * length bound exists to remove.
  *
- * A tagged read carries the run length tags of an Ultima read: a tp value and a t0 score
+ * A tagged read carries the run-length tags of an Ultima read: a tp value and a t0 score
  * per base. Both are drawn on their own, like the base qualities, with no link to the
  * differences the read shows. */
 typedef struct {
@@ -37,7 +37,7 @@ typedef struct {
     distribution mapq;
     distribution base_quality;
     double       reverse_fraction;
-    double       tagged_fraction;   /* mapped reads carrying the run length tags */
+    double       tagged_fraction;   /* mapped reads carrying the run-length tags */
     distribution tp;                /* the tp value of each base of a tagged read */
     distribution t0;                /* the t0 Phred score of each base */
 } sim_model;

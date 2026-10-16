@@ -154,7 +154,7 @@ typedef struct {
     uint8_t missed_bases;
 } phmm_run_errors;
 
-/* The run length errors of one read: one entry per run of its placed span, and the
+/* The run-length errors of one read: one entry per run of its placed span, and the
  * substitution score every base takes, since the quality string of such a read
  * describes run lengths. */
 typedef struct {
@@ -165,7 +165,7 @@ typedef struct {
 /* Marginalizes one read over the alignments its band admits, leaving the result in
  * out, which borrows from scratch and is valid until the next call on it.
  *
- * errors holds the run length errors of the read, and is NULL for a read whose
+ * errors holds the run-length errors of the read, and is NULL for a read whose
  * sequencer reports none, which is then scored by the rates and its base qualities
  * alone. With errors, runs holds the n_runs runs of the placed span of the read, as
  * runs_of_read gives them; without, runs is not read. The model must be prepared for

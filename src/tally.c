@@ -35,7 +35,7 @@ struct tally_scratch {
     phmm_scratch  *model;
     run           *runs;      /* of the placed span of the read being marginalized */
     size_t         cap_runs;
-    ultima_errors  errors;    /* the run length errors of that read */
+    ultima_errors  errors;    /* the run-length errors of that read */
 };
 
 /* Counts the read in its length bin. Binned by stored length, as the length filters are
@@ -135,7 +135,7 @@ static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read
     return (ssize_t)runs_of_read(read->seq, span.begin, span.end, scratch->runs);
 }
 
-/* Splits a tagged read into runs and decodes its run length errors. Returns the count
+/* Splits a tagged read into runs and decodes its run-length errors. Returns the count
  * of runs, or -1 where a buffer cannot be grown. */
 static ssize_t decode_errors(const context *ctx, tally_scratch *scratch)
 {

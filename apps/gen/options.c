@@ -180,18 +180,18 @@ static const cli_option OPTIONS[] = {
     },
 
     {
-        .group   = "Run length tags",
+        .group   = "Run-length tags",
         .name    = "tagged",
         .type    = OPT_DOUBLE,
         .offset  = offsetof(gen_args, tagged),
         .metavar = "F",
-        .help    = "fraction of mapped reads carrying the run length tags tp and t0 "
+        .help    = "fraction of mapped reads carrying the run-length tags tp and t0 "
                    "of an Ultima read",
         .minimum = 0,
         .maximum = 1,
     },
     {
-        .group   = "Run length tags",
+        .group   = "Run-length tags",
         .name    = "tp",
         .type    = OPT_STRING,
         .offset  = offsetof(gen_args, tp),
@@ -199,7 +199,7 @@ static const cli_option OPTIONS[] = {
         .help    = "tp value of each base of a tagged read",
     },
     {
-        .group   = "Run length tags",
+        .group   = "Run-length tags",
         .name    = "t0",
         .type    = OPT_STRING,
         .offset  = offsetof(gen_args, t0),
@@ -207,7 +207,7 @@ static const cli_option OPTIONS[] = {
         .help    = "t0 Phred score of each base of a tagged read",
     },
     {
-        .group   = "Run length tags",
+        .group   = "Run-length tags",
         .name    = "flow-order",
         .type    = OPT_STRING,
         .offset  = offsetof(gen_args, flow_order),

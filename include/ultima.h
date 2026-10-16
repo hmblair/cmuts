@@ -1,4 +1,4 @@
-/* ultima.h -- the run length errors of an Ultima read, per run.
+/* ultima.h -- the run-length errors of an Ultima read, per run.
  *
  * An Ultima sequencer measures the length of each run of one base. Its errors are
  * runs called one base too long or too short. The tp tag gives, per base, the

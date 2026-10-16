@@ -218,13 +218,13 @@ def mark_paired(data: Dataset, directory) -> Dataset:
     return replace(data, bams=(rebuilt,))
 
 
-# The run length tags of an Ultima read, and the read group tag that names the
+# The run-length tags of an Ultima read, and the read group tag that names the
 # flow order.
 RUN_LENGTH_TAGS = ("tp", "t0", "RG")
 
 
 def strip_tags(data: Dataset, directory) -> Dataset:
-    """Removes the run length tags and the read group from every read.
+    """Removes the run-length tags and the read group from every read.
 
     Only the tags change, so the totals and the sort order carry over.
     """

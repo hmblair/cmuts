@@ -41,11 +41,11 @@
 | `--soft-clips DISTRIBUTION` | clipped ends per read, none through both (default 0:2) |
 | `--soft-clip-length DISTRIBUTION` | bases per clipped end (default 5:30) |
 
-### Run length tags
+### Run-length tags
 
 | Option | Description |
 | --- | --- |
-| `--tagged F` | fraction of mapped reads carrying the run length tags tp and t0 of an Ultima read (0 to 1; default 0) |
+| `--tagged F` | fraction of mapped reads carrying the run-length tags tp and t0 of an Ultima read (0 to 1; default 0) |
 | `--tp DISTRIBUTION` | tp value of each base of a tagged read (default -1,0,1) |
 | `--t0 DISTRIBUTION` | t0 Phred score of each base of a tagged read (default 10:40) |
 | `--flow-order BASES` | flow order of the read group of the tagged reads, or none (default TGCA) |

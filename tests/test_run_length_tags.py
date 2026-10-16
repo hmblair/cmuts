@@ -1,4 +1,4 @@
-"""The run length tags of a sequencer that measures run lengths, which an
+"""The run-length tags of a sequencer that measures run lengths, which an
 Ultima read carries.
 
 The quality of a base is the chance that the run it belongs to is one base
@@ -150,7 +150,7 @@ def assert_falls_with_the_chance(counted, gap):
 
 
 # ---------------------------------------------------------------------------
-# Run length errors
+# Run-length errors
 # ---------------------------------------------------------------------------
 
 RUN = 5
