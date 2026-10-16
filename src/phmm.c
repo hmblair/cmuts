@@ -299,17 +299,10 @@ typedef struct {
 
 /* One inner row of a segment: the prefixes of its band, from from to to; where its
  * cells lie, as an offset in doubles from the start of the inner matrix of its
- * segment; the comparisons of its read base; and what the row allows.
- *
- * The cells run from from to end. Most rows end at to. A row whose band ends where
- * the band of the row before ends, which happens after an inserted read base, has one
- * cell more, at to + 1. The pairing out of the last cell of the row before lands in
- * that cell. The cell is read only where a run ends at this row, one base before its
- * last read base. */
+ * segment; the comparisons of its read base; and what the row allows. */
 typedef struct {
     int32_t                 from;
     int32_t                 to;
-    int32_t                 end;
     size_t                  cells;
     const comparisons      *comparisons;
     bool                    uncounted;  /* a template base the sequencer did not count */
@@ -614,20 +607,7 @@ static void set_inner_span(inner_span *span, const context *ctx, size_t k, int32
 /* Returns how many cells the row holds. */
 static int32_t span_width(const inner_span *span)
 {
-    return span->end - span->from + 1;
-}
-
-/* Returns the prefix of the last cell of a row. The row has one cell past its band
- * where its band ends where the band of the row before ends, and that cell lies in
- * the window of the outer row. */
-static int32_t span_end_of(const outer_row *row, const inner_span *before,
-                           const inner_span *span)
-{
-    if (before && before->to == span->to && span->to < row->hi) {
-        return span->to + 1;
-    }
-
-    return span->to;
+    return span->to - span->from + 1;
 }
 
 /* Returns whether a read run continues into the clipped bases on one side, which
@@ -787,11 +767,9 @@ static size_t lay_out_spans(context *ctx)
         row->inner = inner;
 
         for (int32_t j = 0; j <= row->last_inner_row; j++) {
-            inner_span *span   = &ctx->scratch->spans[row->first_span + (size_t)j];
-            inner_span *before = j > 0 ? span - 1 : NULL;
+            inner_span *span = &ctx->scratch->spans[row->first_span + (size_t)j];
 
             set_inner_span(span, ctx, k, j);
-            span->end   = span_end_of(row, before, span);
             span->cells = cells;
             cells      += (size_t)span_width(span) * N_INNER;
 
@@ -1078,10 +1056,10 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
     int32_t                 from     = span->from;
     int32_t                 to       = span->to;
     int32_t                 next_from = after->from;
-    int32_t                 next_end = after->end;
+    int32_t                 next_to  = after->to;
     bool                    deletes  = after->deletes;
     int32_t                 pair_lo  = max_prefix(next_from, from + 1);
-    int32_t                 pair_hi  = min_prefix(next_end, to + 1);
+    int32_t                 pair_hi  = min_prefix(next_to, to + 1);
     int32_t                 ins_hi   = !uncounted && span->inserts
                                      ? min_prefix(after->to, to) : -1;
     double                  deletion = 0.0;
@@ -1117,7 +1095,7 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
         deletion            = deletion * w.extend_deletion + (deletes ? paired : 0.0);
     }
 
-    for (; x <= next_end; x++) {
+    for (; x <= next_to; x++) {
         double *cell = next + (size_t)(x - next_from) * N_INNER;
 
         cell[PAIRED]        = 0.0;
@@ -1179,7 +1157,7 @@ static inline bool missed_run_at(const context *ctx, const outer_row *row, int32
 typedef struct {
     double        chance;
     const double *at_lo;
-    int32_t       end;
+    int32_t       to;
     bool          inserts;
 } exit_row;
 
@@ -1200,13 +1178,13 @@ static size_t exit_rows_of(const context *ctx, size_t k, exit_row *exits)
 
         span = span_at(ctx, row, length.jend);
 
-        if (span->end < row->lo) {
+        if (span->to < row->lo) {
             continue;
         }
 
         exits[n].chance  = length.chance;
         exits[n].at_lo   = cell_in(inner_row_at(ctx, k, span), span, row->lo);
-        exits[n].end     = span->end;
+        exits[n].to      = span->to;
         exits[n].inserts = offset <= 0;
         n++;
     }
@@ -1222,7 +1200,7 @@ static inline void exit_at(const exit_row *exit, int32_t x, size_t cell, double 
 {
     const double *at = exit->at_lo + cell;
 
-    if (x > exit->end) {
+    if (x > exit->to) {
         return;
     }
 
@@ -1419,7 +1397,7 @@ static void start_inner_backward(const context *ctx, size_t k, double restore)
 
     set_segment_end(&end, ctx, k, row->last_inner_row, restore);
 
-    for (int32_t x = span->from; x <= span->end; x++) {
+    for (int32_t x = span->from; x <= span->to; x++) {
         double *cell     = cell_at(cells, span, x);
         double  paired   = 0.0;
         double  inserted = 0.0;
@@ -1502,8 +1480,7 @@ static inline double backward_gap_cell(double *cell, const segment_end *end, int
  * prefix on in the next row, which its pairing lands in, the cell at the same prefix,
  * which its insertion lands in, and the cell after it in its own row, which its open
  * deletion extends into. A cell whose target lies outside the next row takes nothing
- * from it. The cell past the band, where the row has one, is worth only the end of the
- * segment. The posterior of a template difference at a pairing is the posterior of the
+ * from it. The posterior of a template difference at a pairing is the posterior of the
  * pairing times the modified part of its emission over the whole emission, so the
  * emission divides out. The backward values carry the inverse of the scale of the
  * segment, so the posteriors need no further factor. */
@@ -1525,24 +1502,12 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
     int32_t                 to       = span->to;
     int32_t                 next_from = after->from;
     int32_t                 pair_lo  = max_prefix(from, next_from - 1);
-    int32_t                 pair_hi  = min_prefix(to, after->end - 1);
+    int32_t                 pair_hi  = min_prefix(to, after->to - 1);
     int32_t                 ins_lo   = !uncounted && span->inserts
                                      ? max_prefix(from, next_from) : INT32_MAX;
     double                  deletion = 0.0;  /* of the cell to the right */
     double                  carried  = 0.0;  /* deletion posterior of the cell after */
-    int32_t                 x        = span->end;
-
-    for (; x > to; x--) {
-        double *cell     = line + (size_t)(x - from) * N_INNER;
-        double  paired   = 0.0;
-        double  inserted = 0.0;
-
-        add_end_worth(&end, x, &paired, &inserted);
-
-        cell[PAIRED]        = paired;
-        cell[GAP_DELETION]  = 0.0;
-        cell[GAP_INSERTION] = inserted;
-    }
+    int32_t                 x        = to;
 
     for (; x > pair_hi; x--) {
         const double *gap = x >= ins_lo ? next + (size_t)(x - next_from) * N_INNER : NULL;
