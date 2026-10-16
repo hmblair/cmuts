@@ -24,15 +24,15 @@
 
 /* One reference base as every pairing of it reads it: what the pairing pays after no
  * gap, after a deletion whose last base is the one before, and after an insertion;
- * the modification rate; the letter as nuc names it; and the bit of the letter,
- * indexed by nuc, where the base is a run of one base, and zero otherwise. */
+ * the modification rate; the letter as nuc names it; and whether the base is, by
+ * itself, a run of one base. */
 typedef struct {
     double  keep;
     double  close_deletion;
     double  open_insertion;
     double  modification;
     uint8_t code;
-    uint8_t one_base_run;
+    bool    is_one_base_run;
 } runhmm_base;
 
 /* One reference prepared for the marginal: its runs, and each base as the pairings

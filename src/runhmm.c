@@ -122,7 +122,7 @@ static runhmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
         .open_insertion = rate_at(rates->open_insertion, len, b),
         .modification   = rates->modification[b],
         .code           = (uint8_t)nuc_from_char(ref->seq[b]),
-        .one_base_run   = 0,
+        .is_one_base_run = false,
     };
 }
 
@@ -135,8 +135,8 @@ static void fill_bases(runhmm_model *model, const cm_fasta_record *ref)
     for (size_t m = 0; m < model->n_runs; m++) {
         const run *r = &model->runs[m];
 
-        if (r->len == 1 && nuc_is_base(r->letter)) {
-            model->bases[r->start].one_base_run = (uint8_t)(1U << r->letter);
+        if (r->len == 1) {
+            model->bases[r->start].is_one_base_run = true;
         }
     }
 }
@@ -850,14 +850,21 @@ static bool may_miss(const context *ctx, size_t k)
     return k != ctx->n_pieces && row->missed > 0.0 && row->missed_letters != 0;
 }
 
-/* Whether reference base x is a run of one base that the sequencer can have missed
- * after the row's run. */
+/* Whether reference base x is a run of one base whose letter the sequencer can have
+ * missed after the row's run. */
 static bool missed_at(const context *ctx, const row_layout *row, int32_t x)
 {
     const runhmm_model *model = ctx->model;
+    const runhmm_base  *base;
 
-    return (size_t)x < model->len
-        && (model->bases[x].one_base_run & row->missed_letters) != 0;
+    if ((size_t)x >= model->len) {
+        return false;
+    }
+
+    base = &model->bases[x];
+
+    return base->is_one_base_run && nuc_is_base((nuc)base->code)
+        && (row->missed_letters & (1U << base->code)) != 0;
 }
 
 /* Leaves the step at each template length, into the outer cells of row k. A deletion
