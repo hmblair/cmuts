@@ -196,7 +196,14 @@ typedef struct {
     double  missed;                  /* chance a one-base run after it was not read */
     uint8_t missed_letters;
     size_t  inner;                   /* offset of the step's matrix in scratch */
+    size_t  first_span;              /* index of the span of the step's inner row 0 */
 } row_layout;
+
+/* The prefixes one inner row of a step may hold. */
+typedef struct {
+    int32_t from;
+    int32_t to;
+} inner_span;
 
 struct runhmm_scratch {
     aln_place     *places;
@@ -205,6 +212,8 @@ struct runhmm_scratch {
     size_t         cap_pieces;
     row_layout    *rows;
     size_t         cap_rows;
+    inner_span    *spans;        /* one per inner row of every step */
+    size_t         cap_spans;
     flow_errors    errors;
     double        *error;        /* the misread chance of each read base */
     size_t         cap_error;
@@ -235,6 +244,7 @@ void runhmm_scratch_destroy(runhmm_scratch *scratch)
     free(scratch->places);
     free(scratch->pieces);
     free(scratch->rows);
+    free(scratch->spans);
     flow_errors_free(&scratch->errors);
     free(scratch->error);
     free(scratch->forward);
@@ -262,6 +272,7 @@ typedef struct {
     aln_span span;
     size_t   n_pieces;   /* read runs; outer rows are one more */
     int32_t  widest;     /* cells of the widest outer row */
+    size_t   n_spans;    /* inner rows of every step */
     int32_t  origin;     /* reference position of window value 0 */
     size_t   window_len;
 } context;
@@ -441,24 +452,31 @@ static void lay_out_window(const context *ctx, row_layout *row)
     row->hi = clamp_prefix(ctx, (int32_t)place->last + ctx->model->band);
 }
 
-/* Writes the prefixes inner row j of a step may hold: the band either side of the
- * prefix the CIGAR has reached after j bases of the run. A phantom row takes the band
- * of the last base. */
-static void inner_bounds(const context *ctx, const row_layout *row, int32_t j,
-                         int32_t *from, int32_t *to)
+/* Returns the prefixes inner row j of a step may hold: the band either side of the
+ * prefix the CIGAR has reached after j bases of the run, within the step. A phantom
+ * row takes the band of the last base. */
+static inner_span inner_span_of(const context *ctx, const row_layout *row, int32_t j)
 {
     int32_t          real  = j < row->piece.len ? j : row->piece.len;
     const aln_place *place = cigar_place(ctx, &row->piece, real);
+    inner_span       span  = {
+        .from = clamp_prefix(ctx, (int32_t)place->first - ctx->model->band),
+        .to   = clamp_prefix(ctx, (int32_t)place->last + ctx->model->band),
+    };
 
-    *from = clamp_prefix(ctx, (int32_t)place->first - ctx->model->band);
-    *to   = clamp_prefix(ctx, (int32_t)place->last + ctx->model->band);
+    if (span.from < row->xlo) {
+        span.from = row->xlo;
+    }
+    if (span.to > row->xhi) {
+        span.to = row->xhi;
+    }
 
-    if (*from < row->xlo) {
-        *from = row->xlo;
-    }
-    if (*to > row->xhi) {
-        *to = row->xhi;
-    }
+    return span;
+}
+
+static const inner_span *span_at(const context *ctx, const row_layout *row, int32_t j)
+{
+    return &ctx->scratch->spans[row->first_span + (size_t)j];
 }
 
 /* Returns whether a piece continues into the clipped bases on one side, which leaves
@@ -540,11 +558,15 @@ static size_t lay_out_rows(context *ctx)
                                       + ctx->model->band);
     rows[0].depth = 0;
 
+    ctx->n_spans = 0;
+
     for (size_t k = 1; k < n_rows(ctx); k++) {
-        rows[k].xlo   = rows[k - 1].lo < rows[k].lo ? rows[k - 1].lo : rows[k].lo;
-        rows[k].xhi   = rows[k - 1].hi > rows[k].hi ? rows[k - 1].hi : rows[k].hi;
-        rows[k].inner = inner * N_INNER;
-        inner        += inner_cells(&rows[k]);
+        rows[k].xlo        = rows[k - 1].lo < rows[k].lo ? rows[k - 1].lo : rows[k].lo;
+        rows[k].xhi        = rows[k - 1].hi > rows[k].hi ? rows[k - 1].hi : rows[k].hi;
+        rows[k].inner      = inner * N_INNER;
+        rows[k].first_span = ctx->n_spans;
+        inner             += inner_cells(&rows[k]);
+        ctx->n_spans      += (size_t)rows[k].depth + 1;
     }
 
     for (size_t k = 0; k < n_rows(ctx); k++) {
@@ -558,6 +580,18 @@ static size_t lay_out_rows(context *ctx)
     ctx->widest = widest;
 
     return inner;
+}
+
+/* Writes the span of every inner row of every step. */
+static void lay_out_spans(const context *ctx)
+{
+    for (size_t k = 1; k < n_rows(ctx); k++) {
+        const row_layout *row = row_of(ctx, k);
+
+        for (int32_t j = 0; j <= row->depth; j++) {
+            ctx->scratch->spans[row->first_span + (size_t)j] = inner_span_of(ctx, row, j);
+        }
+    }
 }
 
 static void lay_out_output(context *ctx)
@@ -622,6 +656,7 @@ static int grow_buffers(context *ctx, size_t inner)
         || grow((void **)&s->inner, &s->cap_inner, inner * N_INNER, sizeof *s->inner) < 0
         || grow((void **)&s->inner_back, &s->cap_inner_back, one,
                 sizeof *s->inner_back) < 0
+        || grow((void **)&s->spans, &s->cap_spans, ctx->n_spans, sizeof *s->spans) < 0
         || grow((void **)&s->window, &s->cap_window, ctx->window_len,
                 sizeof *s->window) < 0) {
         return -1;
@@ -672,6 +707,7 @@ static phmm_status prepare(context *ctx)
     }
 
     fill_errors(ctx);
+    lay_out_spans(ctx);
 
     memset(s->forward, 0, outer_cells(ctx) * sizeof *s->forward);
     memset(s->backward, 0, outer_cells(ctx) * sizeof *s->backward);
@@ -750,24 +786,25 @@ typedef struct {
     bool    inserts;   /* whether this row's read base can be inserted */
 } inner_row;
 
-static inner_row inner_row_of(const context *ctx, size_t k, double *matrix, int32_t j)
+/* Sets r to inner row j of the step into row k, whose matrix begins at matrix. Filled
+ * in place: returned by value, the struct is copied through the stack on every inner
+ * row, and the copy stalls on store forwarding. */
+static void set_inner_row(inner_row *r, const context *ctx, size_t k, double *matrix,
+                          int32_t j)
 {
-    const row_layout *row    = row_of(ctx, k);
-    size_t            stride = inner_width(row) * N_INNER;
-    inner_row         r      = {
-        .line    = matrix + (size_t)j * stride,
-        .stride  = stride,
-        .pairs   = j < row->depth,
-        .phantom = j >= row->piece.len,
-        .deletes = may_delete_inside(row, j),
-        .inserts = may_insert(row, k, j),
-    };
+    const row_layout *row  = row_of(ctx, k);
+    const inner_span *span = span_at(ctx, row, j);
 
-    r.next  = r.line + stride;
-    r.error = r.phantom ? 0.0 : ctx->scratch->error[row->piece.start + j];
-    inner_bounds(ctx, row, j, &r.from, &r.to);
-
-    return r;
+    r->stride  = inner_width(row) * N_INNER;
+    r->line    = matrix + (size_t)j * r->stride;
+    r->next    = r->line + r->stride;
+    r->from    = span->from;
+    r->to      = span->to;
+    r->pairs   = j < row->depth;
+    r->phantom = j >= row->piece.len;
+    r->deletes = may_delete_inside(row, j);
+    r->inserts = may_insert(row, k, j);
+    r->error   = r->phantom ? 0.0 : ctx->scratch->error[row->piece.start + j];
 }
 
 /* Fills the step matrix of row k from its seeds. */
@@ -780,7 +817,9 @@ static void step_forward(const context *ctx, size_t k)
     nuc                ours  = row->piece.letter;
 
     for (int32_t j = 0; j <= row->depth; j++) {
-        inner_row r = inner_row_of(ctx, k, ctx->scratch->inner + row->inner, j);
+        inner_row r;
+
+        set_inner_row(&r, ctx, k, ctx->scratch->inner + row->inner, j);
 
         for (int32_t x = r.from; x <= r.to; x++) {
             size_t  at   = (size_t)(x - row->xlo) * N_INNER;
@@ -1036,7 +1075,9 @@ static void step_backward(const context *ctx, size_t k)
     const double      *forward = ctx->scratch->inner + row->inner;
 
     for (int32_t j = row->depth; j >= 0; j--) {
-        inner_row r = inner_row_of(ctx, k, ctx->scratch->inner_back, j);
+        inner_row r;
+
+        set_inner_row(&r, ctx, k, ctx->scratch->inner_back, j);
 
         for (int32_t x = r.to; x >= r.from; x--) {
             size_t        at   = (size_t)(x - row->xlo) * N_INNER;
