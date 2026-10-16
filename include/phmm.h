@@ -94,6 +94,14 @@ int phmm_model_prepare(phmm_model *model, const phmm_rates *rates,
 
 void phmm_model_free(phmm_model *model);
 
+/* The comparisons of a read base with the reference at each quality score. Built once
+ * from the quality table and read by every thread. */
+typedef struct phmm_emissions phmm_emissions;
+
+/* Returns NULL where the table cannot be allocated. */
+phmm_emissions *phmm_emissions_create(const phred *quality);
+void            phmm_emissions_destroy(phmm_emissions *emissions);
+
 /* Buffers one thread reuses across reads, grown to fit the longest read seen. */
 typedef struct phmm_scratch phmm_scratch;
 
@@ -161,7 +169,7 @@ typedef struct {
  * sequencer reports none, which is then scored by the rates and its base qualities
  * alone. The model must be prepared for the read's reference. The read must store a
  * sequence and place at least one base, which the filter enforces. */
-phmm_status phmm_run(const phmm_model *model, const phred *quality,
+phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
                      const cm_bam_record *read, const run *runs, size_t n_runs,
                      const phmm_length_errors *errors, phmm_scratch *scratch,
                      phmm_window *out);

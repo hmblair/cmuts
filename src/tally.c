@@ -152,7 +152,7 @@ static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
         .phred  = scratch->errors.phred,
         .of_run = scratch->errors.of_run,
     };
-    status = phmm_run(ctx->model, &ctx->tables->quality, ctx->read, scratch->runs,
+    status = phmm_run(ctx->model, ctx->tables->emissions, ctx->read, scratch->runs,
                       (size_t)n_runs, scratch->errors.tagged ? &errors : NULL,
                       scratch->model, &window);
 
@@ -206,8 +206,13 @@ int tally_tables_build(tally_tables *tables, const tally_config *config,
 {
     phred_build(&tables->quality, config->min_phred);
     ultima_decoder_build(&tables->ultima, config->ultima_phred);
-    tables->uniform = config->uniform;
-    tables->band    = config->band;
+    tables->uniform   = config->uniform;
+    tables->band      = config->band;
+    tables->emissions = phmm_emissions_create(&tables->quality);
+
+    if (!tables->emissions) {
+        return -1;
+    }
 
     return add_read_groups(&tables->ultima, stream);
 }
@@ -215,6 +220,8 @@ int tally_tables_build(tally_tables *tables, const tally_config *config,
 void tally_tables_free(tally_tables *tables)
 {
     ultima_decoder_free(&tables->ultima);
+    phmm_emissions_destroy(tables->emissions);
+    tables->emissions = NULL;
 }
 
 /* Points each array of rates at its own len values of storage. */

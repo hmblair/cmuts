@@ -28,10 +28,12 @@ typedef struct {
 tally_config tally_defaults(void);
 
 /* What the tally works from besides the read and its reference's rates: the quality
- * table, the Ultima tables, the rates every reference is filled from, and the band.
- * Built once from the config and the input headers, and shared by every worker. */
+ * table and the emissions built from it, the Ultima tables, the rates every reference
+ * is filled from, and the band. Built once from the config and the input headers, and
+ * shared by every worker. */
 typedef struct {
     phred              quality;
+    phmm_emissions    *emissions;  /* owned */
     ultima_decoder     ultima;
     phmm_uniform_rates uniform;  /* the rates tally_rates_fill writes */
     int                band;     /* the half-width every row of the marginal is given */

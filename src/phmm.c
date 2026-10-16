@@ -203,8 +203,6 @@ struct phmm_scratch {
     size_t         cap_rows;
     inner_span    *spans;        /* one per inner row of every inner matrix */
     size_t         cap_spans;
-    double        *error;        /* the misread chance of each read base */
-    size_t         cap_error;
     double        *forward;      /* outer, one row of widest * N_OUTER */
     double        *backward;     /* outer, two rows of widest * N_OUTER */
     size_t         cap_outer;
@@ -232,7 +230,6 @@ void phmm_scratch_destroy(phmm_scratch *scratch)
     free(scratch->places);
     free(scratch->rows);
     free(scratch->spans);
-    free(scratch->error);
     free(scratch->forward);
     free(scratch->backward);
     free(scratch->scale);
@@ -247,9 +244,9 @@ void phmm_scratch_destroy(phmm_scratch *scratch)
 /* ------------------------------------------------------------------------ */
 
 typedef struct {
-    const phmm_model    *model;
-    const phmm_rates      *rates;
-    const phred           *quality;
+    const phmm_model         *model;
+    const phmm_rates         *rates;
+    const phmm_emissions     *emissions;
     const cm_bam_record      *read;
     const run                *read_runs;  /* of the placed span */
     size_t                    n_read_runs;
@@ -322,25 +319,6 @@ static double *inner_back_at(const context *ctx, size_t k, int32_t j, int32_t x)
 /* One base against the reference                                            */
 /* ------------------------------------------------------------------------ */
 
-/* Returns the chance that read base q was misread. Every base of an Ultima read takes
- * one score, since its quality string describes run lengths. */
-static double error_of(const context *ctx, int32_t q)
-{
-    if (ctx->errors) {
-        return phred_error(ctx->quality, (uint8_t)ctx->errors->phred);
-    }
-
-    return ctx->read->qual ? phred_error(ctx->quality, ctx->read->qual[q]) : 0.0;
-}
-
-/* Writes the misread chance of every placed read base. */
-static void fill_errors(const context *ctx)
-{
-    for (int32_t q = ctx->span.begin; q < ctx->span.end; q++) {
-        ctx->scratch->error[q] = error_of(ctx, q);
-    }
-}
-
 /* The comparison of a read base with a reference base, as lines in the modification
  * rate m of the reference base. The emission is intercept + slope * m. The part of the
  * emission on which the template differed is share * m. A read base agrees with its
@@ -370,7 +348,9 @@ static void set_comparison(comparison *o, double intercept, double slope, double
     o->share     = share;
 }
 
-static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double error)
+/* Writes the comparisons of a read base that is named or not, counted or not, and was
+ * misread with chance error. */
+static void set_comparisons(comparisons *o, bool named, bool uncounted, double error)
 {
     double other = error / OTHER_BASES;
     double shift = 1.0 - error - other;
@@ -378,7 +358,7 @@ static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double err
 
     set_comparison(&o->unnamed, blank, 0.0, 0.0);
 
-    if (uncounted || !nuc_is_base(ours)) {
+    if (uncounted || !named) {
         set_comparison(&o->agree, blank, 0.0, 0.0);
         set_comparison(&o->differ, blank, 0.0, 0.0);
         return;
@@ -386,6 +366,60 @@ static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double err
 
     set_comparison(&o->agree, 1.0 - error, -shift, other);
     set_comparison(&o->differ, other, shift / OTHER_BASES, (1.0 - other) / OTHER_BASES);
+}
+
+/* The comparisons of a read base at each quality score. A read that stores no
+ * qualities has bases that are never misread. An unnamed read base and a template base
+ * the sequencer did not count each have an entry of their own. */
+struct phmm_emissions {
+    comparisons at_quality[PHRED_MAX + 1];
+    comparisons without_quality;
+    comparisons unnamed;
+    comparisons uncounted;
+};
+
+phmm_emissions *phmm_emissions_create(const phred *quality)
+{
+    phmm_emissions *emissions = malloc(sizeof *emissions);
+
+    if (!emissions) {
+        return NULL;
+    }
+
+    for (unsigned q = 0; q <= PHRED_MAX; q++) {
+        set_comparisons(&emissions->at_quality[q], true, false,
+                        phred_error(quality, (uint8_t)q));
+    }
+
+    set_comparisons(&emissions->without_quality, true, false, 0.0);
+    set_comparisons(&emissions->unnamed, false, false, 0.0);
+    set_comparisons(&emissions->uncounted, false, true, 0.0);
+
+    return emissions;
+}
+
+void phmm_emissions_destroy(phmm_emissions *emissions)
+{
+    free(emissions);
+}
+
+/* Returns the comparisons of read base q, whose base is ours. Every base of an Ultima
+ * read takes one score, since its quality string describes run lengths. */
+static const comparisons *comparisons_of(const context *ctx, nuc ours, int32_t q)
+{
+    const phmm_emissions *emissions = ctx->emissions;
+
+    if (!nuc_is_base(ours)) {
+        return &emissions->unnamed;
+    }
+    if (ctx->errors) {
+        return &emissions->at_quality[(uint8_t)ctx->errors->phred];
+    }
+    if (!ctx->read->qual) {
+        return &emissions->without_quality;
+    }
+
+    return &emissions->at_quality[ctx->read->qual[q]];
 }
 
 static const comparison *comparison_at(const comparisons *o, const phmm_base *base,
@@ -685,13 +719,10 @@ static phmm_status prepare(context *ctx)
     inner = lay_out_rows(ctx);
     lay_out_output(ctx);
 
-    if (grow_buffers(ctx, inner) < 0
-        || grow((void **)&s->error, &s->cap_error, (size_t)read->l_qseq,
-                sizeof *s->error) < 0) {
+    if (grow_buffers(ctx, inner) < 0) {
         return PHMM_NO_MEMORY;
     }
 
-    fill_errors(ctx);
     lay_out_spans(ctx);
 
     memset(s->forward, 0, outer_cells(ctx) * sizeof *s->forward);
@@ -742,14 +773,13 @@ static bool may_delete_inside(const outer_row *row, int32_t j)
 }
 
 /* What the loops over one inner row read: where the row and the next lie, the band of
- * the row, and the comparisons and error of its read base. */
+ * the row, and the comparisons of its read base. */
 typedef struct {
     double *line;      /* the row's first cell, at prefix xlo */
     double *next;      /* the next row's */
     size_t  stride;    /* doubles per inner row */
     int32_t from, to;  /* the prefixes the row may hold */
-    comparisons comparisons;
-    double  error;
+    const comparisons *comparisons;
     bool    pairs;     /* whether a row follows to pair into */
     bool    uncounted; /* a template base the sequencer did not count */
     bool    deletes;   /* whether a deletion can open inside after this row */
@@ -774,8 +804,9 @@ static void set_inner_row(inner_row *r, const context *ctx, size_t k, double *ma
     r->uncounted = j >= row->read_run.len;
     r->deletes = may_delete_inside(row, j);
     r->inserts = may_insert(row, k, j);
-    r->error   = r->uncounted ? 0.0 : ctx->scratch->error[row->read_run.start + j];
-    set_comparisons(&r->comparisons, row->read_run.base, r->uncounted, r->error);
+    r->comparisons = r->uncounted
+                   ? &ctx->emissions->uncounted
+                   : comparisons_of(ctx, row->read_run.base, row->read_run.start + j);
 }
 
 /* Fills the inner matrix of row k from its inner row 0. The open deletion state passes
@@ -806,7 +837,7 @@ static void inner_forward(const context *ctx, size_t k)
 
             if (r.pairs && x < row->xhi && x < len) {
                 const phmm_base *b = &bases[x];
-                const comparison     *o = comparison_at(&r.comparisons, b, ours);
+                const comparison     *o = comparison_at(r.comparisons, b, ours);
 
                 r.next[at + N_INNER + PAIRED] += (paired * b->after_no_gap
                                                 + deleted * b->after_deletion
@@ -1105,7 +1136,7 @@ static void inner_backward(const context *ctx, size_t k)
 
             if (r.pairs && x < row->xhi && x < len) {
                 const phmm_base *b        = &bases[x];
-                const comparison     *o        = comparison_at(&r.comparisons, b, ours);
+                const comparison     *o        = comparison_at(r.comparisons, b, ours);
                 double             below    = r.next[at + N_INNER + PAIRED];
                 double             next     = below * emission_of(o, b);
                 double             through  = (fwd[PAIRED] * b->after_no_gap
@@ -1225,7 +1256,7 @@ void phmm_window_bounds(const phmm_window *window, size_t len,
     }
 }
 
-phmm_status phmm_run(const phmm_model *model, const phred *quality,
+phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
                      const cm_bam_record *read, const run *runs, size_t n_runs,
                      const phmm_length_errors *errors, phmm_scratch *scratch,
                      phmm_window *out)
@@ -1233,7 +1264,7 @@ phmm_status phmm_run(const phmm_model *model, const phred *quality,
     context ctx = {
         .model       = model,
         .rates       = model->rates,
-        .quality     = quality,
+        .emissions   = emissions,
         .read        = read,
         .read_runs   = runs,
         .n_read_runs = n_runs,
