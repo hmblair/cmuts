@@ -23,6 +23,7 @@
 
 #include "runhmm.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -217,8 +218,8 @@ struct runhmm_scratch {
     flow_errors    errors;
     double        *error;        /* the misread chance of each read base */
     size_t         cap_error;
-    double        *forward;      /* outer, (rows + 1) * widest * N_OUTER */
-    double        *backward;
+    double        *forward;      /* outer, one row of widest * N_OUTER */
+    double        *backward;     /* outer, two rows of widest * N_OUTER */
     size_t         cap_outer;
     double        *scale;        /* one per outer row */
     size_t         cap_scale;
@@ -287,21 +288,23 @@ static row_layout *row_of(const context *ctx, size_t k)
     return &ctx->scratch->rows[k];
 }
 
-static double *outer_at(const context *ctx, double *matrix, size_t k, int32_t x)
+/* The forward pass keeps one outer row: scaling a row moves it into the seeds of the
+ * next step. */
+static double *forward_at(const context *ctx, size_t k, int32_t x)
 {
     const row_layout *row = row_of(ctx, k);
 
-    return matrix + ((k * (size_t)ctx->widest) + (size_t)(x - row->lo)) * N_OUTER;
+    return ctx->scratch->forward + (size_t)(x - row->lo) * N_OUTER;
 }
 
-static double *forward_at(const context *ctx, size_t k, int32_t x)
-{
-    return outer_at(ctx, ctx->scratch->forward, k, x);
-}
-
+/* The backward pass fills row k - 1 from the step into row k, so it keeps two rows, and
+ * row k lies in the slot of its parity. */
 static double *backward_at(const context *ctx, size_t k, int32_t x)
 {
-    return outer_at(ctx, ctx->scratch->backward, k, x);
+    const row_layout *row = row_of(ctx, k);
+
+    return ctx->scratch->backward
+         + ((k & 1) * (size_t)ctx->widest + (size_t)(x - row->lo)) * N_OUTER;
 }
 
 static size_t inner_width(const row_layout *row)
@@ -615,16 +618,16 @@ static void lay_out_output(context *ctx)
 
 /* Grows every buffer the read needs. The outer buffers are a pair, so they are grown
  * together. */
-/* Returns the doubles one outer matrix holds. */
+/* Returns the doubles one outer row holds. */
 static size_t outer_cells(const context *ctx)
 {
-    return n_rows(ctx) * (size_t)ctx->widest * N_OUTER;
+    return (size_t)ctx->widest * N_OUTER;
 }
 
 static int grow_buffers(context *ctx, size_t inner)
 {
     runhmm_scratch *s     = ctx->scratch;
-    size_t          outer = outer_cells(ctx);
+    size_t          outer = 2 * outer_cells(ctx);
     size_t          one   = 0;
 
     for (size_t k = 1; k < n_rows(ctx); k++) {
@@ -710,7 +713,6 @@ static phmm_status prepare(context *ctx)
     lay_out_spans(ctx);
 
     memset(s->forward, 0, outer_cells(ctx) * sizeof *s->forward);
-    memset(s->backward, 0, outer_cells(ctx) * sizeof *s->backward);
     memset(s->inner, 0, inner * N_INNER * sizeof *s->inner);
     memset(s->window, 0, ctx->window_len * sizeof *s->window);
 
@@ -755,21 +757,6 @@ static bool may_insert(const row_layout *row, size_t k, int32_t j)
 static bool may_delete_inside(const row_layout *row, int32_t j)
 {
     return j >= 1 && j < row->depth;
-}
-
-/* Seeds inner row 0 of the step into row k from the outer cells of row k - 1. */
-static void seed_step(const context *ctx, size_t k)
-{
-    const row_layout *above = row_of(ctx, k - 1);
-
-    for (int32_t x = above->lo; x <= above->hi; x++) {
-        const double *from = forward_at(ctx, k - 1, x);
-        double       *cell = inner_at(ctx, k, 0, x);
-
-        cell[PAIRED]        = from[CLOSED];
-        cell[GAP_DELETION]  = from[DELETION];
-        cell[GAP_INSERTION] = from[INSERTION];
-    }
 }
 
 /* What the loops over one inner row read: where the row and the next lie, and the
@@ -917,11 +904,28 @@ static void pass_missed_forward(const context *ctx, size_t k)
     }
 }
 
-/* Divides a row by its total and keeps the total. */
+/* Maps the total of a row to a status. A negative, infinite, or NaN total is a fault.
+ * A zero or subnormal total means the band admits no path. */
+static phmm_status total_status(double total)
+{
+    if (!(total >= 0.0) || total > DBL_MAX) {
+        return PHMM_UNSOUND;
+    }
+    if (total < DBL_MIN) {
+        return PHMM_NO_PATH;
+    }
+
+    return PHMM_OK;
+}
+
+/* Keeps the total of row k. Unless the row is the last, divides the row by its total
+ * into the seeds of the step into the next row, and clears it for the row after. */
 static phmm_status scale_row(const context *ctx, size_t k)
 {
     const row_layout *row   = row_of(ctx, k);
     double            total = 0.0;
+    double            share;
+    phmm_status       status;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
         const double *cell = forward_at(ctx, k, x);
@@ -929,22 +933,32 @@ static phmm_status scale_row(const context *ctx, size_t k)
         total += cell[CLOSED] + cell[DELETION] + cell[INSERTION];
     }
 
-    if (!isfinite(total) || total < 0.0) {
-        return PHMM_UNSOUND;
-    }
-    if (total == 0.0 || !isnormal(total)) {
-        return PHMM_NO_PATH;
-    }
+    status = total_status(total);
 
-    for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *cell = forward_at(ctx, k, x);
-
-        cell[CLOSED]    /= total;
-        cell[DELETION]  /= total;
-        cell[INSERTION] /= total;
+    if (status != PHMM_OK) {
+        return status;
     }
 
     ctx->scratch->scale[k] = total;
+
+    if (k + 1 == n_rows(ctx)) {
+        return PHMM_OK;
+    }
+
+    share = 1.0 / total;
+
+    for (int32_t x = row->lo; x <= row->hi; x++) {
+        double *cell = forward_at(ctx, k, x);
+        double *seed = inner_at(ctx, k + 1, 0, x);
+
+        seed[PAIRED]        = cell[CLOSED] * share;
+        seed[GAP_DELETION]  = cell[DELETION] * share;
+        seed[GAP_INSERTION] = cell[INSERTION] * share;
+
+        cell[CLOSED]    = 0.0;
+        cell[DELETION]  = 0.0;
+        cell[INSERTION] = 0.0;
+    }
 
     return PHMM_OK;
 }
@@ -968,7 +982,6 @@ static phmm_status forward(const context *ctx)
     status = scale_row(ctx, 0);
 
     for (size_t k = 1; k < n_rows(ctx) && status == PHMM_OK; k++) {
-        seed_step(ctx, k);
         step_forward(ctx, k);
         leave_step(ctx, k);
         pass_missed_forward(ctx, k);
@@ -1062,7 +1075,7 @@ static void credit_pairing(const context *ctx, size_t k, int32_t j, int32_t x,
 }
 
 /* Fills the step matrix of row k backward from its ends, crediting each pairing with
- * its posterior, and adds what the seeds are worth to the outer cells of row k - 1. */
+ * its posterior, and sets the outer cells of row k - 1 to what the seeds are worth. */
 static void step_backward(const context *ctx, size_t k)
 {
     const row_layout  *row     = row_of(ctx, k);
@@ -1122,9 +1135,9 @@ static void step_backward(const context *ctx, size_t k)
         const double *seed = inner_back_at(ctx, k, 0, x);
         double       *to   = backward_at(ctx, k - 1, x);
 
-        to[CLOSED]    += seed[PAIRED] * restore;
-        to[DELETION]  += seed[GAP_DELETION] * restore;
-        to[INSERTION] += seed[GAP_INSERTION] * restore;
+        to[CLOSED]    = seed[PAIRED] * restore;
+        to[DELETION]  = seed[GAP_DELETION] * restore;
+        to[INSERTION] = seed[GAP_INSERTION] * restore;
     }
 }
 
@@ -1134,19 +1147,24 @@ static void backward_last_row(const context *ctx)
     const row_layout *row = row_of(ctx, k);
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        backward_at(ctx, k, x)[CLOSED] = 1.0;
+        double *cell = backward_at(ctx, k, x);
+
+        cell[CLOSED]    = 1.0;
+        cell[DELETION]  = 0.0;
+        cell[INSERTION] = 0.0;
     }
 }
 
 /* Returns the first row's total of forward times backward, which is one when the two
- * passes describe the same set of paths. */
+ * passes describe the same set of paths. The seeds of the first step hold the forward
+ * values of row 0. */
 static double agreement(const context *ctx)
 {
     const row_layout *row   = row_of(ctx, 0);
     double            total = 0.0;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        total += forward_at(ctx, 0, x)[CLOSED] * backward_at(ctx, 0, x)[CLOSED];
+        total += inner_at(ctx, 1, 0, x)[PAIRED] * backward_at(ctx, 0, x)[CLOSED];
     }
 
     return total;
