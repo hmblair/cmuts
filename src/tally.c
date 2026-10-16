@@ -135,16 +135,30 @@ static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read
     return (ssize_t)runs_of_read(read->seq, span.begin, span.end, scratch->runs);
 }
 
+/* Splits a tagged read into runs and decodes its run length errors. Returns the count
+ * of runs, or -1 where a buffer cannot be grown. */
+static ssize_t decode_errors(const context *ctx, tally_scratch *scratch)
+{
+    ssize_t n_runs = split_into_runs(scratch, ctx->read);
+
+    if (n_runs < 0
+        || ultima_errors_decode(&scratch->errors, &ctx->tables->ultima, ctx->read,
+                                scratch->runs, (size_t)n_runs) < 0) {
+        return -1;
+    }
+
+    return n_runs;
+}
+
 static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 {
     phmm_window        window;
     phmm_status        status;
     phmm_length_errors errors;
-    ssize_t            n_runs = split_into_runs(scratch, ctx->read);
+    bool               tagged = ultima_read_tagged(ctx->read);
+    ssize_t            n_runs = tagged ? decode_errors(ctx, scratch) : 0;
 
-    if (n_runs < 0
-        || ultima_errors_decode(&scratch->errors, &ctx->tables->ultima, ctx->read,
-                                scratch->runs, (size_t)n_runs) < 0) {
+    if (n_runs < 0) {
         return PHMM_NO_MEMORY;
     }
 
@@ -153,8 +167,7 @@ static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
         .of_run = scratch->errors.of_run,
     };
     status = phmm_run(ctx->model, ctx->tables->emissions, ctx->read, scratch->runs,
-                      (size_t)n_runs, scratch->errors.tagged ? &errors : NULL,
-                      scratch->model, &window);
+                      (size_t)n_runs, tagged ? &errors : NULL, scratch->model, &window);
 
     if (status == PHMM_OK) {
         add_window(ctx, &window);

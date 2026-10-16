@@ -351,12 +351,17 @@ static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
     out->missed_bases = group->bases_missed[reversed][r->base][next->base];
 }
 
+bool ultima_read_tagged(const cm_bam_record *read)
+{
+    return read->tp && read->qual && read->seq;
+}
+
 int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
                        const cm_bam_record *read, const run *runs, size_t n_runs)
 {
     const ultima_read_group *group;
 
-    errors->tagged = read->tp && read->qual && read->seq;
+    errors->tagged = ultima_read_tagged(read);
 
     if (!errors->tagged) {
         return 0;

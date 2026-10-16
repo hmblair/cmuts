@@ -4,13 +4,14 @@
  * at the rates of the reverse transcriptase, and reads the posterior of each event at
  * each reference base off the forward and backward passes.
  *
- * The read is scored one run of one base at a time. The bases of a run are paired one
- * at a time, as a pair HMM over bases does, within a band around the CIGAR path. A
- * sequencer that measures run lengths, as Ultima does, reports its errors per run, and
- * they enter where a run ends: the template run can be longer or shorter than the read
- * run by one or two bases, at the chances the read's tags give, and a run of one base
- * can be missing from the read between two runs. A read without the tags is scored
- * exactly as a pair HMM over bases would score it.
+ * The read is scored one segment at a time. The bases of a segment are paired one at a
+ * time, as a pair HMM over bases does, within a band around the CIGAR path. A sequencer
+ * that measures run lengths, as Ultima does, reports its errors per run of one base,
+ * and they enter where a run ends, so each run of such a read is a segment: the
+ * template run can be longer or shorter than the read run by one or two bases, at the
+ * chances the read's tags give, and a run of one base can be missing from the read
+ * between two runs. A read without the tags is cut into segments of a fixed number of
+ * bases and scored exactly as a pair HMM over bases would score it.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -164,11 +165,12 @@ typedef struct {
 /* Marginalizes one read over the alignments its band admits, leaving the result in
  * out, which borrows from scratch and is valid until the next call on it.
  *
- * runs holds the n_runs runs of the placed span of the read, as runs_of_read gives
- * them. errors holds the run length errors of the read, and is NULL for a read whose
+ * errors holds the run length errors of the read, and is NULL for a read whose
  * sequencer reports none, which is then scored by the rates and its base qualities
- * alone. The model must be prepared for the read's reference. The read must store a
- * sequence and place at least one base, which the filter enforces. */
+ * alone. With errors, runs holds the n_runs runs of the placed span of the read, as
+ * runs_of_read gives them; without, runs is not read. The model must be prepared for
+ * the read's reference. The read must store a sequence and place at least one base,
+ * which the filter enforces. */
 phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
                      const cm_bam_record *read, const run *runs, size_t n_runs,
                      const phmm_length_errors *errors, phmm_scratch *scratch,

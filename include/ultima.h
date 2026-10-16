@@ -67,6 +67,10 @@ typedef struct {
     size_t           cap;     /* runs of_run is sized for */
 } ultima_errors;
 
+/* Returns whether a read carries the tp tag and the base qualities that the decoding
+ * reads. */
+bool ultima_read_tagged(const cm_bam_record *read);
+
 /* Decodes the errors of the given runs of a read. Sets tagged to false if the read has
  * no tp tag or no base qualities. Returns -1 if the entries cannot be grown. */
 int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
