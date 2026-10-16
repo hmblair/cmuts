@@ -4,8 +4,8 @@
  * runs called one base too long or too short. The tp tag gives, per base, the
  * alternative length that the base's quality score is the chance of: one longer, one
  * shorter, or none. The chance of an alternative length is the sum over the bases of
- * the run that refer to it. The t0 tag gives, per base, the chance that a base of
- * base unlike either run was missed between the run and the next run.
+ * the run that refer to it. The t0 tag gives, per base, the chance that a base unlike
+ * either run was missed between the run and the next run.
  *
  * The decoding follows the class FlowBasedRead of GATK, which reads the same tags, and
  * the description of the base calling in Almogy et al., bioRxiv 2022.05.29.493900.
@@ -64,8 +64,6 @@ void ultima_decoder_free(ultima_decoder *tables);
 
 /* The length errors of one read, decoded from its tags, one entry per run. */
 typedef struct {
-    bool             tagged;  /* whether the read carries the tags; the entries are
-                                 valid only if so */
     int              phred;   /* the substitution score of every base */
     phmm_run_errors *of_run;
     size_t           cap;     /* runs of_run is sized for */
@@ -75,8 +73,8 @@ typedef struct {
  * reads. */
 bool ultima_read_tagged(const cm_bam_record *read);
 
-/* Decodes the errors of the given runs of a read. Sets tagged to false if the read has
- * no tp tag or no base qualities. Returns -1 if the entries cannot be grown. */
+/* Decodes the errors of the given runs of a tagged read. Returns -1 if the entries
+ * cannot be grown. */
 int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
                        const cm_bam_record *read, const run *runs, size_t n_runs);
 

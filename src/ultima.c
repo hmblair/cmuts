@@ -331,7 +331,7 @@ static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
     double at_before, at_after;
     bool   reversed = (read->flag & BAM_FREVERSE) != 0;
 
-    out->missed         = 0.0;
+    out->missed       = 0.0;
     out->missed_bases = 0;
 
     if (!next || !read->t0 || !group || !group->has_cycle) {
@@ -345,7 +345,7 @@ static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
     at_before = missed_chance_at(tables, read, r->start + r->len - 1);
     at_after  = missed_chance_at(tables, read, next->start);
 
-    out->missed         = at_before < at_after ? at_before : at_after;
+    out->missed       = at_before < at_after ? at_before : at_after;
     out->missed_bases = group->bases_missed[reversed][r->base][next->base];
 }
 
@@ -358,12 +358,6 @@ int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
                        const cm_bam_record *read, const run *runs, size_t n_runs)
 {
     const ultima_read_group *group;
-
-    errors->tagged = ultima_read_tagged(read);
-
-    if (!errors->tagged) {
-        return 0;
-    }
 
     if (grow_errors(errors, n_runs) < 0) {
         return -1;

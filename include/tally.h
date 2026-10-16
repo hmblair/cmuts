@@ -9,10 +9,10 @@
 #include "bam.h"
 #include "bamstream.h"
 #include "fasta.h"
-#include "ultima.h"
 #include "pairs.h"
 #include "phmm.h"
 #include "phred.h"
+#include "ultima.h"
 
 /* The settings a caller supplies, in types a command line can write into directly. */
 typedef struct {

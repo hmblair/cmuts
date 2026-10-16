@@ -25,7 +25,7 @@
 typedef struct {
     const cm_bam_record   *read;
     const cm_fasta_record *ref;
-    const phmm_model    *model;
+    const phmm_model      *model;
     const tally_tables    *tables;
     accum                 *target;
     pairs                 *target_pairs;   /* NULL where no pairs are counted */
@@ -187,10 +187,10 @@ static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 tally_config tally_defaults(void)
 {
     return (tally_config){
-        .band       = PHMM_DEFAULT_BAND,
-        .min_phred  = 0,
+        .band         = PHMM_DEFAULT_BAND,
+        .min_phred    = 0,
         .ultima_phred = DEFAULT_ULTIMA_PHRED,
-        .uniform    = phmm_uniform_defaults(),
+        .uniform      = phmm_uniform_defaults(),
     };
 }
 

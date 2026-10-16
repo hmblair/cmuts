@@ -10,8 +10,8 @@
  * and they enter where a run ends, so each run of such a read is a segment: the
  * template run can be longer or shorter than the read run by one base, at the chances
  * the read's tags give, and a run of one base can be missing from the read between two
- * runs. A read without the tags is cut into segments of a fixed number of
- * bases and scored exactly as a pair HMM over bases would score it.
+ * runs. A read without the tags is cut into segments of a fixed number of bases and
+ * scored exactly as a pair HMM over bases would score it.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */

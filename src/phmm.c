@@ -678,11 +678,11 @@ static void lay_out_lengths(const context *ctx, outer_row *row, size_t k)
  * where that run is not the last of the read. */
 static void lay_out_missed(const context *ctx, outer_row *row, size_t k)
 {
-    row->missed         = 0.0;
+    row->missed       = 0.0;
     row->missed_bases = 0;
 
     if (ctx->errors && k < ctx->n_segments) {
-        row->missed         = ctx->errors->of_run[k - 1].missed;
+        row->missed       = ctx->errors->of_run[k - 1].missed;
         row->missed_bases = ctx->errors->of_run[k - 1].missed_bases;
     }
 }
