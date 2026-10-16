@@ -165,9 +165,9 @@ static const cli_option OPTIONS[] = {
     },
     {
         .group   = "Counting",
-        .name    = "flow-phred",
+        .name    = "ultima-phred",
         .type    = OPT_INT,
-        .offset  = offsetof(cli_args, pipeline.tally_config.flow_phred),
+        .offset  = offsetof(cli_args, pipeline.tally_config.ultima_phred),
         .metavar = "Q",
         .help    = "the substitution PHRED score of every base of an Ultima read, "
                    "whose quality string describes run lengths only",

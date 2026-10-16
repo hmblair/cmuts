@@ -30,7 +30,7 @@
 #define QUAL_ABSENT 0xff
 
 /* The tags a record view reads. tp and t0 are the run length error tags of an Ultima
- * read; see flow.h. */
+ * read; see ultima.h. */
 #define TAG_RUN_LENGTH_ALTERNATIVE "tp"
 #define TAG_MISSED_BASE            "t0"
 #define TAG_READ_GROUP             "RG"

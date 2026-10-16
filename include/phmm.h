@@ -1,5 +1,17 @@
 /* phmm.h -- a banded pair HMM.
  *
+ * The model aligns a read to its reference through pairings, deletions, and insertions,
+ * at the rates of the reverse transcriptase, and reads the posterior of each event at
+ * each reference base off the forward and backward passes.
+ *
+ * The read is scored one run of one base at a time. The bases of a run are paired one
+ * at a time, as a pair HMM over bases does, within a band around the CIGAR path. A
+ * sequencer that measures run lengths, as Ultima does, reports its errors per run, and
+ * they enter where a run ends: the template run can be longer or shorter than the read
+ * run by one or two bases, at the chances the read's tags give, and a run of one base
+ * can be missing from the read between two runs. A read without the tags is scored
+ * exactly as a pair HMM over bases would score it.
+ *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
 
@@ -9,6 +21,7 @@
 #include "fasta.h"
 #include "params.h"
 #include "phred.h"
+#include "runs.h"
 
 /* How far either side of the CIGAR path the model may look. */
 #define PHMM_DEFAULT_BAND 2
@@ -46,28 +59,38 @@ typedef struct {
  * as they are. */
 void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uniform);
 
-/* One reference base as every cell that pairs it or steps into its pairing reads it.
- * Defined with the model. */
-typedef struct phmm_column phmm_column;
+/* One reference base as every pairing of it reads it: what the pairing pays after no
+ * gap, after a deletion whose last base is the one before, and after an insertion; the
+ * modification rate; the base as nuc names it; and whether the base is, by itself, a
+ * run of one base. */
+typedef struct {
+    double  after_no_gap;
+    double  after_deletion;
+    double  after_insertion;
+    double  modification;
+    uint8_t code;
+    bool    is_one_base_run;
+} phmm_base;
 
-/* One reference prepared for the marginal: its rates, and one column for each base
- * within margin bases of either end of it, so that a band reaching past an end still
- * finds a column. Built once per reference and read by every read against it, from any
- * thread. */
+/* One reference prepared for the marginal: its runs and each base as the pairings read
+ * it. Built once per reference and read by every read against it, from any thread. */
 typedef struct {
     const phmm_rates *rates;
-    phmm_column      *columns;  /* owned */
-    size_t            cap;      /* columns allocated */
-    size_t            len;      /* bases of the reference prepared */
-    int               margin;   /* bases covered either side of the reference */
+    run              *runs;      /* owned */
+    phmm_base        *bases;     /* owned; one per base */
+    size_t            n_runs;
+    size_t            len;
+    size_t            cap_runs;
+    size_t            cap_bases;
+    int               band;
 } phmm_model;
 
 /* Prepares ref under rates, whose arrays must hold one value per base of ref and must
- * outlive every use of the model. The columns are grown to fit and never shrink, so a
+ * outlive every use of the model. The buffers are grown to fit and never shrink, so a
  * model can be prepared again for another reference. Returns -1 where they cannot be
  * grown. */
 int phmm_model_prepare(phmm_model *model, const phmm_rates *rates,
-                       const cm_fasta_record *ref, int margin);
+                       const cm_fasta_record *ref, int band);
 
 void phmm_model_free(phmm_model *model);
 
@@ -107,20 +130,38 @@ typedef enum {
     PHMM_UNSOUND,     /* the two passes did not agree */
 } phmm_status;
 
-/* Marginalizes one read over the alignments its band admits, leaving the result
- * in out, which borrows from scratch and is valid until the next call on it.
+/* How many bases a run length can be off by. */
+#define PHMM_MAX_LENGTH_ERROR 2
+#define PHMM_LENGTH_OFFSETS   (2 * PHMM_MAX_LENGTH_ERROR + 1)
+
+/* What a sequencer that measures run lengths reports on one read run: the chance of
+ * each template length, from PHMM_MAX_LENGTH_ERROR bases shorter than the read run to
+ * as many longer, indexed by the offset plus PHMM_MAX_LENGTH_ERROR; the chance that a
+ * run of one base is missing between this run and the next; and the bases that run
+ * can be, as bits indexed by nuc. */
+typedef struct {
+    double  length[PHMM_LENGTH_OFFSETS];
+    double  missed;
+    uint8_t missed_bases;
+} phmm_run_errors;
+
+/* The run length errors of one read: one entry per run of its placed span, and the
+ * substitution score every base takes, since the quality string of such a read
+ * describes run lengths. */
+typedef struct {
+    int                    phred;
+    const phmm_run_errors *of_run;
+} phmm_length_errors;
+
+/* Marginalizes one read over the alignments its band admits, leaving the result in
+ * out, which borrows from scratch and is valid until the next call on it.
  *
- * The band is given per row: half[i] is how far either side of CIGAR row i the model may
- * look, a row being one base of the placed span plus one before them all. half must hold
- * at least read->l_qseq + 1 entries, of which only those the span reaches are read, and
- * none may exceed the margin the model was prepared with.
- *
- * The model must be prepared for ref. A read placed beyond the bases the model covers
- * cannot be scored against it and is given PHMM_NO_PATH; an alignment within its
- * reference never is.
- *
- * The read must store a sequence and place at least one base, which the filter
- * enforces. */
+ * runs holds the n_runs runs of the placed span of the read, as runs_of_read gives
+ * them. errors holds the run length errors of the read, and is NULL for a read whose
+ * sequencer reports none, which is then scored by the rates and its base qualities
+ * alone. The model must be prepared for the read's reference. The read must store a
+ * sequence and place at least one base, which the filter enforces. */
 phmm_status phmm_run(const phmm_model *model, const phred *quality,
-                     const cm_bam_record *read, const cm_fasta_record *ref,
-                     const int *half, phmm_scratch *scratch, phmm_window *out);
+                     const cm_bam_record *read, const run *runs, size_t n_runs,
+                     const phmm_length_errors *errors, phmm_scratch *scratch,
+                     phmm_window *out);

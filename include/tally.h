@@ -9,11 +9,10 @@
 #include "bam.h"
 #include "bamstream.h"
 #include "fasta.h"
-#include "flow.h"
+#include "ultima.h"
 #include "pairs.h"
 #include "phmm.h"
 #include "phred.h"
-#include "runhmm.h"
 
 /* The settings a caller supplies, in types a command line can write into directly. */
 typedef struct {
@@ -21,7 +20,7 @@ typedef struct {
                                       side of the CIGAR; 0 pins it to the path as
                                       written */
     int                min_phred;  /* a base scoring below this takes the maximum error */
-    int                flow_phred; /* the substitution score of every base of an
+    int                ultima_phred; /* the substitution score of every base of an
                                       Ultima read */
     phmm_uniform_rates uniform;    /* the rates that fill every base of every reference */
 } tally_config;
@@ -33,7 +32,7 @@ tally_config tally_defaults(void);
  * Built once from the config and the input headers, and shared by every worker. */
 typedef struct {
     phred              quality;
-    flow_tables        flow;
+    ultima_decoder     ultima;
     phmm_uniform_rates uniform;  /* the rates tally_rates_fill writes */
     int                band;     /* the half-width every row of the marginal is given */
 } tally_tables;
@@ -62,5 +61,5 @@ void           tally_scratch_destroy(tally_scratch *scratch);
  * target_pairs takes the read's co-modification, and is NULL for a run counting none.
  * model is prepared for ref. */
 phmm_status tally(const cm_bam_record *read, const cm_fasta_record *ref,
-                  const runhmm_model *model, const tally_tables *tables,
+                  const phmm_model *model, const tally_tables *tables,
                   tally_scratch *scratch, accum *target, pairs *target_pairs);

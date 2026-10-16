@@ -176,7 +176,7 @@ static const workitem *item_at(void *const *slots, size_t i)
 
 /* Counts every read of a run into the worker's own shadow. */
 static void worker_count_run(worker *w, void **slots, size_t n,
-                             const cm_fasta_record *ref, const runhmm_model *model)
+                             const cm_fasta_record *ref, const phmm_model *model)
 {
     for (size_t i = 0; i < n; i++) {
         const workitem *item = item_at(slots, i);
@@ -391,7 +391,7 @@ static refctx *pipeline_open_reference(const pipeline *p, int32_t tid)
     tally_rates_fill(&ctx->rates, ctx->rate_storage, ctx->len, &p->tally_tables);
 
     refctx_sequence(ctx, &ref);
-    if (runhmm_model_prepare(&ctx->model, &ctx->rates, &ref, p->tally_tables.band) < 0) {
+    if (phmm_model_prepare(&ctx->model, &ctx->rates, &ref, p->tally_tables.band) < 0) {
         ctxpool_give(p->contexts, ctx);
         return NULL;
     }

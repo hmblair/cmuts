@@ -11,26 +11,31 @@
 
 #include <stdlib.h>
 
+#include "align.h"
 #include "filter.h"
+#include "runs.h"
 
 /* A value of ends equal at every base, which leaves every placement of a read's 5'-most
  * paired base within its band equally likely. */
 #define UNIFORM_ENDS 1.0
 
 /* The substitution score of every base of an Ultima read. */
-#define DEFAULT_FLOW_PHRED 40
+#define DEFAULT_ULTIMA_PHRED 40
 
 typedef struct {
     const cm_bam_record   *read;
     const cm_fasta_record *ref;
-    const runhmm_model    *model;
+    const phmm_model    *model;
     const tally_tables    *tables;
     accum                 *target;
     pairs                 *target_pairs;   /* NULL where no pairs are counted */
 } context;
 
 struct tally_scratch {
-    runhmm_scratch *model;
+    phmm_scratch  *model;
+    run           *runs;      /* of the placed span of the read being marginalized */
+    size_t         cap_runs;
+    ultima_errors  errors;    /* the run length errors of that read */
 };
 
 /* Counts the read in its length bin. Binned by stored length, as the length filters are
@@ -109,13 +114,47 @@ static void add_window(const context *ctx, const phmm_window *window)
     }
 }
 
+/* Splits the placed span of the read into runs and returns their count, or -1 where
+ * the runs cannot be grown. */
+static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read)
+{
+    aln_span span = aln_placed_span(read);
+    run     *runs;
+
+    if ((size_t)read->l_qseq > scratch->cap_runs) {
+        runs = realloc(scratch->runs, (size_t)read->l_qseq * sizeof *runs);
+
+        if (!runs) {
+            return -1;
+        }
+
+        scratch->runs     = runs;
+        scratch->cap_runs = (size_t)read->l_qseq;
+    }
+
+    return (ssize_t)runs_of_read(read->seq, span.begin, span.end, scratch->runs);
+}
+
 static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 {
-    phmm_window window;
-    phmm_status status;
+    phmm_window        window;
+    phmm_status        status;
+    phmm_length_errors errors;
+    ssize_t            n_runs = split_into_runs(scratch, ctx->read);
 
-    status = runhmm_run(ctx->model, &ctx->tables->quality, &ctx->tables->flow,
-                        ctx->read, scratch->model, &window);
+    if (n_runs < 0
+        || ultima_errors_decode(&scratch->errors, &ctx->tables->ultima, ctx->read,
+                                scratch->runs, (size_t)n_runs) < 0) {
+        return PHMM_NO_MEMORY;
+    }
+
+    errors = (phmm_length_errors){
+        .phred  = scratch->errors.phred,
+        .of_run = scratch->errors.of_run,
+    };
+    status = phmm_run(ctx->model, &ctx->tables->quality, ctx->read, scratch->runs,
+                      (size_t)n_runs, scratch->errors.tagged ? &errors : NULL,
+                      scratch->model, &window);
 
     if (status == PHMM_OK) {
         add_window(ctx, &window);
@@ -135,9 +174,9 @@ static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
 tally_config tally_defaults(void)
 {
     return (tally_config){
-        .band       = RUNHMM_DEFAULT_BAND,
+        .band       = PHMM_DEFAULT_BAND,
         .min_phred  = 0,
-        .flow_phred = DEFAULT_FLOW_PHRED,
+        .ultima_phred = DEFAULT_ULTIMA_PHRED,
         .uniform    = phmm_uniform_defaults(),
     };
 }
@@ -150,10 +189,11 @@ static void fill_uniform(double *values, size_t len, double rate)
     }
 }
 
-static int add_read_groups(flow_tables *flow, const cm_bam_stream *stream)
+static int add_read_groups(ultima_decoder *ultima, const cm_bam_stream *stream)
 {
     for (size_t file = 0; file < cm_bam_stream_count(stream); file++) {
-        if (flow_tables_add_read_groups(flow, cm_bam_stream_reader(stream, file)) < 0) {
+        if (ultima_decoder_add_read_groups(ultima,
+                                           cm_bam_stream_reader(stream, file)) < 0) {
             return -1;
         }
     }
@@ -165,16 +205,16 @@ int tally_tables_build(tally_tables *tables, const tally_config *config,
                        const cm_bam_stream *stream)
 {
     phred_build(&tables->quality, config->min_phred);
-    flow_tables_build(&tables->flow, config->flow_phred);
+    ultima_decoder_build(&tables->ultima, config->ultima_phred);
     tables->uniform = config->uniform;
     tables->band    = config->band;
 
-    return add_read_groups(&tables->flow, stream);
+    return add_read_groups(&tables->ultima, stream);
 }
 
 void tally_tables_free(tally_tables *tables)
 {
-    flow_tables_free(&tables->flow);
+    ultima_decoder_free(&tables->ultima);
 }
 
 /* Points each array of rates at its own len values of storage. */
@@ -211,7 +251,7 @@ tally_scratch *tally_scratch_create(void)
         return NULL;
     }
 
-    scratch->model = runhmm_scratch_create();
+    scratch->model = phmm_scratch_create();
 
     if (!scratch->model) {
         free(scratch);
@@ -227,7 +267,9 @@ void tally_scratch_destroy(tally_scratch *scratch)
         return;
     }
 
-    runhmm_scratch_destroy(scratch->model);
+    phmm_scratch_destroy(scratch->model);
+    ultima_errors_free(&scratch->errors);
+    free(scratch->runs);
     free(scratch);
 }
 
@@ -247,7 +289,7 @@ static accum_field_id rejected_field(const cm_bam_record *read)
 }
 
 phmm_status tally(const cm_bam_record *read, const cm_fasta_record *ref,
-                  const runhmm_model *model, const tally_tables *tables,
+                  const phmm_model *model, const tally_tables *tables,
                   tally_scratch *scratch, accum *target, pairs *target_pairs)
 {
     context ctx = {
