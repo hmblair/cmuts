@@ -337,30 +337,6 @@ static double *inner_back_at(const context *ctx, size_t k, int32_t j, int32_t x)
 /* One base against the reference                                            */
 /* ------------------------------------------------------------------------ */
 
-/* Returns the chance a read base agrees with the base it was templated from. */
-static double agreement_chance(double modification, double error)
-{
-    return (1.0 - modification) * (1.0 - error)
-         + modification * error / OTHER_BASES;
-}
-
-/* Returns the chance a read base differs from the base it was templated from. */
-static double disagreement_chance(double modification, double error)
-{
-    return (1.0 - modification) * error / OTHER_BASES
-         + modification * (1.0 - error / OTHER_BASES) / OTHER_BASES;
-}
-
-/* Returns the chance the template differed here, given the base as read. */
-static double modification_given(double modification, bool agree, double error)
-{
-    return agree
-         ? modification * error / OTHER_BASES
-             / agreement_chance(modification, error)
-         : modification * (1.0 - error / OTHER_BASES) / OTHER_BASES
-             / disagreement_chance(modification, error);
-}
-
 /* Returns the chance that read base q was misread. Every base of an Ultima read takes
  * one score, since its quality string describes run lengths. */
 static double error_of(const context *ctx, int32_t q)
@@ -380,43 +356,73 @@ static void fill_errors(const context *ctx)
     }
 }
 
-/* One pairing of a read base, or of a phantom, with a reference base. A phantom is a
- * template base the sequencer did not count, whose letter was never observed, so it
- * emits one and carries nothing. */
+/* What a pairing of a read base against a reference base pays and credits, as lines in
+ * the modification rate m of the reference base. The emission is intercept + slope * m.
+ * The part of the emission on which the template differed is share * m. Both come
+ * from the chances of the base model: a read base agrees with its template base with
+ * chance (1 - m)(1 - e) + m e / 3 and differs from it into one given letter with
+ * chance (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the base was
+ * misread. */
 typedef struct {
-    double emission;
-    bool   agree;
-    bool   informative;  /* whether both letters are named */
-    bool   real;         /* whether a read base was observed */
-} comparison;
+    double intercept;
+    double slope;
+    double share;
+} outcome;
 
-static inline comparison compare(const runhmm_base *base, nuc ours, bool phantom,
-                                 double error)
+/* The outcomes of one read base against a reference base that agrees with it, one
+ * that differs, and one that is not named. A phantom is a template base the sequencer
+ * did not count, whose letter was never observed, so it emits one and carries nothing.
+ * An unnamed base on either side emits the uninformative chance and carries nothing. */
+typedef struct {
+    outcome agree;
+    outcome differ;
+    outcome unnamed;
+} outcomes;
+
+static void set_outcome(outcome *o, double intercept, double slope, double share)
+{
+    o->intercept = intercept;
+    o->slope     = slope;
+    o->share     = share;
+}
+
+static void set_outcomes(outcomes *o, nuc ours, bool phantom, double error)
+{
+    double other = error / OTHER_BASES;
+    double shift = 1.0 - error - other;
+    double blank = phantom ? 1.0 : UNINFORMATIVE;
+
+    set_outcome(&o->unnamed, blank, 0.0, 0.0);
+
+    if (phantom || !nuc_is_base(ours)) {
+        set_outcome(&o->agree, blank, 0.0, 0.0);
+        set_outcome(&o->differ, blank, 0.0, 0.0);
+        return;
+    }
+
+    set_outcome(&o->agree, 1.0 - error, -shift, other);
+    set_outcome(&o->differ, other, shift / OTHER_BASES, (1.0 - other) / OTHER_BASES);
+}
+
+static const outcome *outcome_at(const outcomes *o, const runhmm_base *base, nuc ours)
 {
     nuc theirs = (nuc)base->code;
 
-    if (phantom) {
-        return (comparison){ .emission = 1.0, .real = false };
+    if (!nuc_is_base(theirs)) {
+        return &o->unnamed;
     }
 
-    if (!nuc_is_base(ours) || !nuc_is_base(theirs)) {
-        return (comparison){ .emission = UNINFORMATIVE, .real = true };
-    }
-
-    if (ours == theirs) {
-        return (comparison){ .emission = agreement_chance(base->modification, error),
-                             .agree = true, .informative = true, .real = true };
-    }
-
-    return (comparison){ .emission = disagreement_chance(base->modification, error),
-                         .agree = false, .informative = true, .real = true };
+    return theirs == ours ? &o->agree : &o->differ;
 }
 
-/* Returns the part of a pairing that a template difference explains. */
-static double modification_of(const runhmm_base *base, const comparison *c, double error)
+static double emission_of(const outcome *o, const runhmm_base *base)
 {
-    return c->informative ? modification_given(base->modification, c->agree, error)
-                          : 0.0;
+    return o->intercept + o->slope * base->modification;
+}
+
+static double modified_of(const outcome *o, const runhmm_base *base)
+{
+    return o->share * base->modification;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -766,6 +772,7 @@ typedef struct {
     double *next;      /* the next row's */
     size_t  stride;    /* doubles per inner row */
     int32_t from, to;  /* the prefixes the row may hold */
+    outcomes outcomes; /* of the row's read base */
     double  error;
     bool    pairs;     /* whether a row follows to pair into */
     bool    phantom;
@@ -792,9 +799,11 @@ static void set_inner_row(inner_row *r, const context *ctx, size_t k, double *ma
     r->deletes = may_delete_inside(row, j);
     r->inserts = may_insert(row, k, j);
     r->error   = r->phantom ? 0.0 : ctx->scratch->error[row->piece.start + j];
+    set_outcomes(&r->outcomes, row->piece.letter, r->phantom, r->error);
 }
 
-/* Fills the step matrix of row k from its seeds. */
+/* Fills the step matrix of row k from its seeds. The open deletion state passes along
+ * a row in a local, so that each cell is read and written once. */
 static void step_forward(const context *ctx, size_t k)
 {
     const row_layout  *row   = row_of(ctx, k);
@@ -805,31 +814,33 @@ static void step_forward(const context *ctx, size_t k)
 
     for (int32_t j = 0; j <= row->depth; j++) {
         inner_row r;
+        double    open_deletion = 0.0;  /* what the cell to the left passes on */
 
         set_inner_row(&r, ctx, k, ctx->scratch->inner + row->inner, j);
 
         for (int32_t x = r.from; x <= r.to; x++) {
-            size_t  at   = (size_t)(x - row->xlo) * N_INNER;
-            double *cell = r.line + at;
+            size_t  at       = (size_t)(x - row->xlo) * N_INNER;
+            double *cell     = r.line + at;
+            double  paired   = cell[PAIRED];
+            double  deleted  = cell[GAP_DELETION] + open_deletion;
+            double  inserted = cell[GAP_INSERTION];
 
-            if (x < r.to) {
-                cell[N_INNER + GAP_DELETION] += cell[GAP_DELETION] * w.extend_deletion
-                                              + (r.deletes ? cell[PAIRED] : 0.0);
-            }
+            cell[GAP_DELETION] = deleted;
+            open_deletion      = deleted * w.extend_deletion + (r.deletes ? paired : 0.0);
 
             if (r.pairs && x < row->xhi && x < len) {
                 const runhmm_base *b = &bases[x];
-                comparison         c = compare(b, ours, r.phantom, r.error);
+                const outcome     *o = outcome_at(&r.outcomes, b, ours);
 
-                r.next[at + N_INNER + PAIRED] += (cell[PAIRED] * b->keep
-                                                + cell[GAP_DELETION] * b->close_deletion
-                                                + cell[GAP_INSERTION] * b->open_insertion)
-                                               * c.emission;
+                r.next[at + N_INNER + PAIRED] += (paired * b->keep
+                                                + deleted * b->close_deletion
+                                                + inserted * b->open_insertion)
+                                               * emission_of(o, b);
             }
 
             if (r.inserts) {
-                r.next[at + GAP_INSERTION] += cell[PAIRED] * w.open_insertion
-                                            + cell[GAP_INSERTION] * w.extend_insertion;
+                r.next[at + GAP_INSERTION] += paired * w.open_insertion
+                                            + inserted * w.extend_insertion;
             }
         }
     }
@@ -1053,17 +1064,18 @@ static void end_step(const context *ctx, size_t k)
     }
 }
 
-/* Credits one pairing of reference base x to the window. */
+/* Credits one pairing of reference base x to the window. modified is the posterior
+ * of the paths through the pairing on which the template differed, and real whether a
+ * read base was observed. */
 static void credit_pairing(const context *ctx, size_t k, int32_t j, int32_t x,
-                           const runhmm_base *base, const comparison *c, double error,
-                           double paired, double deleted, double inserted)
+                           bool real, double modified, double paired, double deleted,
+                           double inserted)
 {
-    phmm_position *at    = landing(ctx, x);
-    double         total = paired + deleted + inserted;
+    phmm_position *at = landing(ctx, x);
 
-    if (c->real) {
-        at->coverage   += total;
-        at->mismatches += total * modification_of(base, c, error);
+    if (real) {
+        at->coverage   += paired + deleted + inserted;
+        at->mismatches += modified;
     }
 
     landing(ctx, x - 1)->deletions += deleted;
@@ -1075,7 +1087,11 @@ static void credit_pairing(const context *ctx, size_t k, int32_t j, int32_t x,
 }
 
 /* Fills the step matrix of row k backward from its ends, crediting each pairing with
- * its posterior, and sets the outer cells of row k - 1 to what the seeds are worth. */
+ * its posterior, and sets the outer cells of row k - 1 to what the seeds are worth.
+ * The open deletion state passes along a row in a local, so that each cell is read
+ * and written once. The posterior of a template difference at a pairing is the
+ * posterior of the pairing times the modified part of its emission over the whole
+ * emission, so the emission divides out of it. */
 static void step_backward(const context *ctx, size_t k)
 {
     const row_layout  *row     = row_of(ctx, k);
@@ -1089,45 +1105,53 @@ static void step_backward(const context *ctx, size_t k)
 
     for (int32_t j = row->depth; j >= 0; j--) {
         inner_row r;
+        double    open_deletion = 0.0;  /* of the cell to the right */
 
         set_inner_row(&r, ctx, k, ctx->scratch->inner_back, j);
 
         for (int32_t x = r.to; x >= r.from; x--) {
-            size_t        at   = (size_t)(x - row->xlo) * N_INNER;
-            double       *cell = r.line + at;
-            const double *fwd  = forward + (size_t)j * r.stride + at;
-
-            if (x < r.to) {
-                double right = cell[N_INNER + GAP_DELETION];
-
-                cell[GAP_DELETION] += right * w.extend_deletion;
-                cell[PAIRED]       += r.deletes ? right : 0.0;
-            }
+            size_t        at       = (size_t)(x - row->xlo) * N_INNER;
+            double       *cell     = r.line + at;
+            const double *fwd      = forward + (size_t)j * r.stride + at;
+            double        paired   = cell[PAIRED] + (r.deletes ? open_deletion : 0.0);
+            double        deleted  = cell[GAP_DELETION]
+                                   + open_deletion * w.extend_deletion;
+            double        inserted = cell[GAP_INSERTION];
 
             if (r.pairs && x < row->xhi && x < len) {
-                const runhmm_base *b    = &bases[x];
-                comparison         c    = compare(b, ours, r.phantom, r.error);
-                double             next = r.next[at + N_INNER + PAIRED] * c.emission;
-                double             paired   = b->keep * next;
-                double             deleted  = b->close_deletion * next;
-                double             inserted = b->open_insertion * next;
+                const runhmm_base *b        = &bases[x];
+                const outcome     *o        = outcome_at(&r.outcomes, b, ours);
+                double             below    = r.next[at + N_INNER + PAIRED];
+                double             next     = below * emission_of(o, b);
+                double             through  = (fwd[PAIRED] * b->keep
+                                               + fwd[GAP_DELETION] * b->close_deletion
+                                               + fwd[GAP_INSERTION] * b->open_insertion)
+                                              * below * restore;
+                double             to_paired   = b->keep * next;
+                double             to_deleted  = b->close_deletion * next;
+                double             to_inserted = b->open_insertion * next;
 
-                cell[PAIRED]        += paired;
-                cell[GAP_DELETION]  += deleted;
-                cell[GAP_INSERTION] += inserted;
+                paired   += to_paired;
+                deleted  += to_deleted;
+                inserted += to_inserted;
 
-                credit_pairing(ctx, k, j, x, b, &c, r.error,
-                               fwd[PAIRED] * paired * restore,
-                               fwd[GAP_DELETION] * deleted * restore,
-                               fwd[GAP_INSERTION] * inserted * restore);
+                credit_pairing(ctx, k, j, x, !r.phantom, through * modified_of(o, b),
+                               fwd[PAIRED] * to_paired * restore,
+                               fwd[GAP_DELETION] * to_deleted * restore,
+                               fwd[GAP_INSERTION] * to_inserted * restore);
             }
 
             if (r.inserts) {
                 double below = r.next[at + GAP_INSERTION];
 
-                cell[PAIRED]        += w.open_insertion * below;
-                cell[GAP_INSERTION] += w.extend_insertion * below;
+                paired   += w.open_insertion * below;
+                inserted += w.extend_insertion * below;
             }
+
+            cell[PAIRED]        = paired;
+            cell[GAP_DELETION]  = deleted;
+            cell[GAP_INSERTION] = inserted;
+            open_deletion       = deleted;
         }
     }
 
