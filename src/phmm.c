@@ -58,6 +58,13 @@ enum { PAIRED, GAP_DELETION, GAP_INSERTION, N_INNER };
  * through this many bases stay far above the smallest double. */
 #define SEGMENT_BASES 32
 
+/* An outer row is divided by its total only when the total leaves this range. The
+ * posteriors of a segment divide by the scale its row took, which is one where the row
+ * was left as it was, so the result is the same either way, and the totals stay far
+ * from the smallest and the largest double. */
+#define SCALE_FLOOR   1e-50
+#define SCALE_CEILING 1e50
+
 void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uniform)
 {
     rates->match_to_insertion     = 1.0 - uniform->extend_insertion;
@@ -1289,7 +1296,9 @@ static phmm_status total_status(double total)
     return PHMM_OK;
 }
 
-/* Keeps the total of row k and, unless the row is the last, divides the row by it. */
+/* Keeps the scale of row k. The scale is the total of the row where the row is the
+ * last or where the total has left the range the rows are kept in, and the row is
+ * then divided by it. Elsewhere the scale is one. */
 static phmm_status scale_row(const context *ctx, size_t k, double total)
 {
     const outer_row *row    = row_of(ctx, k);
@@ -1301,13 +1310,18 @@ static phmm_status scale_row(const context *ctx, size_t k, double total)
         return status;
     }
 
-    ctx->scratch->scale[k] = total;
-
     if (k == ctx->n_segments) {
+        ctx->scratch->scale[k] = total;
         return PHMM_OK;
     }
 
-    share = 1.0 / total;
+    if (total >= SCALE_FLOOR && total <= SCALE_CEILING) {
+        ctx->scratch->scale[k] = 1.0;
+        return PHMM_OK;
+    }
+
+    ctx->scratch->scale[k] = total;
+    share                  = 1.0 / total;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
         double *cell = outer_at(cells, row->lo, x);
