@@ -160,6 +160,7 @@ Each rate is accompanied by a per-base estimate for its error, computed as the b
 | --- | --- |
 | `--band N` | reference positions the pair HMM may look either side of the CIGAR (default 2) |
 | `--min-phred Q` | assign the maximum sequencing error to bases below this quality (0 to 255; default 0) |
+| `--flow-phred Q` | the substitution PHRED score of every base of an Ultima read, whose quality string describes run lengths only (0 to 255; default 40) |
 | `--pairwise STATS` | write these statistics of how often two positions are modified together (correlation, conditional, none; default none) |
 | `--min-depth D` | write NaN rates and errors for positions below this depth (default 1) |
 | `--nan-5p N` | write NaN rates and errors for this many bases at the 5' end (default 0) |
