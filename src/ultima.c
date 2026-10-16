@@ -258,7 +258,11 @@ typedef struct {
     double shorter;
 } one_base_errors;
 
-/* Sums the chances of the bases of a run. A run of unnamed bases has none. */
+/* Sums the chances of the bases of a run. A run of two or more bases carries half of
+ * the chance of an alternative length on each of two bases placed symmetrically in
+ * the run, so the sum over the bases is the whole chance. A run of one base carries
+ * the whole chance on its one base. GATK's FlowBasedRead sums the bases the same way.
+ * A run of unnamed bases has no chance. */
 static one_base_errors sum_lengths(const ultima_decoder *tables,
                                    const cm_bam_record *read, const run *r)
 {
@@ -281,7 +285,9 @@ static one_base_errors sum_lengths(const ultima_decoder *tables,
     return errors;
 }
 
-/* Scales the two chances down so that the called length keeps the minimal chance. */
+/* Scales the two chances down so that the called length keeps the minimal chance.
+ * GATK's FlowBasedRead raises the called length to the minimum and leaves the two
+ * chances as they are, so its column can sum past one. */
 static one_base_errors keep_called_length(one_base_errors errors)
 {
     double total = errors.longer + errors.shorter;
@@ -317,7 +323,7 @@ static double missed_chance_at(const ultima_decoder *tables, const cm_bam_record
 
 /* Writes the chance that a base unlike either run is missing between a run and the
  * next. The t0 tag gives a chance at the last base of one run and at the first of the
- * next. The lesser is the chance of the gap, as in the reference decoder. */
+ * next. The lesser is the chance of the gap, as in GATK's FlowBasedRead. */
 static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
                              const cm_bam_record *read, const ultima_read_group *group,
                              const run *r, const run *next)

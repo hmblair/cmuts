@@ -7,6 +7,9 @@
  * the run that refer to it. The t0 tag gives, per base, the chance that a base of
  * base unlike either run was missed between the run and the next run.
  *
+ * The decoding follows the class FlowBasedRead of GATK, which reads the same tags, and
+ * the description of the base calling in Almogy et al., bioRxiv 2022.05.29.493900.
+ *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
 
@@ -22,7 +25,9 @@
 #include "phred.h"
 #include "runs.h"
 
-/* The least chance of the called run length, as in the reference decoder. */
+/* The least chance of the called run length. The tags of a run can add up past one,
+ * and GATK's FlowBasedRead gives the called length at least this much, as its
+ * MINIMAL_CALL_PROB, which has the same value. */
 #define ULTIMA_MINIMAL_CALL_CHANCE 0.1
 
 /* The offset that the t0 string adds to a PHRED score to make it printable. */
