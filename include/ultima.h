@@ -25,10 +25,6 @@
 /* The least chance of the called run length, as in the reference decoder. */
 #define ULTIMA_MINIMAL_CALL_CHANCE 0.1
 
-/* The chance of a length error of two bases, as a fraction of the chance of the
- * one-base error in the same direction. Measured on the 2A3 sample. */
-#define ULTIMA_TWO_BASE_FRACTION 0.014
-
 /* The flow order of one read group: the cycle of four bases the sequencer repeats, and
  * the bases that can be missed between a run of one base and a run of the next,
  * as bits indexed by nuc, for a forward read and for a reversed one. */

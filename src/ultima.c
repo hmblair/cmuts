@@ -287,7 +287,7 @@ static one_base_errors sum_lengths(const ultima_decoder *tables,
 /* Scales the two chances down so that the called length keeps the minimal chance. */
 static one_base_errors keep_called_length(one_base_errors errors)
 {
-    double total = (errors.longer + errors.shorter) * (1.0 + ULTIMA_TWO_BASE_FRACTION);
+    double total = errors.longer + errors.shorter;
     double scale;
 
     if (total <= 1.0 - ULTIMA_MINIMAL_CALL_CHANCE) {
@@ -299,20 +299,15 @@ static one_base_errors keep_called_length(one_base_errors errors)
     return (one_base_errors){ errors.longer * scale, errors.shorter * scale };
 }
 
-/* Writes the chance of each template length from the one-base chances, with the
- * two-base chances at their fraction of them and the rest on the called length. */
+/* Writes the chance of each template length from the one-base chances, with the rest
+ * on the called length. */
 static void write_lengths(phmm_run_errors *out, one_base_errors errors)
 {
     double *length = out->length;
 
-    memset(length, 0, sizeof out->length);
-
     length[PHMM_MAX_LENGTH_ERROR + 1] = errors.longer;
     length[PHMM_MAX_LENGTH_ERROR - 1] = errors.shorter;
-    length[PHMM_MAX_LENGTH_ERROR + 2] = errors.longer * ULTIMA_TWO_BASE_FRACTION;
-    length[PHMM_MAX_LENGTH_ERROR - 2] = errors.shorter * ULTIMA_TWO_BASE_FRACTION;
-    length[PHMM_MAX_LENGTH_ERROR]     = 1.0 - (errors.longer + errors.shorter)
-                                            * (1.0 + ULTIMA_TWO_BASE_FRACTION);
+    length[PHMM_MAX_LENGTH_ERROR]     = 1.0 - errors.longer - errors.shorter;
 }
 
 static double missed_chance_at(const ultima_decoder *tables, const cm_bam_record *read,

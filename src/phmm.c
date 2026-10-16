@@ -12,7 +12,7 @@
  *
  * Between two outer rows lies the inner matrix of a segment, which pairs the bases of
  * the segment with the reference one at a time. Its rows are the bases of the segment,
- * and up to two more for template bases that an Ultima sequencer did not count. Each
+ * and one more for a template base that an Ultima sequencer did not count. Each
  * row holds the prefix lengths within the band of its base, and nothing else. Its
  * states are the three of a pair HMM over bases, with the weights of that model. A
  * pairing pays the weight of its base after no gap, or the opening rate of the gap it
@@ -304,8 +304,8 @@ typedef struct {
  * The cells run from from to end. Most rows end at to. A row whose band ends where
  * the band of the row before ends, which happens after an inserted read base, has one
  * cell more, at to + 1. The pairing out of the last cell of the row before lands in
- * that cell. The cell is read only where a run ends at this row, one or two bases
- * before its last read base. */
+ * that cell. The cell is read only where a run ends at this row, one base before its
+ * last read base. */
 typedef struct {
     int32_t                 from;
     int32_t                 to;
