@@ -2,7 +2,8 @@
  *
  * The read is cut into segments. A read whose sequencer reports run length errors has
  * one segment per run of one base, since the errors enter where a run ends. A read
- * without them has segments of up to SEGMENT_BASES bases, since its cuts carry nothing.
+ * without them has segments of up to SEGMENT_BASES bases, since nothing enters where
+ * such a segment ends.
  *
  * The matrix has one outer row per segment, and row 0 before the first. A cell of an
  * outer row is a prefix length of the reference, and holds three states: the segment
@@ -13,10 +14,10 @@
  * the segment with the reference one at a time. Its rows are the bases of the segment,
  * and up to two more for template bases that an Ultima sequencer did not count. Each
  * row holds the prefix lengths within the band of its base, and nothing else. Its
- * states are the three of a pair HMM over bases, with the weights of that model: a
+ * states are the three of a pair HMM over bases, with the weights of that model. A
  * pairing pays the weight of its base after no gap, or the opening rate of the gap it
- * closes, times the emission of the comparison, and a gap pays its extension rate per
- * base after the first.
+ * closes, times the emission of the comparison. A gap pays its extension rate per base
+ * after the first.
  *
  * A deletion that follows the last pairing of a segment leaves the inner matrix as the
  * open deletion state of the outer cell, and extends or closes in the next inner
@@ -59,9 +60,9 @@ enum { PAIRED, GAP_DELETION, GAP_INSERTION, N_INNER };
 #define SEGMENT_BASES 32
 
 /* An outer row is divided by its total only when the total leaves this range. The
- * posteriors of a segment divide by the scale its row took, which is one where the row
- * was left as it was, so the result is the same either way, and the totals stay far
- * from the smallest and the largest double. */
+ * posteriors of a segment divide by the scale of its row, which is one where the row
+ * was not divided, so the result is the same either way. The range keeps the totals
+ * far from the smallest and the largest double. */
 #define SCALE_FLOOR   1e-50
 #define SCALE_CEILING 1e50
 
@@ -235,15 +236,16 @@ static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double err
     }
 
     for (nuc theirs = NUC_A; theirs < NUC_COUNT; theirs++) {
-        set_comparison(o, theirs, other, shift / OTHER_BASES, (1.0 - other) / OTHER_BASES);
+        set_comparison(o, theirs, other, shift / OTHER_BASES,
+                       (1.0 - other) / OTHER_BASES);
     }
 
     set_comparison(o, ours, 1.0 - error, -shift, other);
 }
 
-/* The comparisons of a read base of each base at each quality score, of such a base
- * in a read that stores no qualities, which is never misread, and of a template base
- * the sequencer did not count. */
+/* The comparisons of a read base of each base at each quality score, and of such a
+ * base in a read that stores no qualities, which is never misread. The last entry is
+ * for a template base the sequencer did not count. */
 struct phmm_emissions {
     comparisons at_quality[NUC_COUNT][PHRED_MAX + 1];
     comparisons without_quality[NUC_COUNT];
@@ -395,9 +397,9 @@ static gap_weights gap_weights_of(const phmm_rates *rates)
 /* ------------------------------------------------------------------------ */
 
 typedef struct {
-    const phmm_model    *model;
-    const phmm_rates      *rates;
-    const phmm_emissions  *emissions;
+    const phmm_model         *model;
+    const phmm_rates         *rates;
+    const phmm_emissions     *emissions;
     const cm_bam_record      *read;
     const run                *read_runs;  /* of the placed span */
     size_t                    n_read_runs;
@@ -405,13 +407,13 @@ typedef struct {
     phmm_scratch             *scratch;
 
     aln_span    span;
-    gap_weights gaps;    /* the weights of the gaps under the rates */
+    gap_weights gaps;         /* the weights of the gaps under the rates */
     size_t      n_segments;
-    int32_t  widest;     /* cells of the widest outer row */
-    int32_t  widest_span;  /* cells of the widest inner row */
-    size_t   n_spans;    /* inner rows of every inner matrix */
-    int32_t  origin;     /* reference position of window value 0 */
-    size_t   window_len;
+    int32_t     widest;       /* cells of the widest outer row */
+    int32_t     widest_span;  /* cells of the widest inner row */
+    size_t      n_spans;      /* inner rows of every inner matrix */
+    int32_t     origin;       /* reference position of window value 0 */
+    size_t      window_len;
 } context;
 
 static size_t n_rows(const context *ctx)
@@ -437,7 +439,8 @@ static inline double *outer_cells(const context *ctx, size_t k)
 
     next = row_of(ctx, k + 1);
 
-    return ctx->scratch->inner + next->inner + ctx->scratch->spans[next->first_span].cells;
+    return ctx->scratch->inner + next->inner
+         + ctx->scratch->spans[next->first_span].cells;
 }
 
 /* Returns the cell at prefix x of a row of outer cells that starts at prefix lo. */
@@ -459,7 +462,8 @@ static inline double *backward_at(const context *ctx, size_t k, int32_t x)
 }
 
 /* Returns the span of inner row j of row. */
-static inline const inner_span *span_at(const context *ctx, const outer_row *row, int32_t j)
+static inline const inner_span *span_at(const context *ctx, const outer_row *row,
+                                        int32_t j)
 {
     return &ctx->scratch->spans[row->first_span + (size_t)j];
 }
@@ -486,7 +490,8 @@ static inline double *cell_at(double *cells, const inner_span *span, int32_t x)
 }
 
 /* Returns the cell at prefix x of a row whose cells start at span->from, for reading. */
-static inline const double *cell_in(const double *cells, const inner_span *span, int32_t x)
+static inline const double *cell_in(const double *cells, const inner_span *span,
+                                    int32_t x)
 {
     return cells + (size_t)(x - span->from) * N_INNER;
 }
@@ -528,14 +533,14 @@ static inline double modified_of(const comparisons *o, const phmm_base *base)
 /* Layout                                                                    */
 /* ------------------------------------------------------------------------ */
 
-/* Whether read base j of a segment can be inserted. The first base of the read cannot
- * be, nor can a template base the sequencer did not count. */
+/* Returns whether read base j of a segment can be inserted. The first base of the read
+ * cannot be, nor can a template base the sequencer did not count. */
 static bool may_insert(const outer_row *row, size_t k, int32_t j)
 {
     return j < row->len && (j >= 1 || k >= 2);
 }
 
-/* Whether a deletion can open inside the segment after inner row j. */
+/* Returns whether a deletion can open inside the segment after inner row j. */
 static bool may_delete_inside(const outer_row *row, int32_t j)
 {
     return j >= 1 && j < row->last_inner_row;
@@ -587,9 +592,10 @@ static void lay_out_window(const context *ctx, outer_row *row)
     row->hi = band->to;
 }
 
-/* Writes inner row j of the segment of row k: the band around the prefix the CIGAR
- * has reached after j bases of the segment, where a row past the bases of the segment
- * takes the band of the last base, and what the row allows. */
+/* Fills span with inner row j of the segment of row k: its band, its comparisons, and
+ * what the row allows. The band is the band around the prefix the CIGAR has reached
+ * after j bases of the segment. A row past the bases of the segment takes the band of
+ * the last base. */
 static void set_inner_span(inner_span *span, const context *ctx, size_t k, int32_t j)
 {
     const outer_row  *row  = row_of(ctx, k);
@@ -952,8 +958,8 @@ typedef struct {
  * restore undoes the scaling of the segment and is folded into the chance. Every
  * backward value of the segment then carries restore, which the posteriors need and
  * which the outer cells of row k - 1 are defined with. */
-static inline void set_segment_end(segment_end *end, const context *ctx, size_t k, int32_t j,
-                                   double restore)
+static inline void set_segment_end(segment_end *end, const context *ctx, size_t k,
+                                   int32_t j, double restore)
 {
     const outer_row *row    = row_of(ctx, k);
     int              offset = j - row->len;
@@ -971,9 +977,11 @@ static inline void set_segment_end(segment_end *end, const context *ctx, size_t 
     }
 }
 
-/* Adds to paired and inserted what those states of a cell at prefix x are worth at the
- * end of the segment: the chance of ending there times what the outer row is worth
- * closed at x and with a deletion open at x + 1, and with an insertion open at x. */
+/* Adds what the paired and the open insertion states of a cell at prefix x are worth
+ * at the end of the segment to paired and inserted. The paired state is worth the
+ * chance of ending there times what the outer row is worth closed at x, plus what it
+ * is worth with a deletion open at x + 1. The open insertion state is worth that
+ * chance times what the outer row is worth with an insertion open at x. */
 static inline void add_end_worth(const segment_end *end, int32_t x, double *paired,
                                  double *inserted)
 {
@@ -998,10 +1006,10 @@ static inline void add_end_worth(const segment_end *end, int32_t x, double *pair
     }
 }
 
-/* What the step from inner row j to inner row j + 1 reads: the two spans, the
- * comparisons of the read base of row j, what the step may do, and, for the backward
- * pass, what row j is worth at the end of the segment and where the backward values of
- * row j go: the slot of the row's parity, or, for row 0, the outer backward cells of
+/* What the step from inner row j to inner row j + 1 reads: the two spans, and whether
+ * a pairing from row j is the read's 5'-most. The backward pass also reads what row j
+ * is worth at the end of the segment, and where the backward values of row j go. They
+ * go to the slot of the row's parity, or, for row 0, to the outer backward cells of
  * row k - 1. */
 typedef struct {
     const inner_span  *span;      /* of row j */
@@ -1024,8 +1032,8 @@ static inline void set_inner_step(inner_step *s, const context *ctx, size_t k, i
 }
 
 /* Fills s with the step from inner row j of segment k, for the backward pass. */
-static inline void set_backward_step(inner_step *s, const context *ctx, size_t k, int32_t j,
-                              double restore)
+static inline void set_backward_step(inner_step *s, const context *ctx, size_t k,
+                                     int32_t j, double restore)
 {
     const outer_row *above = row_of(ctx, k - 1);
 
@@ -1044,7 +1052,7 @@ static inline int32_t min_prefix(int32_t a, int32_t b)
     return a < b ? a : b;
 }
 
-/* Returns the weight of the paths from cell from to the pairing of reference base x,
+/* Returns the weight of the paths from cell from into the pairing of reference base b,
  * which lands one prefix further along the next row. */
 static inline double pairing_into(const double *from, const phmm_base *b)
 {
@@ -1144,7 +1152,8 @@ static void inner_forward(const context *ctx, size_t k)
     }
 }
 
-/* Whether the sequencer can have missed a one-base run after the segment of row k. */
+/* Returns whether the sequencer can have missed a one-base run after the segment of
+ * row k. */
 static bool missed_run_possible(const context *ctx, size_t k)
 {
     const outer_row *row = row_of(ctx, k);
@@ -1152,8 +1161,8 @@ static bool missed_run_possible(const context *ctx, size_t k)
     return k != ctx->n_segments && row->missed > 0.0 && row->missed_bases != 0;
 }
 
-/* Whether reference base x is a run of one base that the sequencer can have missed
- * after the row's segment. */
+/* Returns whether reference base x is a run of one base that the sequencer can have
+ * missed after the segment of row. */
 static inline bool missed_run_at(const context *ctx, const outer_row *row, int32_t x)
 {
     const phmm_model *model = ctx->model;
@@ -1162,11 +1171,11 @@ static inline bool missed_run_at(const context *ctx, const outer_row *row, int32
 }
 
 /* One inner row at which the segment can end, as the exits read it: the chance of the
- * template length that ends there, the row's cell at the first prefix of the outer
- * row, the last prefix at which the row has a cell, and whether an insertion left open
- * can end there, which it can where the template is no longer than the read. The band
- * of the row begins at or before the outer row, since the outer row lies around the
- * end of the segment. */
+ * template length that ends there, the cell of the row at the first prefix of the
+ * outer row, the last prefix at which the row has a cell, and whether an insertion
+ * left open can end there. An insertion can end there where the template is no longer
+ * than the read. The band of the row begins at or before the outer row, since the
+ * outer row lies around the end of the segment. */
 typedef struct {
     double        chance;
     const double *at_lo;
@@ -1228,8 +1237,8 @@ static inline void exit_at(const exit_row *exit, int32_t x, size_t cell, double 
  * each weighted by its chance, and returns their total. A deletion that opens after
  * the segment and an insertion left open end in their own states, which the last row
  * cannot hold. The deletion open at a prefix comes from the pairings closed at the
- * prefix before, and extends from the deletion open there, so that every cell holds
- * the whole of its open deletion state as the next segment reads it. */
+ * prefix before, and extends from the deletion open there. Every cell then holds the
+ * whole of its open deletion state as the next segment reads it. */
 static double fill_outer_row(const context *ctx, size_t k)
 {
     const outer_row *row      = row_of(ctx, k);
@@ -1459,11 +1468,12 @@ static inline double accumulate_pairing(const context *ctx, int32_t x,
     return p->deleted;
 }
 
-/* Writes a backward cell at prefix x that has no pairing: what it is worth at the end
- * of the segment, through the insertion of its read base into gap, the cell of the
- * next row at its prefix, where that cell exists, and through the open deletion of
- * the cell after it in its own row, which opens there with weight deletes, one or
- * zero. Returns the open deletion state of the cell. */
+/* Writes a backward cell at prefix x whose read base pairs with nothing. The cell is
+ * worth the end of the segment, plus the insertion of its read base into gap, which is
+ * the cell of the next row at the same prefix or NULL where that cell does not exist,
+ * plus the open deletion of the cell after it in its own row. A deletion opens there
+ * with weight deletes, which is one or zero. Returns the open deletion state of the
+ * cell. */
 static inline double backward_gap_cell(double *cell, const segment_end *end, int32_t x,
                                        const double *gap, const gap_weights *w,
                                        double deletes, double deletion)
@@ -1486,17 +1496,17 @@ static inline double backward_gap_cell(double *cell, const segment_end *end, int
     return deleted;
 }
 
-/* Writes the backward inner row j of segment k, whose read base is uncounted or not:
- * what its cells are worth at the end of the segment and through inner row j + 1,
- * accumulating each pairing with its posterior. Each cell is read from the cell one
- * prefix on in the next row, which its pairing lands in, from the cell at the same
- * prefix, which its insertion lands in, and from the cell after it in its own row,
- * which its open deletion extends into. A cell whose target lies outside the next row
- * takes nothing from it. The cell past the band, where the row has one, is worth only
- * the end of the segment. The posterior of a template difference at a pairing is the
- * posterior of the pairing times the modified part of its emission over the whole
- * emission, so the emission divides out of it. The backward values carry the inverse
- * of the scale of the segment, so the posteriors need no further factor. */
+/* Writes the backward inner row j of segment k, whose read base is uncounted or not.
+ * Each cell is worth the end of the segment plus what it reaches through inner row
+ * j + 1, and each pairing is accumulated with its posterior. A cell reads the cell one
+ * prefix on in the next row, which its pairing lands in, the cell at the same prefix,
+ * which its insertion lands in, and the cell after it in its own row, which its open
+ * deletion extends into. A cell whose target lies outside the next row takes nothing
+ * from it. The cell past the band, where the row has one, is worth only the end of the
+ * segment. The posterior of a template difference at a pairing is the posterior of the
+ * pairing times the modified part of its emission over the whole emission, so the
+ * emission divides out. The backward values carry the inverse of the scale of the
+ * segment, so the posteriors need no further factor. */
 ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step *s,
                                   int32_t j, bool uncounted)
 {
@@ -1519,7 +1529,7 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
     int32_t                 ins_lo   = !uncounted && span->inserts
                                      ? max_prefix(from, next_from) : INT32_MAX;
     double                  deletion = 0.0;  /* of the cell to the right */
-    double                  carried  = 0.0;  /* deletion posterior of the cell to the right */
+    double                  carried  = 0.0;  /* deletion posterior of the cell after */
     int32_t                 x        = span->end;
 
     for (; x > to; x--) {
