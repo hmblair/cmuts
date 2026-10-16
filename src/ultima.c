@@ -13,9 +13,6 @@
 #define LENGTH_LONGER  1
 #define LENGTH_SHORTER (-1)
 
-/* The offset that the t0 string adds to a PHRED score to make it printable. */
-#define PHRED_OFFSET 33
-
 /* ------------------------------------------------------------------------ */
 /* The bases between two runs                                              */
 /* ------------------------------------------------------------------------ */
@@ -313,7 +310,7 @@ static void write_lengths(phmm_run_errors *out, one_base_errors errors)
 static double missed_chance_at(const ultima_decoder *tables, const cm_bam_record *read,
                                int32_t j)
 {
-    int score = (unsigned char)read->t0[j] - PHRED_OFFSET;
+    int score = (unsigned char)read->t0[j] - ULTIMA_PHRED_OFFSET;
 
     return tables->error[score < 0 ? 0 : score];
 }

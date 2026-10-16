@@ -45,6 +45,13 @@ typedef struct {
 /* Reference index of an unmapped read, and of any tid with no header entry. */
 #define CM_BAM_NO_REF (-1)
 
+/* The tags of an Ultima read that a record view reads: the alternative run length of
+ * each base's quality, the chance of a base missed beside each base, and the read
+ * group. ultima.h describes the first two. */
+#define CM_BAM_TAG_RUN_LENGTH_ALTERNATIVE "tp"
+#define CM_BAM_TAG_MISSED_BASE            "t0"
+#define CM_BAM_TAG_READ_GROUP             "RG"
+
 typedef struct cm_bam_reader cm_bam_reader;
 
 /* Opens path and reads its header. No .bai index is required or consulted, iteration being

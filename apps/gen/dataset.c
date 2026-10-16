@@ -164,6 +164,23 @@ static bool declare_checksum(kstring_t *text, const dataset_config *cfg, size_t 
     return true;
 }
 
+/* Declares the read group of the tagged reads, where any read is tagged, with its flow
+ * order where it has one. */
+static void declare_read_group(kstring_t *text, const dataset_config *cfg)
+{
+    if (cfg->model.tagged_fraction <= 0.0) {
+        return;
+    }
+
+    ksprintf(text, "@RG\tID:%s", SIM_READ_GROUP);
+
+    if (cfg->flow_order) {
+        ksprintf(text, "\tFO:%s", cfg->flow_order);
+    }
+
+    kputc('\n', text);
+}
+
 static sam_hdr_t *build_header(const dataset_config *cfg, const size_t *lengths)
 {
     kstring_t  text     = KS_INITIALIZE;
@@ -188,6 +205,8 @@ static sam_hdr_t *build_header(const dataset_config *cfg, const size_t *lengths)
 
         kputc('\n', &text);
     }
+
+    declare_read_group(&text, cfg);
 
     hdr = sam_hdr_parse(text.l, text.s);
 

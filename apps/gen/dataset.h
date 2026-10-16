@@ -33,6 +33,8 @@ typedef struct {
     distribution   unmapped;   /* reads aligning nowhere, over the run */
 
     sim_model      model;
+    const char    *flow_order;  /* of the read group of the tagged reads, or NULL where the
+                                   read group declares none */
 
     /* Every value generated derives from this. */
     size_t         seed;

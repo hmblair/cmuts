@@ -38,6 +38,11 @@ typedef struct {
     double      reverse;
     const char *unmapped;
 
+    double      tagged;
+    const char *tp;
+    const char *t0;
+    const char *flow_order;
+
     size_t      seed;
 } gen_args;
 

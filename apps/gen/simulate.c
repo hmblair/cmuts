@@ -13,7 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bam.h"
+#include "ultima.h"
+
 static const char BASES[] = "ACGT";
+
+/* The largest score the t0 string can hold, since its characters are printable. */
+#define T0_MAX ('~' - ULTIMA_PHRED_OFFSET)
 
 /* How much room an MD string is given: a few characters per event, plus room for the
  * count it closes with.
@@ -45,6 +51,8 @@ struct sim_scratch {
     uint32_t  *cigar;
     char      *seq;
     char      *qual;
+    int8_t    *tp;
+    char      *t0;
     char      *md;
     size_t     md_capacity;
 };
@@ -77,10 +85,12 @@ sim_scratch *sim_scratch_create(const sim_model *model)
     scratch->cigar  = calloc(scratch->capacity, sizeof *scratch->cigar);
     scratch->seq    = calloc(scratch->capacity + 1, 1);
     scratch->qual   = calloc(scratch->capacity + 1, 1);
+    scratch->tp     = calloc(scratch->capacity + 1, sizeof *scratch->tp);
+    scratch->t0     = calloc(scratch->capacity + 1, 1);
     scratch->md     = calloc(scratch->md_capacity, 1);
 
     if (!scratch->events || !scratch->cigar || !scratch->seq ||
-        !scratch->qual || !scratch->md) {
+        !scratch->qual || !scratch->tp || !scratch->t0 || !scratch->md) {
         sim_scratch_destroy(scratch);
         return NULL;
     }
@@ -95,6 +105,8 @@ void sim_scratch_destroy(sim_scratch *scratch)
     }
 
     free(scratch->md);
+    free(scratch->t0);
+    free(scratch->tp);
     free(scratch->qual);
     free(scratch->seq);
     free(scratch->cigar);
@@ -387,10 +399,6 @@ static int count_differences(const sim_event *events, size_t n)
     return nm;
 }
 
-/* ------------------------------------------------------------------------ */
-/* Records                                                                   */
-/* ------------------------------------------------------------------------ */
-
 static int attach_tags(bam1_t *rec, int nm, const char *md)
 {
     int32_t value = nm;
@@ -402,6 +410,66 @@ static int attach_tags(bam1_t *rec, int nm, const char *md)
     return bam_aux_append(rec, "MD", 'Z', (int)strlen(md) + 1,
                           (const uint8_t *)md) < 0 ? -1 : 0;
 }
+
+/* ------------------------------------------------------------------------ */
+/* Run length tags                                                           */
+/* ------------------------------------------------------------------------ */
+
+/* Returns the character of a t0 score, held to the printable range. */
+static char t0_character(long score)
+{
+    if (score < 0) {
+        score = 0;
+    }
+    if (score > T0_MAX) {
+        score = T0_MAX;
+    }
+
+    return (char)(score + ULTIMA_PHRED_OFFSET);
+}
+
+/* Draws a tp value and a t0 score for each of the len bases of a read. */
+static void draw_run_length_tags(sim_scratch *scratch, const sim_model *model, rng *r,
+                                 size_t len)
+{
+    for (size_t i = 0; i < len; i++) {
+        scratch->tp[i] = (int8_t)distribution_draw(&model->tp, r);
+        scratch->t0[i] = t0_character(distribution_draw(&model->t0, r));
+    }
+
+    scratch->t0[len] = '\0';
+}
+
+static int attach_run_length_tags(bam1_t *rec, const sim_scratch *scratch, size_t len)
+{
+    if (bam_aux_update_array(rec, CM_BAM_TAG_RUN_LENGTH_ALTERNATIVE, 'c', (uint32_t)len,
+                             scratch->tp) < 0
+        || bam_aux_append(rec, CM_BAM_TAG_MISSED_BASE, 'Z', (int)len + 1,
+                          (const uint8_t *)scratch->t0) < 0) {
+        return -1;
+    }
+
+    return bam_aux_append(rec, CM_BAM_TAG_READ_GROUP, 'Z', sizeof SIM_READ_GROUP,
+                          (const uint8_t *)SIM_READ_GROUP) < 0 ? -1 : 0;
+}
+
+/* Tags the read with the tagged fraction as the chance. A model with a fraction of zero
+ * draws nothing, so its reads are the same as those of a model without tags. */
+static int tag_read(bam1_t *rec, sim_scratch *scratch, const sim_model *model, rng *r,
+                    size_t len)
+{
+    if (!rng_chance(r, model->tagged_fraction)) {
+        return 0;
+    }
+
+    draw_run_length_tags(scratch, model, r, len);
+
+    return attach_run_length_tags(rec, scratch, len);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Records                                                                   */
+/* ------------------------------------------------------------------------ */
 
 int sim_alignment(bam1_t *rec, sim_scratch *scratch, const sim_model *model,
                   rng *r, const char *name, int32_t tid,
@@ -422,7 +490,11 @@ int sim_alignment(bam1_t *rec, sim_scratch *scratch, const sim_model *model,
         return -1;
     }
 
-    return attach_tags(rec, count_differences(scratch->events, events), scratch->md);
+    if (attach_tags(rec, count_differences(scratch->events, events), scratch->md) < 0) {
+        return -1;
+    }
+
+    return tag_read(rec, scratch, model, r, l_seq);
 }
 
 int sim_unmapped(bam1_t *rec, sim_scratch *scratch, const sim_model *model,

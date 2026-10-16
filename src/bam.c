@@ -29,11 +29,6 @@
  * 0xff in an otherwise full-length quality array. */
 #define QUAL_ABSENT 0xff
 
-/* The tags a record view reads. tp and t0 are the run length error tags of an Ultima
- * read; see ultima.h. */
-#define TAG_RUN_LENGTH_ALTERNATIVE "tp"
-#define TAG_MISSED_BASE            "t0"
-#define TAG_READ_GROUP             "RG"
 #define AUX_ARRAY          'B'
 #define AUX_SIGNED_BYTE    'c'
 #define AUX_STRING         'Z'
@@ -258,9 +253,9 @@ void cm_bam_record_view(const bam1_t *record, cm_bam_record *out)
 
 void cm_bam_record_view_tags(const bam1_t *record, cm_bam_record *out)
 {
-    out->tp = signed_bytes_per_base(record, TAG_RUN_LENGTH_ALTERNATIVE);
-    out->t0 = string_per_base(record, TAG_MISSED_BASE);
-    out->rg = string_tag(record, TAG_READ_GROUP);
+    out->tp = signed_bytes_per_base(record, CM_BAM_TAG_RUN_LENGTH_ALTERNATIVE);
+    out->t0 = string_per_base(record, CM_BAM_TAG_MISSED_BASE);
+    out->rg = string_tag(record, CM_BAM_TAG_READ_GROUP);
 }
 
 const bam1_t *cm_bam_raw(const cm_bam_reader *reader)

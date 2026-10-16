@@ -25,6 +25,9 @@
 /* The least chance of the called run length, as in the reference decoder. */
 #define ULTIMA_MINIMAL_CALL_CHANCE 0.1
 
+/* The offset that the t0 string adds to a PHRED score to make it printable. */
+#define ULTIMA_PHRED_OFFSET 33
+
 /* The flow order of one read group: the cycle of four bases the sequencer repeats, and
  * the bases that can be missed between a run of one base and a run of the next,
  * as bits indexed by nuc, for a forward read and for a reversed one. */

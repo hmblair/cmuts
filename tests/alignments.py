@@ -218,6 +218,26 @@ def mark_paired(data: Dataset, directory) -> Dataset:
     return replace(data, bams=(rebuilt,))
 
 
+# The run length tags of an Ultima read, and the read group tag that names the
+# flow order.
+RUN_LENGTH_TAGS = ("tp", "t0", "RG")
+
+
+def strip_tags(data: Dataset, directory) -> Dataset:
+    """Removes the run length tags and the read group from every read.
+
+    Only the tags change, so the totals and the sort order carry over.
+    """
+    flags = ("-T", str(data.fasta)) if data.fmt == CRAM else ()
+    removed = [word for tag in RUN_LENGTH_TAGS for word in ("-x", tag)]
+    output = Path(directory) / f"stripped.{data.fmt}"
+
+    samtools("view", "-h", "-O", data.fmt.upper(), *flags, *removed, "-o", output,
+             data.bam)
+
+    return replace(data, bams=(output,))
+
+
 # ---------------------------------------------------------------------------
 # Rewriting the reference
 # ---------------------------------------------------------------------------
@@ -347,7 +367,8 @@ MAPQ = 60
 BASE_QUALITY = "I"
 
 
-def build_placements(directory, name, reference, read, cigars) -> Dataset:
+def build_placements(directory, name, reference, read, cigars, *, flag=0,
+                     qualities=None, tags=(), header=()) -> Dataset:
     """Writes the same read against the same reference under each CIGAR, one
     reference per CIGAR, so that a single run scores them all.
 
@@ -355,19 +376,26 @@ def build_placements(directory, name, reference, read, cigars) -> Dataset:
     of the output differ only in how the alignment was written. Each reference
     takes the name of the CIGAR it holds, which a failure reports.
 
+    Each record takes the flag, the quality string, and the tags given, and
+    the header takes the extra lines given.
+
     The file is written as SAM, which cmuts hmm reads as it reads BAM. The
     totals are declared here because this writes every record itself.
     """
     prefix = Path(directory) / name
     fasta = Path(f"{prefix}.fasta")
 
+    if qualities is None:
+        qualities = BASE_QUALITY * len(read)
+
     fasta.write_text("".join(f">{cigar}\n{reference}\n" for cigar in cigars))
 
     lines = ["@HD\tVN:1.6\tSO:coordinate"]
     lines += [f"@SQ\tSN:{cigar}\tLN:{len(reference)}" for cigar in cigars]
+    lines += list(header)
     lines += [
-        f"r\t0\t{cigar}\t1\t{MAPQ}\t{cigar}\t*\t0\t0\t{read}"
-        f"\t{BASE_QUALITY * len(read)}"
+        "\t".join([f"r\t{flag}\t{cigar}\t1\t{MAPQ}\t{cigar}\t*\t0\t0\t{read}"
+                   f"\t{qualities}", *tags])
         for cigar in cigars
     ]
 

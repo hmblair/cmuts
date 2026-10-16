@@ -6,8 +6,12 @@
 #include "options.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "version.h"
+
+/* The flow order text that means no flow order. */
+#define FLOW_ORDER_NONE "none"
 
 static const cli_choice FORMAT_CHOICES[] = {
     { "bam", DATASET_BAM, NULL },
@@ -176,6 +180,43 @@ static const cli_option OPTIONS[] = {
     },
 
     {
+        .group   = "Run length tags",
+        .name    = "tagged",
+        .type    = OPT_DOUBLE,
+        .offset  = offsetof(gen_args, tagged),
+        .metavar = "F",
+        .help    = "fraction of mapped reads carrying the run length tags tp and t0 "
+                   "of an Ultima read",
+        .minimum = 0,
+        .maximum = 1,
+    },
+    {
+        .group   = "Run length tags",
+        .name    = "tp",
+        .type    = OPT_STRING,
+        .offset  = offsetof(gen_args, tp),
+        .metavar = "DISTRIBUTION",
+        .help    = "tp value of each base of a tagged read",
+    },
+    {
+        .group   = "Run length tags",
+        .name    = "t0",
+        .type    = OPT_STRING,
+        .offset  = offsetof(gen_args, t0),
+        .metavar = "DISTRIBUTION",
+        .help    = "t0 PHRED score of each base of a tagged read",
+    },
+    {
+        .group   = "Run length tags",
+        .name    = "flow-order",
+        .type    = OPT_STRING,
+        .offset  = offsetof(gen_args, flow_order),
+        .metavar = "BASES",
+        .help    = "flow order of the read group of the tagged reads, or "
+                   FLOW_ORDER_NONE,
+    },
+
+    {
         .group   = "Determinism",
         .name    = "seed",
         .type    = OPT_SIZE,
@@ -232,6 +273,10 @@ gen_args gen_defaults(void)
         .deletion_length  = "1:3",
         .soft_clips       = "0:2",
         .soft_clip_length = "5:30",
+        .tagged           = 0.0,
+        .tp               = "-1,0,1",
+        .t0               = "10:40",
+        .flow_order       = "TGCA",
         .seed             = 1,
     };
 }
@@ -287,6 +332,10 @@ static const distribution_option DISTRIBUTION_OPTIONS[] = {
                           offsetof(dataset_config, model.soft_clips)    },
     { "soft-clip-length", offsetof(gen_args, soft_clip_length),
                           offsetof(dataset_config, model.soft_clip_length) },
+    { "tp",               offsetof(gen_args, tp),
+                          offsetof(dataset_config, model.tp)               },
+    { "t0",               offsetof(gen_args, t0),
+                          offsetof(dataset_config, model.t0)               },
 };
 
 /* Parses one option's text into its distribution. The option's name is written into error
@@ -334,6 +383,9 @@ int gen_configure(dataset_config *cfg, const gen_args *args,
         .seed                   = args->seed,
         .model.mismatch_rate    = args->mismatch_rate,
         .model.reverse_fraction = args->reverse,
+        .model.tagged_fraction  = args->tagged,
+        .flow_order             = strcmp(args->flow_order, FLOW_ORDER_NONE) == 0
+                                ? NULL : args->flow_order,
     };
 
     size_t n = sizeof DISTRIBUTION_OPTIONS / sizeof *DISTRIBUTION_OPTIONS;

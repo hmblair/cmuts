@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `cmuts hmm` reads the run length tags of an Ultima read, `tp` and `t0`, and the flow order of its read group, and scores the read one run of one base at a time. A run called one base longer or shorter than the template, or a run of one base the sequencer missed, is attributed to the sequencer at the chance the tags give, and not to the reverse transcriptase. `--ultima-phred` sets the substitution score of every base of such a read, whose quality string describes run lengths only.
+- `cmuts gen` writes the run length tags on a fraction of its reads with `--tagged`, drawing each base's `tp` value and `t0` score from `--tp` and `--t0`, under a read group whose flow order `--flow-order` sets.
+
 ## [2.0.1] - 2026-10-12
 
 ### Added

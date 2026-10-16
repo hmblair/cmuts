@@ -5,7 +5,8 @@ import hashlib
 
 import pytest
 
-from alignments import NATIVE, generate
+from alignments import NATIVE, RUN_LENGTH_TAGS, generate
+from datasets import DATASETS
 from oracle import (
     MAPPED_FLAG,
     header_lines,
@@ -118,3 +119,59 @@ def test_a_read_can_store_more_than_the_span_it_aligns_to(data, falsifiable):
 
 def test_a_read_can_store_less_than_the_span_it_aligns_to(data, falsifiable):
     falsifiable(_reads_shorter_than_their_span(data) > 0)
+
+
+# ---------------------------------------------------------------------------
+# The run length tags
+# ---------------------------------------------------------------------------
+
+TP, T0, READ_GROUP = RUN_LENGTH_TAGS
+
+
+def _tag_values(record, tag: str):
+    """Returns the values of one tag of a record, or None where it has none:
+    the entries of an array, or the characters of a string."""
+    for field in record.tags:
+        name, kind, value = field.split(":", 2)
+        if name != tag:
+            continue
+        return value.split(",")[1:] if kind == "B" else list(value)
+
+    return None
+
+
+def _tagged_records(data) -> list:
+    return [record for record in records(data.bam, *MAPPED_FLAG)
+            if _tag_values(record, TP) is not None]
+
+
+def _tagged_fraction(data) -> float:
+    return DATASETS[data.name].get("tagged", 0)
+
+
+def test_tags_hold_one_entry_per_base(data, falsifiable):
+    tagged = _tagged_records(data)
+
+    falsifiable(len(tagged) > 0)
+
+    for record in tagged:
+        assert len(_tag_values(record, TP)) == len(record.sequence)
+        assert len(_tag_values(record, T0)) == len(record.sequence)
+        assert _tag_values(record, READ_GROUP) is not None
+
+
+def test_a_read_group_is_declared_where_reads_are_tagged(data, falsifiable):
+    falsifiable(_tagged_fraction(data) > 0)
+
+    assert bool(header_lines(data.bam, "@RG")) == (_tagged_fraction(data) > 0)
+
+
+def test_the_tagged_fraction_is_met(data, falsifiable):
+    """Counts the tagged reads against the fraction asked for, within a
+    quarter of the mapped reads."""
+    fraction = _tagged_fraction(data)
+    mapped = len(records(data.bam, *MAPPED_FLAG))
+
+    falsifiable(mapped > 0)
+
+    assert abs(len(_tagged_records(data)) - fraction * mapped) <= mapped / 4
