@@ -194,62 +194,59 @@ void phmm_model_free(phmm_model *model)
     *model = (phmm_model){ 0 };
 }
 
-/* The comparison of a read base with a reference base, as lines in the modification
- * rate m of the reference base. The emission is intercept + slope * m. The part of the
- * emission on which the template differed is share * m. A read base agrees with its
- * template base with chance (1 - m)(1 - e) + m e / 3, and differs from it into one
- * given base with chance (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the
- * base was misread. */
+/* The comparison of one read base with each reference base, by the code of the
+ * reference base, as lines in the modification rate m of the reference base. The
+ * emission is intercept + slope * m. The part of the emission on which the template
+ * differed is share * m. A read base agrees with its template base with chance
+ * (1 - m)(1 - e) + m e / 3, and differs from it into one given base with chance
+ * (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the base was misread. An
+ * unnamed base on either side emits the uninformative chance and carries nothing. A
+ * template base the sequencer did not count was never observed, so it emits one and
+ * carries nothing. */
 typedef struct {
-    double intercept;
-    double slope;
-    double share;
-} comparison;
-
-/* The comparisons of one read base with a reference base that agrees with it, one that
- * differs, and one that is not named. A template base the sequencer did not count was
- * never observed, so it emits one and carries nothing. An unnamed base on either side
- * emits the uninformative chance and carries nothing. */
-typedef struct {
-    comparison agree;
-    comparison differ;
-    comparison unnamed;
+    double intercept[NUC_COUNT];
+    double slope[NUC_COUNT];
+    double share[NUC_COUNT];
 } comparisons;
 
-static void set_comparison(comparison *o, double intercept, double slope, double share)
+/* Writes the comparison with a reference base of code theirs. */
+static void set_comparison(comparisons *o, nuc theirs, double intercept, double slope,
+                           double share)
 {
-    o->intercept = intercept;
-    o->slope     = slope;
-    o->share     = share;
+    o->intercept[theirs] = intercept;
+    o->slope[theirs]     = slope;
+    o->share[theirs]     = share;
 }
 
-/* Writes the comparisons of a read base that is named or not, counted or not, and was
- * misread with chance error. */
-static void set_comparisons(comparisons *o, bool named, bool uncounted, double error)
+/* Writes the comparisons of a read base ours, counted or not, that was misread with
+ * chance error. */
+static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double error)
 {
     double other = error / OTHER_BASES;
     double shift = 1.0 - error - other;
     double blank = uncounted ? 1.0 : UNINFORMATIVE;
 
-    set_comparison(&o->unnamed, blank, 0.0, 0.0);
+    for (nuc theirs = NUC_N; theirs < NUC_COUNT; theirs++) {
+        set_comparison(o, theirs, blank, 0.0, 0.0);
+    }
 
-    if (uncounted || !named) {
-        set_comparison(&o->agree, blank, 0.0, 0.0);
-        set_comparison(&o->differ, blank, 0.0, 0.0);
+    if (uncounted || !nuc_is_base(ours)) {
         return;
     }
 
-    set_comparison(&o->agree, 1.0 - error, -shift, other);
-    set_comparison(&o->differ, other, shift / OTHER_BASES, (1.0 - other) / OTHER_BASES);
+    for (nuc theirs = NUC_A; theirs < NUC_COUNT; theirs++) {
+        set_comparison(o, theirs, other, shift / OTHER_BASES, (1.0 - other) / OTHER_BASES);
+    }
+
+    set_comparison(o, ours, 1.0 - error, -shift, other);
 }
 
-/* The comparisons of a read base at each quality score. A read that stores no
- * qualities has bases that are never misread. An unnamed read base and a template base
- * the sequencer did not count each have an entry of their own. */
+/* The comparisons of a read base of each base at each quality score, of such a base
+ * in a read that stores no qualities, which is never misread, and of a template base
+ * the sequencer did not count. */
 struct phmm_emissions {
-    comparisons at_quality[PHRED_MAX + 1];
-    comparisons without_quality;
-    comparisons unnamed;
+    comparisons at_quality[NUC_COUNT][PHRED_MAX + 1];
+    comparisons without_quality[NUC_COUNT];
     comparisons uncounted;
 };
 
@@ -261,14 +258,16 @@ phmm_emissions *phmm_emissions_create(const phred *quality)
         return NULL;
     }
 
-    for (unsigned q = 0; q <= PHRED_MAX; q++) {
-        set_comparisons(&emissions->at_quality[q], true, false,
-                        phred_error(quality, (uint8_t)q));
+    for (nuc ours = NUC_N; ours < NUC_COUNT; ours++) {
+        for (unsigned q = 0; q <= PHRED_MAX; q++) {
+            set_comparisons(&emissions->at_quality[ours][q], ours, false,
+                            phred_error(quality, (uint8_t)q));
+        }
+
+        set_comparisons(&emissions->without_quality[ours], ours, false, 0.0);
     }
 
-    set_comparisons(&emissions->without_quality, true, false, 0.0);
-    set_comparisons(&emissions->unnamed, false, false, 0.0);
-    set_comparisons(&emissions->uncounted, false, true, 0.0);
+    set_comparisons(&emissions->uncounted, NUC_N, true, 0.0);
 
     return emissions;
 }
@@ -298,7 +297,7 @@ typedef struct {
 
 /* One inner row of a segment: the prefixes of its band, from from to to; where its
  * cells lie, as an offset in doubles from the start of the inner matrix of its
- * segment; its read base with its comparisons; and what the row allows.
+ * segment; the comparisons of its read base; and what the row allows.
  *
  * The cells run from from to end. Most rows end at to. A row whose band ends where
  * the band of the row before ends, which happens after an inserted read base, has one
@@ -311,7 +310,6 @@ typedef struct {
     int32_t                 end;
     size_t                  cells;
     const comparisons      *comparisons;
-    nuc                     base;       /* NUC_N on an uncounted row */
     bool                    uncounted;  /* a template base the sequencer did not count */
     bool                    deletes;    /* a deletion can open inside after the row */
     bool                    inserts;    /* the read base of the row can be inserted */
@@ -497,45 +495,33 @@ static inline const double *cell_in(const double *cells, const inner_span *span,
 /* One base against the reference                                            */
 /* ------------------------------------------------------------------------ */
 
-/* Returns the comparisons of read base q, whose base is ours. Every base of an Ultima
- * read takes one score, since its quality string describes run lengths. */
-static const comparisons *comparisons_of(const context *ctx, nuc ours, int32_t q)
+/* Returns the comparisons of read base q. Every base of an Ultima read takes one
+ * score, since its quality string describes run lengths. */
+static const comparisons *comparisons_of(const context *ctx, int32_t q)
 {
     const phmm_emissions *emissions = ctx->emissions;
+    nuc                   ours      = nuc_from_read(ctx->read->seq, q);
 
-    if (!nuc_is_base(ours)) {
-        return &emissions->unnamed;
-    }
     if (ctx->errors) {
-        return &emissions->at_quality[(uint8_t)ctx->errors->phred];
+        return &emissions->at_quality[ours][(uint8_t)ctx->errors->phred];
     }
     if (!ctx->read->qual) {
-        return &emissions->without_quality;
+        return &emissions->without_quality[ours];
     }
 
-    return &emissions->at_quality[ctx->read->qual[q]];
+    return &emissions->at_quality[ours][ctx->read->qual[q]];
 }
 
-static inline const comparison *comparison_at(const comparisons *o, const phmm_base *base,
-                                       nuc ours)
+/* Returns the emission of the comparison of a read base with reference base base. */
+static inline double emission_of(const comparisons *o, const phmm_base *base)
 {
-    nuc theirs = (nuc)base->code;
-
-    if (!nuc_is_base(theirs)) {
-        return &o->unnamed;
-    }
-
-    return theirs == ours ? &o->agree : &o->differ;
+    return o->intercept[base->code] + o->slope[base->code] * base->modification;
 }
 
-static inline double emission_of(const comparison *o, const phmm_base *base)
+/* Returns the part of that emission on which the template differed. */
+static inline double modified_of(const comparisons *o, const phmm_base *base)
 {
-    return o->intercept + o->slope * base->modification;
-}
-
-static inline double modified_of(const comparison *o, const phmm_base *base)
-{
-    return o->share * base->modification;
+    return o->share[base->code] * base->modification;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -615,10 +601,8 @@ static void set_inner_span(inner_span *span, const context *ctx, size_t k, int32
     span->uncounted   = j >= row->len;
     span->deletes     = may_delete_inside(row, j);
     span->inserts     = may_insert(row, k, j);
-    span->base        = span->uncounted ? NUC_N
-                                        : nuc_from_read(ctx->read->seq, row->start + j);
     span->comparisons = span->uncounted ? &ctx->emissions->uncounted
-                                        : comparisons_of(ctx, span->base, row->start + j);
+                                        : comparisons_of(ctx, row->start + j);
 }
 
 /* Returns how many cells the row holds. */
@@ -1080,7 +1064,6 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
     const inner_span       *span     = s->span;
     const inner_span       *after    = s->next;
     const comparisons      *o        = span->comparisons;
-    nuc                     ours     = span->base;
     gap_weights             w        = ctx->gaps;
     const double           *line     = inner_row_at(ctx, k, span);
     double                 *next     = inner_row_at(ctx, k, after);
@@ -1114,8 +1097,7 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
         const phmm_base *b      = &bases[x - 1];
         double          *cell   = next + (size_t)(x - next_from) * N_INNER;
         double           paired = pairing_into(back, b)
-                                * (uncounted ? 1.0
-                                             : emission_of(comparison_at(o, b, ours), b));
+                                * (uncounted ? 1.0 : emission_of(o, b));
         double           inserted = x <= ins_hi
             ? back[N_INNER + PAIRED] * w.open_insertion
               + back[N_INNER + GAP_INSERTION] * w.extend_insertion
@@ -1522,7 +1504,6 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
     const inner_span       *span     = s->span;
     const inner_span       *after    = s->next;
     const comparisons      *o        = span->comparisons;
-    nuc                     ours     = span->base;
     const segment_end       end      = s->end;
     gap_weights             w        = ctx->gaps;
     double                  deletes  = span->deletes ? 1.0 : 0.0;
@@ -1565,8 +1546,7 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
         const double      *fwd      = forward + (size_t)(x - from) * N_INNER;
         const double      *on       = next + (size_t)(x + 1 - next_from) * N_INNER;
         double            *cell     = line + (size_t)(x - from) * N_INNER;
-        const comparison  *c        = comparison_at(o, b, ours);
-        double             emission = uncounted ? 1.0 : emission_of(c, b);
+        double             emission = uncounted ? 1.0 : emission_of(o, b);
         double             reach    = on[PAIRED] * emission;
         double             no_gap   = fwd[PAIRED] * b->after_no_gap;
         double             deleted  = fwd[GAP_DELETION] * b->after_deletion;
@@ -1574,7 +1554,7 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
         double             through  = (no_gap + deleted + inserted) * on[PAIRED];
         pairing_posterior  p        = {
             .covered  = through * emission,
-            .modified = uncounted ? 0.0 : through * modified_of(c, b),
+            .modified = uncounted ? 0.0 : through * modified_of(o, b),
             .deleted  = deleted * reach,
             .inserted = inserted * reach,
         };
