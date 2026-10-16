@@ -1,11 +1,11 @@
 /* flow.h -- the run length errors of an Ultima read, per run.
  *
- * An Ultima sequencer measures the length of each run of one letter. Its errors are
+ * An Ultima sequencer measures the length of each run of one base. Its errors are
  * runs called one base too long or too short. The tp tag gives, per base, the
  * alternative length that the base's quality score is the chance of: one longer, one
  * shorter, or none. The chance of an alternative length is the sum over the bases of
  * the run that refer to it. The t0 tag gives, per base, the chance that a base of
- * another letter was missed between the run and the next run.
+ * base unlike either run was missed between the run and the next run.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -28,11 +28,14 @@
  * one-base error in the same direction. Measured on the 2A3 sample. */
 #define FLOW_TWO_BASE_FRACTION 0.014
 
-/* The flow order of one read group: the cycle of four bases the sequencer repeats. */
+/* The flow order of one read group: the cycle of four bases the sequencer repeats, and
+ * the bases that can be missed between a run of one base and a run of the next,
+ * as bits indexed by nuc, for a forward read and for a reversed one. */
 typedef struct {
-    char *id;
-    nuc   cycle[NUC_BASES];
-    bool  has_cycle;  /* false if the header declares an order of another form */
+    char    *id;
+    nuc      cycle[NUC_BASES];
+    bool     has_cycle;  /* false if the header declares an order of another form */
+    uint8_t  bases_missed[2][NUC_COUNT][NUC_COUNT];
 } flow_read_group;
 
 /* The error chance of each quality score, the substitution score of every base of an
@@ -56,13 +59,13 @@ void flow_tables_free(flow_tables *tables);
 
 /* The length errors of one read run. longer is the chance that the template run is
  * one base longer than the read run, and shorter that it is one base shorter. missed
- * is the chance that a base of another letter is missing between this run and the
- * next, and missed_letters holds those letters as bits indexed by nuc. */
+ * is the chance that a base unlike either run is missing between this run and the
+ * next, and missed_bases holds the bases it can be, as bits indexed by nuc. */
 typedef struct {
     double  longer;
     double  shorter;
     double  missed;
-    uint8_t missed_letters;
+    uint8_t missed_bases;
 } flow_run_errors;
 
 /* The length errors of one read, one entry per run. */

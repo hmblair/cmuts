@@ -1,4 +1,4 @@
-/* runs.h -- the runs of one letter in a sequence.
+/* runs.h -- the runs of one base in a sequence.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -10,9 +10,9 @@
 
 #include "nuc.h"
 
-/* A maximal stretch of one letter. An unnamed base is a run of its own. */
+/* A maximal stretch of one base. An unnamed base is a run of its own. */
 typedef struct {
-    nuc     letter;
+    nuc     base;
     int32_t start;  /* offset of the first base */
     int32_t len;
 } run;

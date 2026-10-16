@@ -1,20 +1,20 @@
-/* runs.c -- the runs of one letter in a sequence.
+/* runs.c -- the runs of one base in a sequence.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
 
 #include "runs.h"
 
-/* Appends a base to the last run if it has the same letter, and opens a run
+/* Appends a base to the last run if it is the same base, and opens a run
  * otherwise. Returns the new count. An unnamed base never joins a run. */
-static size_t take_base(run *out, size_t count, nuc letter, int32_t offset)
+static size_t take_base(run *out, size_t count, nuc base, int32_t offset)
 {
-    if (count > 0 && nuc_is_base(letter) && out[count - 1].letter == letter) {
+    if (count > 0 && nuc_is_base(base) && out[count - 1].base == base) {
         out[count - 1].len++;
         return count;
     }
 
-    out[count] = (run){ .letter = letter, .start = offset, .len = 1 };
+    out[count] = (run){ .base = base, .start = offset, .len = 1 };
 
     return count + 1;
 }

@@ -17,6 +17,76 @@
 #define PHRED_OFFSET 33
 
 /* ------------------------------------------------------------------------ */
+/* The bases between two runs                                              */
+/* ------------------------------------------------------------------------ */
+
+static size_t cycle_index(const nuc *cycle, nuc base)
+{
+    size_t i = 0;
+
+    while (cycle[i] != base) {
+        i++;
+    }
+
+    return i;
+}
+
+/* Returns the bases of the cycle between from and to, as bits indexed by nuc. Their
+ * flows between the two runs measured zero bases. */
+static uint8_t bases_between(const nuc *cycle, nuc from, nuc to)
+{
+    uint8_t bases = 0;
+
+    for (size_t i = (cycle_index(cycle, from) + 1) % NUC_BASES; cycle[i] != to;
+         i = (i + 1) % NUC_BASES) {
+        bases |= (uint8_t)(1U << cycle[i]);
+    }
+
+    return bases;
+}
+
+static uint8_t complement_bases(uint8_t bases)
+{
+    uint8_t complemented = 0;
+
+    for (nuc base = NUC_A; base < NUC_COUNT; base++) {
+        if (bases & (1U << base)) {
+            complemented |= (uint8_t)(1U << nuc_complement(base));
+        }
+    }
+
+    return complemented;
+}
+
+/* Returns the bases that can be missing between a run of from and a run of to, in
+ * the orientation of the stored read. A reverse-strand read was sequenced as the
+ * complement of to followed by the complement of from. */
+static uint8_t bases_missed_between(const nuc *cycle, nuc from, nuc to,
+                                      bool reversed)
+{
+    if (!reversed) {
+        return bases_between(cycle, from, to);
+    }
+
+    return complement_bases(bases_between(cycle, nuc_complement(to),
+                                              nuc_complement(from)));
+}
+
+/* Writes the bases that can be missed between a run of each base and a run of each
+ * other base, for each orientation. */
+static void fill_bases_missed(flow_read_group *group)
+{
+    for (int reversed = 0; reversed < 2; reversed++) {
+        for (nuc from = NUC_A; from < NUC_COUNT; from++) {
+            for (nuc to = NUC_A; to < NUC_COUNT; to++) {
+                group->bases_missed[reversed][from][to]
+                    = bases_missed_between(group->cycle, from, to, reversed != 0);
+            }
+        }
+    }
+}
+
+/* ------------------------------------------------------------------------ */
 /* Flow orders                                                               */
 /* ------------------------------------------------------------------------ */
 
@@ -73,6 +143,10 @@ static int read_group_from(flow_read_group *group, const cm_bam_read_group *decl
                                 group->cycle)
                     && repeats_cycle(declared->flow_order, declared->flow_order_len,
                                      group->cycle);
+
+    if (group->has_cycle) {
+        fill_bases_missed(group);
+    }
 
     return 0;
 }
@@ -152,62 +226,6 @@ void flow_tables_free(flow_tables *tables)
 }
 
 /* ------------------------------------------------------------------------ */
-/* The letters between two runs                                              */
-/* ------------------------------------------------------------------------ */
-
-static size_t cycle_index(const nuc *cycle, nuc base)
-{
-    size_t i = 0;
-
-    while (cycle[i] != base) {
-        i++;
-    }
-
-    return i;
-}
-
-/* Returns the letters of the cycle between from and to, as bits indexed by nuc. Their
- * flows between the two runs measured zero bases. */
-static uint8_t letters_between(const nuc *cycle, nuc from, nuc to)
-{
-    uint8_t letters = 0;
-
-    for (size_t i = (cycle_index(cycle, from) + 1) % NUC_BASES; cycle[i] != to;
-         i = (i + 1) % NUC_BASES) {
-        letters |= (uint8_t)(1U << cycle[i]);
-    }
-
-    return letters;
-}
-
-static uint8_t complement_letters(uint8_t letters)
-{
-    uint8_t complemented = 0;
-
-    for (nuc base = NUC_A; base < NUC_COUNT; base++) {
-        if (letters & (1U << base)) {
-            complemented |= (uint8_t)(1U << nuc_complement(base));
-        }
-    }
-
-    return complemented;
-}
-
-/* Returns the letters that can be missing between a run of from and a run of to, in
- * the orientation of the stored read. A reverse-strand read was sequenced as the
- * complement of to followed by the complement of from. */
-static uint8_t letters_missed_between(const nuc *cycle, nuc from, nuc to,
-                                      bool reversed)
-{
-    if (!reversed) {
-        return letters_between(cycle, from, to);
-    }
-
-    return complement_letters(letters_between(cycle, nuc_complement(to),
-                                              nuc_complement(from)));
-}
-
-/* ------------------------------------------------------------------------ */
 /* The errors                                                                */
 /* ------------------------------------------------------------------------ */
 
@@ -244,7 +262,7 @@ static void sum_lengths(flow_run_errors *out, const flow_tables *tables,
     out->longer  = 0.0;
     out->shorter = 0.0;
 
-    if (!nuc_is_base(r->letter)) {
+    if (!nuc_is_base(r->base)) {
         return;
     }
 
@@ -282,7 +300,7 @@ static double missed_chance_at(const flow_tables *tables, const cm_bam_record *r
     return tables->error[score < 0 ? 0 : score];
 }
 
-/* Writes the chance that a base of another letter is missing between a run and the
+/* Writes the chance that a base unlike either run is missing between a run and the
  * next. The t0 tag gives a chance at the last base of one run and at the first of the
  * next. The lesser is the chance of the gap, as in the reference decoder. */
 static void decode_gap_after(flow_run_errors *out, const flow_tables *tables,
@@ -293,13 +311,13 @@ static void decode_gap_after(flow_run_errors *out, const flow_tables *tables,
     bool   reversed = (read->flag & BAM_FREVERSE) != 0;
 
     out->missed         = 0.0;
-    out->missed_letters = 0;
+    out->missed_bases = 0;
 
     if (!next || !read->t0 || !group || !group->has_cycle) {
         return;
     }
 
-    if (!nuc_is_base(r->letter) || !nuc_is_base(next->letter)) {
+    if (!nuc_is_base(r->base) || !nuc_is_base(next->base)) {
         return;
     }
 
@@ -307,8 +325,7 @@ static void decode_gap_after(flow_run_errors *out, const flow_tables *tables,
     at_after  = missed_chance_at(tables, read, next->start);
 
     out->missed         = at_before < at_after ? at_before : at_after;
-    out->missed_letters = letters_missed_between(group->cycle, r->letter,
-                                                 next->letter, reversed);
+    out->missed_bases = group->bases_missed[reversed][r->base][next->base];
 }
 
 int flow_errors_decode(flow_errors *errors, const flow_tables *tables,

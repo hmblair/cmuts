@@ -178,7 +178,7 @@ typedef struct {
     int32_t depth;                   /* inner rows: the run's bases and the phantoms */
     double  length[LENGTH_OFFSETS];  /* chance the template run is s + offset long */
     double  missed;                  /* chance a one-base run after it was not read */
-    uint8_t missed_letters;
+    uint8_t missed_bases;
     size_t  inner;                   /* offset of the step's matrix in scratch */
     size_t  first_span;              /* index of the span of the step's inner row 0 */
 } row_layout;
@@ -343,7 +343,7 @@ static void fill_errors(const context *ctx)
  * the modification rate m of the reference base. The emission is intercept + slope * m.
  * The part of the emission on which the template differed is share * m. Both come
  * from the chances of the base model: a read base agrees with its template base with
- * chance (1 - m)(1 - e) + m e / 3 and differs from it into one given letter with
+ * chance (1 - m)(1 - e) + m e / 3 and differs from it into one given base with
  * chance (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the base was
  * misread. */
 typedef struct {
@@ -354,7 +354,7 @@ typedef struct {
 
 /* The outcomes of one read base against a reference base that agrees with it, one
  * that differs, and one that is not named. A phantom is a template base the sequencer
- * did not count, whose letter was never observed, so it emits one and carries nothing.
+ * did not count, whose base was never observed, so it emits one and carries nothing.
  * An unnamed base on either side emits the uninformative chance and carries nothing. */
 typedef struct {
     outcome agree;
@@ -477,16 +477,16 @@ static bool cut_before(const context *ctx, const run *piece)
 {
     int32_t before = ctx->span.begin - 1;
 
-    return before >= 0 && nuc_is_base(piece->letter)
-        && nuc_from_read(ctx->read->seq, before) == piece->letter;
+    return before >= 0 && nuc_is_base(piece->base)
+        && nuc_from_read(ctx->read->seq, before) == piece->base;
 }
 
 static bool cut_after(const context *ctx, const run *piece)
 {
     int32_t after = ctx->span.end;
 
-    return after < ctx->read->l_qseq && nuc_is_base(piece->letter)
-        && nuc_from_read(ctx->read->seq, after) == piece->letter;
+    return after < ctx->read->l_qseq && nuc_is_base(piece->base)
+        && nuc_from_read(ctx->read->seq, after) == piece->base;
 }
 
 /* Returns how many bases past the read run the longest template length with any chance
@@ -514,7 +514,7 @@ static void lay_out_lengths(const context *ctx, row_layout *row, size_t k)
     memset(row->length, 0, sizeof row->length);
     row->depth = row->piece.len;
 
-    if (!ctx->errors || cut || !nuc_is_base(row->piece.letter)) {
+    if (!ctx->errors || cut || !nuc_is_base(row->piece.base)) {
         row->length[MAX_LENGTH_ERROR] = 1.0;
         return;
     }
@@ -535,11 +535,11 @@ static void lay_out_lengths(const context *ctx, row_layout *row, size_t k)
 static void lay_out_missed(const context *ctx, row_layout *row, size_t k)
 {
     row->missed         = 0.0;
-    row->missed_letters = 0;
+    row->missed_bases = 0;
 
     if (ctx->errors && k >= 1 && k < ctx->n_pieces) {
         row->missed         = ctx->errors->of_run[k - 1].missed;
-        row->missed_letters = ctx->errors->of_run[k - 1].missed_letters;
+        row->missed_bases = ctx->errors->of_run[k - 1].missed_bases;
     }
 }
 
@@ -728,7 +728,7 @@ static phmm_status prepare(context *ctx)
 /* The weights that hold along every step. A deletion pays its closing once, with the
  * opening rate of the base it closes at. An insertion pays its closing once, as the
  * first inserted base, and the opening rate at the base it closes at. Each inserted
- * base pays the chance of its letter. */
+ * base pays the chance of being the base it is. */
 typedef struct {
     double extend_deletion;
     double close_deletion;
@@ -795,7 +795,7 @@ static void set_inner_row(inner_row *r, const context *ctx, size_t k, double *ma
     r->deletes = may_delete_inside(row, j);
     r->inserts = may_insert(row, k, j);
     r->error   = r->phantom ? 0.0 : ctx->scratch->error[row->piece.start + j];
-    set_outcomes(&r->outcomes, row->piece.letter, r->phantom, r->error);
+    set_outcomes(&r->outcomes, row->piece.base, r->phantom, r->error);
 }
 
 /* Fills the step matrix of row k from its seeds. The open deletion state passes along
@@ -806,7 +806,7 @@ static void step_forward(const context *ctx, size_t k)
     const runhmm_base *bases = ctx->model->bases;
     step_weights       w     = step_weights_of(ctx);
     int32_t            len   = (int32_t)ctx->model->len;
-    nuc                ours  = row->piece.letter;
+    nuc                ours  = row->piece.base;
 
     for (int32_t j = 0; j <= row->depth; j++) {
         inner_row r;
@@ -847,11 +847,11 @@ static bool may_miss(const context *ctx, size_t k)
 {
     const row_layout *row = row_of(ctx, k);
 
-    return k != ctx->n_pieces && row->missed > 0.0 && row->missed_letters != 0;
+    return k != ctx->n_pieces && row->missed > 0.0 && row->missed_bases != 0;
 }
 
-/* Whether reference base x is a run of one base whose letter the sequencer can have
- * missed after the row's run. */
+/* Whether reference base x is a run of one base that the sequencer can have missed
+ * after the row's run. */
 static bool missed_at(const context *ctx, const row_layout *row, int32_t x)
 {
     const runhmm_model *model = ctx->model;
@@ -864,7 +864,7 @@ static bool missed_at(const context *ctx, const row_layout *row, int32_t x)
     base = &model->bases[x];
 
     return base->is_one_base_run && nuc_is_base((nuc)base->code)
-        && (row->missed_letters & (1U << base->code)) != 0;
+        && (row->missed_bases & (1U << base->code)) != 0;
 }
 
 /* Leaves the step at each template length, into the outer cells of row k. A deletion
@@ -1104,7 +1104,7 @@ static void step_backward(const context *ctx, size_t k)
     const runhmm_base *bases   = ctx->model->bases;
     step_weights       w       = step_weights_of(ctx);
     int32_t            len     = (int32_t)ctx->model->len;
-    nuc                ours    = row->piece.letter;
+    nuc                ours    = row->piece.base;
     double             restore = 1.0 / ctx->scratch->scale[k];
     const double      *forward = ctx->scratch->inner + row->inner;
 

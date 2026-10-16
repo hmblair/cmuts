@@ -24,7 +24,7 @@
 
 /* One reference base as every pairing of it reads it: what the pairing pays after no
  * gap, after a deletion whose last base is the one before, and after an insertion;
- * the modification rate; the letter as nuc names it; and whether the base is, by
+ * the modification rate; the base as nuc names it; and whether the base is, by
  * itself, a run of one base. */
 typedef struct {
     double  keep;

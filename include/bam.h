@@ -37,8 +37,8 @@ typedef struct {
      * NULL if the record has no such tag, or the tag has another length. */
     const int8_t   *tp;       /* the alternative run length of each base's quality,
                                  relative to the called length */
-    const char     *t0;       /* PHRED scores with the +33 offset, of a base of another
-                                 letter missing next to each base */
+    const char     *t0;       /* PHRED scores with the +33 offset, of a base unlike
+                                 either run missing between two runs */
     const char     *rg;       /* the read group id, or NULL if the record has none */
 } cm_bam_record;
 
