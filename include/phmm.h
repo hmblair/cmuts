@@ -136,7 +136,7 @@ typedef enum {
     PHMM_OK,          /* out holds the read's contribution */
     PHMM_NO_MEMORY,   /* the matrix could not be allocated */
     PHMM_NO_PATH,     /* no alignment the band admits has any probability */
-    PHMM_UNSOUND,     /* the two passes did not agree */
+    PHMM_UNSOUND,     /* the two passes did not agree, or a value overflowed */
 } phmm_status;
 
 /* How many bases a run length can be off by. */

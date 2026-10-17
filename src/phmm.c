@@ -1627,13 +1627,13 @@ static double agreement(const context *ctx)
     return total;
 }
 
+/* A total away from one means the two passes described different sets of paths, and a
+ * total that is not a number or infinite means a value overflowed between them. Both
+ * are faults: every row is scaled as the forward pass goes, so no read the rates
+ * admit reaches either. */
 static phmm_status passes_agree(const context *ctx)
 {
     double total = agreement(ctx);
-
-    if (!isfinite(total)) {
-        return PHMM_NO_PATH;
-    }
 
     return fabs(total - 1.0) < NORMALIZATION_TOLERANCE ? PHMM_OK : PHMM_UNSOUND;
 }
