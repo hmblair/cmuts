@@ -13,6 +13,7 @@ from pathlib import Path
 
 from oracle import (
     CIGAR_COLUMN,
+    FIRST_TAG_COLUMN,
     FLAG_COLUMN,
     MAPPED_FLAG,
     UNMAPPED_FLAG,
@@ -26,7 +27,9 @@ from programs import run_generator, samtools, samtools_into
 
 # The bits of the SAM flag a transform sets or reads.
 PAIRED_BIT = 0x1
+REVERSE_BIT = 0x10
 SECONDARY_BIT = 0x100
+SUPPLEMENTARY_BIT = 0x800
 UNMAPPED_BIT = 0x4
 
 BAM = "bam"
@@ -222,20 +225,91 @@ def mark_paired(data: Dataset, directory) -> Dataset:
 # flow order.
 RUN_LENGTH_TAGS = ("tp", "t0", "RG")
 
+# The SAM fields of the run-length tags, whose values follow the bases of a read.
+RUN_LENGTH_FIELD = "tp:B:c,"
+MISSED_FIELD = "t0:Z:"
 
-def strip_tags(data: Dataset, directory) -> Dataset:
-    """Removes the run-length tags and the read group from every read.
+
+def reverse_run_lengths(field: str) -> str:
+    """Returns a tp or t0 field with its values in reverse order, as they lie against
+    the reverse complement of the read, and any other field as it is."""
+    if field.startswith(RUN_LENGTH_FIELD):
+        values = field[len(RUN_LENGTH_FIELD):].split(",")
+        return RUN_LENGTH_FIELD + ",".join(reversed(values))
+
+    if field.startswith(MISSED_FIELD):
+        return MISSED_FIELD + field[len(MISSED_FIELD):][::-1]
+
+    return field
+
+
+def _sequenced_order(line: str) -> str:
+    columns = line.split("\t")
+
+    if int(columns[FLAG_COLUMN]) & REVERSE_BIT:
+        columns = [*columns[:FIRST_TAG_COLUMN],
+                   *map(reverse_run_lengths, columns[FIRST_TAG_COLUMN:])]
+
+    return "\t".join(columns)
+
+
+def tags_in_sequenced_order(data: Dataset, directory, extra_header: str = "") -> Dataset:
+    """Reverses the tp and t0 values of every reverse-strand read, which leaves them in
+    the order its bases were sequenced, as a copy of the tags from the unaligned reads
+    does. extra_header is added to the header of every file.
+
+    Only the tags change, so the totals and the sort order carry over.
+    """
+    rebuilt = tuple(
+        _rebuild(data, directory, f"sequenced{i}", header_text(bam) + extra_header,
+                 [_sequenced_order(line) for line in record_lines(bam)])
+        for i, bam in enumerate(data.bams))
+
+    return replace(data, bams=rebuilt)
+
+
+# The alignment type that minimap2 writes as a tag of the same name as the run lengths.
+ALIGNMENT_TYPE_FIELD = "tp:A:P"
+
+
+def _with_alignment_type(line: str) -> str:
+    columns = line.split("\t")
+
+    return "\t".join([*columns[:FIRST_TAG_COLUMN], ALIGNMENT_TYPE_FIELD,
+                      *columns[FIRST_TAG_COLUMN:]])
+
+
+def add_alignment_type(data: Dataset, directory) -> Dataset:
+    """Puts minimap2's tp:A field first among the tags of every read, ahead of any
+    run-length tp, as minimap2 -y leaves a copied tag.
+
+    Only the tags change, so the totals and the sort order carry over.
+    """
+    rebuilt = tuple(
+        _rebuild(data, directory, f"typed{i}", header_text(bam),
+                 [_with_alignment_type(line) for line in record_lines(bam)])
+        for i, bam in enumerate(data.bams))
+
+    return replace(data, bams=rebuilt)
+
+
+def strip_tags(data: Dataset, directory, tags=RUN_LENGTH_TAGS) -> Dataset:
+    """Removes the run-length tags and the read group from every read, or the tags
+    named.
 
     Only the tags change, so the totals and the sort order carry over.
     """
     flags = ("-T", str(data.fasta)) if data.fmt == CRAM else ()
-    removed = [word for tag in RUN_LENGTH_TAGS for word in ("-x", tag)]
-    output = Path(directory) / f"stripped.{data.fmt}"
+    removed = [word for tag in tags for word in ("-x", tag)]
+    outputs = []
 
-    samtools("view", "-h", "-O", data.fmt.upper(), *flags, *removed, "-o", output,
-             data.bam)
+    for i, bam in enumerate(data.bams):
+        stem = f"stripped{i}" if len(data.bams) > 1 else "stripped"
+        outputs.append(Path(directory) / f"{stem}.{data.fmt}")
+        samtools("view", "-h", "-O", data.fmt.upper(), *flags, *removed, "-o", outputs[-1],
+                 bam)
 
-    return replace(data, bams=(output,))
+    return replace(data, bams=tuple(outputs))
 
 
 # ---------------------------------------------------------------------------

@@ -11,13 +11,23 @@
 #include <unistd.h>
 
 #include <htslib/hts.h>
+#include <htslib/kstring.h>
 #include <htslib/sam.h>
+
+#include "bam.h"
 
 /* The offset that a FASTQ adds to a Phred score to make it printable. */
 #define PHRED_OFFSET 33
 
 /* The quality that htslib stores for every base of a record that has no qualities. */
 #define QUALITY_ABSENT 0xFF
+
+/* The tags of an Ultima read that cmuts hmm reads, and the type each must have: tp holds
+ * a signed byte per base, t0 a string with a character per base, and RG names the read
+ * group whose header line gives the flow order. */
+#define TAG_RUN_LENGTH CM_BAM_TAG_RUN_LENGTH_ALTERNATIVE
+#define TAG_MISSED     CM_BAM_TAG_MISSED_BASE
+#define TAG_GROUP      CM_BAM_TAG_READ_GROUP
 
 static int fail(const char *path, const char *why, char *error, size_t error_len)
 {
@@ -104,9 +114,10 @@ int reads_inspect_bam(const char *path, bool *aligned, bool *paired,
 /* Printable text for the bases and the qualities of one record. Both buffers grow to hold
  * the longest record that has been written. */
 typedef struct {
-    char  *bases;
-    char  *qualities;
-    size_t capacity;
+    char     *bases;
+    char     *qualities;
+    size_t    capacity;
+    kstring_t comment;  /* the tags carried to the aligner, in SAM form */
 } record_text;
 
 static bool text_reserve(record_text *text, size_t len)
@@ -139,6 +150,67 @@ static void text_free(record_text *text)
 {
     free(text->bases);
     free(text->qualities);
+    ks_free(&text->comment);
+}
+
+/* Appends the tp tag as SAM text if the record holds one signed byte per base. */
+static int put_run_length_tag(kstring_t *out, const bam1_t *record)
+{
+    const uint8_t *aux = bam_aux_get(record, TAG_RUN_LENGTH);
+
+    if (!aux || aux[0] != 'B' || aux[1] != 'c'
+        || bam_auxB_len(aux) != (uint32_t)record->core.l_qseq) {
+        return 0;
+    }
+
+    if (kputs("\t" TAG_RUN_LENGTH ":B:c", out) < 0) {
+        return -1;
+    }
+
+    for (uint32_t i = 0; i < bam_auxB_len(aux); i++) {
+        if (kputc(',', out) < 0 || kputw((int)bam_auxB2i(aux, i), out) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/* Appends a string tag as SAM text. A per-base tag is carried only when it has one
+ * character per base. */
+static int put_string_tag(kstring_t *out, const bam1_t *record, const char tag[2],
+                          bool per_base)
+{
+    const uint8_t *aux = bam_aux_get(record, tag);
+    const char    *text = aux && aux[0] == 'Z' ? bam_aux2Z(aux) : NULL;
+
+    if (!text || (per_base && strlen(text) != (size_t)record->core.l_qseq)) {
+        return 0;
+    }
+
+    return ksprintf(out, "\t%.2s:Z:%s", tag, text) < 0 ? -1 : 0;
+}
+
+/* Writes the tags of an Ultima read as the comment of its FASTQ record, for the aligner
+ * to copy into every alignment of the read (minimap2 -y). Without them cmuts hmm would
+ * score the aligned read as one without run-length errors. A read without the tags gets
+ * an empty comment, and its record is written as before. The values are in the order the
+ * instrument read the bases, which is the order an unaligned record stores them in; the
+ * alignments of a reverse-strand read are reversed on their way to the sorter. */
+static int fill_comment(record_text *text, const bam1_t *record)
+{
+    text->comment.l = 0;
+
+    /* Putting an empty string first leaves the comment a valid string, never NULL, when
+     * the record has none of the tags. */
+    if (kputs("", &text->comment) < 0
+        || put_run_length_tag(&text->comment, record) < 0
+        || put_string_tag(&text->comment, record, TAG_MISSED, true) < 0
+        || put_string_tag(&text->comment, record, TAG_GROUP, false) < 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static void fill_text(record_text *text, const bam1_t *record)
@@ -197,7 +269,14 @@ static int write_record(FILE *out, record_text *text, const bam1_t *record,
     }
 
     fill_text(text, record);
-    fprintf(out, "@%s\n%s\n+\n%s\n", bam_get_qname(record), text->bases, text->qualities);
+
+    if (fill_comment(text, record) < 0) {
+        snprintf(error, error_len, "out of memory");
+        return -1;
+    }
+
+    fprintf(out, "@%s%s\n%s\n+\n%s\n", bam_get_qname(record), ks_str(&text->comment),
+            text->bases, text->qualities);
 
     return 0;
 }

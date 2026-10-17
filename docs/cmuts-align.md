@@ -48,7 +48,7 @@ Paired-end inputs are refused unless the preset is `sr`.
 
 ## Unaligned BAM
 
-The program reads only the name, the bases, and the base qualities from an unaligned BAM. Per-base tags such as the PacBio `ip` and `pw` fields, or the base modification calls in `MM` and `ML`, are lost. If a record has no sequence, has no base qualities, or is marked as secondary, supplementary, or reverse, the program exits and no output is written.
+The program reads the name, the bases, and the base qualities from an unaligned BAM, the run-length tags `tp` and `t0` of an Ultima read, and the read group `RG` of every read. These are written to the alignments with the `@RG` lines of the input header, `tp` and `t0` reversed on a reverse-strand alignment so that they follow the stored sequence, as `cmuts hmm` reads them. minimap2's own `tp:A` field is dropped from an alignment that carries a run-length `tp`, since a tag may appear once per record. A tag that does not cover every base, as on a supplementary alignment whose ends minimap2 clipped off, is ignored by `cmuts hmm`. Other per-base tags such as the PacBio `ip` and `pw` fields, or the base modification calls in `MM` and `ML`, are lost. If a record has no sequence, has no base qualities, or is marked as secondary, supplementary, or reverse, the program exits and no output is written.
 
 Paired-end data in unaligned BAM format is not supported. BAM files which are already aligned are refused.
 

@@ -3,7 +3,9 @@
  * The reads reach minimap2 directly, or through vsearch when they arrive as a pair of
  * files, or through this process when they arrive as a BAM file. The alignments that
  * minimap2 writes pass through this process on their way to samtools sort, which is where
- * the reference checksums and the read names are corrected.
+ * the reference checksums and the read names are corrected, and where the run-length
+ * tags that an Ultima read brings from a BAM file are put in the order of the stored
+ * sequence.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -572,20 +574,27 @@ static int spawn_merger(const mapping_config *cfg, int out_fd, pid_t *pid,
 }
 
 /* input is the file that minimap2 reads, or "-" for its standard input. --MD writes the
- * MD tag of every alignment, for tools that read it in place of the FASTA file. */
-static int spawn_aligner(const mapping_config *cfg, const char *input, int in_fd,
-                         int out_fd, pid_t *pid, char *error, size_t error_len)
+ * MD tag of every alignment, for tools that read it in place of the FASTA file. -y copies
+ * the comment of each read into its alignments, which is how the tags of a read from a BAM
+ * file reach the output; the comment is written by this program then, so it holds SAM
+ * tags only. A FASTQ file's comments are not copied, since they need not be tags. */
+static int spawn_aligner(const mapping_config *cfg, const char *input, bool copy_tags,
+                         int in_fd, int out_fd, pid_t *pid, char *error, size_t error_len)
 {
     char threads[THREADS_TEXT_MAX];
 
     write_threads(threads, sizeof threads, cfg->threads);
 
-    const char *const argv[] = {
+    const char *const plain[] = {
         "minimap2", "-a", "-x", preset_name(cfg->preset), "--secondary=no", "--MD",
         "-t", threads, cfg->fasta_path, input, NULL,
     };
+    const char *const tagged[] = {
+        "minimap2", "-a", "-x", preset_name(cfg->preset), "--secondary=no", "--MD", "-y",
+        "-t", threads, cfg->fasta_path, input, NULL,
+    };
 
-    return proc_spawn(argv, in_fd, out_fd, pid, error, error_len);
+    return proc_spawn(copy_tags ? tagged : plain, in_fd, out_fd, pid, error, error_len);
 }
 
 /* -m is the memory one sorting thread may use, so the total for a run is that figure
@@ -696,7 +705,151 @@ typedef struct {
     size_t     line_size;
     ssize_t    pending;  /* the length of the first line after the header */
     sam_hdr_t *header;
+    const char *tags_from;  /* the BAM file whose reads brought their tags, or NULL */
+    kstring_t   oriented;   /* an alignment with its tags in stored order */
 } corrector;
+
+/* The fields of an alignment that the tags of an Ultima read occupy. minimap2 writes a tp
+ * tag of its own, of type A, which names the kind of alignment; a read from a BAM file can
+ * bring a tp tag of type B that holds its run-length errors. A tag may appear once in a
+ * record, and other tools read the first, so minimap2's is dropped where the read brought
+ * one. */
+static const char FIELD_RUN_LENGTH[] = "tp:B:c,";
+static const char FIELD_ALIGNMENT_TYPE[] = "tp:A:";
+static const char FIELD_MISSED[] = "t0:Z:";
+
+/* The columns of the SAM flag and of the first optional field, counting from zero. Only
+ * the optional fields are tags; a read or reference name may look like one. */
+#define FLAG_COLUMN 1
+#define TAG_COLUMN  11
+
+static bool field_is(const char *field, size_t len, const char *prefix)
+{
+    size_t n = strlen(prefix);
+
+    return len >= n && memcmp(field, prefix, n) == 0;
+}
+
+/* Appends the values of a tp field in reverse order. The field is tp:B:c, followed by
+ * values separated by commas. */
+static int put_reversed_values(kstring_t *out, const char *field, size_t len)
+{
+    size_t      head   = strlen(FIELD_RUN_LENGTH);
+    const char *values = field + head;
+    size_t      end    = len - head;
+
+    if (kputsn(field, head, out) < 0) {
+        return -1;
+    }
+
+    while (end > 0) {
+        size_t start = end;
+
+        while (start > 0 && values[start - 1] != ',') {
+            start--;
+        }
+
+        if (kputsn(values + start, end - start, out) < 0
+            || (start > 0 && kputc(',', out) < 0)) {
+            return -1;
+        }
+
+        end = start > 0 ? start - 1 : 0;
+    }
+
+    return 0;
+}
+
+/* Appends a t0 field with its characters in reverse order. */
+static int put_reversed_string(kstring_t *out, const char *field, size_t len)
+{
+    size_t head = strlen(FIELD_MISSED);
+
+    if (kputsn(field, head, out) < 0) {
+        return -1;
+    }
+
+    for (size_t i = len; i > head; i--) {
+        if (kputc(field[i - 1], out) < 0) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+/* Writes an alignment of a read that came from a BAM file into c->oriented.
+ *
+ * The read brought its tags in the order the instrument read its bases. minimap2 stores a
+ * reverse-strand alignment as the reverse complement of the read and copies the tags as
+ * they came, so on such an alignment they are reversed here, which puts each value back
+ * against the base it describes. cmuts hmm reads them in the order of the stored sequence,
+ * as Ultima's own aligner writes them. */
+static int orient_tags(corrector *c, const char *line, size_t len)
+{
+    bool        reverse = false;
+    bool        brought = false;
+    size_t      column  = 0;
+    const char *field   = line;
+    const char *end     = line + len;
+
+    while (end > line && (end[-1] == '\n' || end[-1] == '\r')) {
+        end--;
+    }
+
+    /* The read brought a tp of its own only if an optional field of that type holds one. */
+    for (const char *p = line; p < end && !brought; column++) {
+        const char *tab = memchr(p, '\t', (size_t)(end - p));
+        size_t      n   = tab ? (size_t)(tab - p) : (size_t)(end - p);
+
+        brought = column >= TAG_COLUMN && field_is(p, n, FIELD_RUN_LENGTH);
+        p       = tab ? tab + 1 : end;
+    }
+
+    column = 0;
+    c->oriented.l = 0;
+
+    while (field <= end) {
+        const char *tab = memchr(field, '\t', (size_t)(end - field));
+        size_t      n   = tab ? (size_t)(tab - field) : (size_t)(end - field);
+        bool        tag = column >= TAG_COLUMN;
+        int         status;
+
+        if (column == FLAG_COLUMN) {
+            reverse = (strtol(field, NULL, 10) & BAM_FREVERSE) != 0;
+        }
+
+        if (tag && brought && field_is(field, n, FIELD_ALIGNMENT_TYPE)) {
+            status = 0;  /* minimap2's tp, which the read's own replaces */
+        } else {
+            status = (column > 0 && kputc('\t', &c->oriented) < 0) ? -1 : 0;
+
+            if (status == 0) {
+                if (tag && reverse && field_is(field, n, FIELD_RUN_LENGTH)) {
+                    status = put_reversed_values(&c->oriented, field, n);
+                } else if (tag && reverse && field_is(field, n, FIELD_MISSED)) {
+                    status = put_reversed_string(&c->oriented, field, n);
+                } else {
+                    status = kputsn(field, n, &c->oriented) < 0 ? -1 : 0;
+                }
+            }
+        }
+
+        if (status < 0) {
+            return -1;
+        }
+
+        column++;
+
+        if (!tab) {
+            break;
+        }
+
+        field = tab + 1;
+    }
+
+    return kputc('\n', &c->oriented) < 0 ? -1 : 0;
+}
 
 /* Reads every line at the start of the stream that begins with an at sign. The first line
  * after the header stays in the line buffer. */
@@ -729,11 +882,51 @@ static int read_header(corrector *c, char *error, size_t error_len)
     return 0;
 }
 
+/* Copies the @RG lines of the BAM file the reads came from into the header. A read keeps
+ * its RG tag through the aligner, and cmuts hmm reads the flow order of an Ultima read from
+ * the line its tag names. */
+static int copy_read_groups(corrector *c, char *error, size_t error_len)
+{
+    samFile   *file   = sam_open(c->tags_from, "r");
+    sam_hdr_t *header = file ? sam_hdr_read(file) : NULL;
+    const char *text  = header ? sam_hdr_str(header) : NULL;
+    int         status = 0;
+
+    if (!text) {
+        status = fail(c->tags_from, "its header could not be read", error, error_len);
+    }
+
+    for (const char *line = text; status == 0 && line && *line;) {
+        const char *next = strchr(line, '\n');
+        size_t      len  = next ? (size_t)(next - line) : strlen(line);
+
+        if (len > 3 && strncmp(line, "@RG\t", 4) == 0
+            && sam_hdr_add_lines(c->header, line, len) < 0) {
+            status = fail(c->tags_from, "a read group could not be copied", error,
+                          error_len);
+        }
+
+        line = next ? next + 1 : NULL;
+    }
+
+    sam_hdr_destroy(header);
+
+    if (file) {
+        sam_close(file);
+    }
+
+    return status;
+}
+
 /* Writes the header on to the sorter, with the checksum of every reference added. */
 static int write_header(corrector *c, const mapping_config *cfg,
                         char *error, size_t error_len)
 {
     if (write_checksums(c->header, cfg->fasta_path, error, error_len) < 0) {
+        return -1;
+    }
+
+    if (c->tags_from && copy_read_groups(c, error, error_len) < 0) {
         return -1;
     }
 
@@ -749,7 +942,19 @@ static int correct_records(corrector *c, char *error, size_t error_len)
     ssize_t len = c->pending;
 
     while (len > 0) {
-        if (write_record_line(c->out, c->line, (size_t)len) < 0) {
+        const char *line = c->line;
+        size_t      n    = (size_t)len;
+
+        if (c->tags_from) {
+            if (orient_tags(c, c->line, (size_t)len) < 0) {
+                return fail_plainly("out of memory", error, error_len);
+            }
+
+            line = c->oriented.s;
+            n    = c->oriented.l;
+        }
+
+        if (write_record_line(c->out, line, n) < 0) {
             return fail("samtools sort", "did not accept an alignment", error, error_len);
         }
 
@@ -763,11 +968,13 @@ static int correct_records(corrector *c, char *error, size_t error_len)
     return 0;
 }
 
-/* Corrects everything that arrives on one stream and writes it to the other. */
-static int correct_stream(const mapping_config *cfg, FILE *in, FILE *out,
-                          char *error, size_t error_len)
+/* Corrects everything that arrives on one stream and writes it to the other. tags_from is
+ * the BAM file the reads came from, whose tags they carry, or NULL. */
+static int correct_stream(const mapping_config *cfg, const char *tags_from, FILE *in,
+                          FILE *out, char *error, size_t error_len)
 {
-    corrector c      = { .in = in, .out = out, .line_size = LINE_SIZE };
+    corrector c      = { .in = in, .out = out, .line_size = LINE_SIZE,
+                         .tags_from = tags_from };
     int       status;
 
     c.line = malloc(c.line_size);
@@ -790,6 +997,7 @@ static int correct_stream(const mapping_config *cfg, FILE *in, FILE *out,
     }
 
     free(c.line);
+    ks_free(&c.oriented);
     sam_hdr_destroy(c.header);
 
     return status;
@@ -797,8 +1005,8 @@ static int correct_stream(const mapping_config *cfg, FILE *in, FILE *out,
 
 /* Reads the alignments from the aligner and passes them to the sorter, correcting the
  * header and the read names on the way. Both descriptors are closed here. */
-static int correct_alignments(const mapping_config *cfg, int in_fd, int out_fd,
-                              char *error, size_t error_len)
+static int correct_alignments(const mapping_config *cfg, const char *tags_from, int in_fd,
+                              int out_fd, char *error, size_t error_len)
 {
     FILE *in  = fdopen(in_fd, "r");
     FILE *out = in ? fdopen(out_fd, "w") : NULL;
@@ -812,7 +1020,7 @@ static int correct_alignments(const mapping_config *cfg, int in_fd, int out_fd,
                             error, error_len);
     }
 
-    status = correct_stream(cfg, in, out, error, error_len);
+    status = correct_stream(cfg, tags_from, in, out, error, error_len);
     fclose(in);
 
     /* The last of the alignments reach the sorter as this stream is flushed. */
@@ -918,6 +1126,12 @@ static int start_source(const mapping_config *cfg, const reads_format *formats,
     return 0;
 }
 
+/* Whether the reads arrive as one BAM file, whose tags they carry through the aligner. */
+static bool reads_from_bam(const mapping_config *cfg, const reads_format *formats)
+{
+    return reads_given(cfg) == 1 && formats[0] == READS_BAM;
+}
+
 /* Starts every child, and returns the two descriptors that this process keeps: the one
  * the alignments arrive on, and the one they leave by. */
 static int start_stages(const mapping_config *cfg, const reads_format *formats,
@@ -941,8 +1155,8 @@ static int start_stages(const mapping_config *cfg, const reads_format *formats,
     *from_aligner = aligned[0];
 
     /* The spawn closes the descriptors it passes on, whether or not it succeeds. */
-    if (spawn_aligner(cfg, input, aligner_stdin, aligned[1], &s->aligner,
-                      error, error_len) < 0) {
+    if (spawn_aligner(cfg, input, reads_from_bam(cfg, formats), aligner_stdin, aligned[1],
+                      &s->aligner, error, error_len) < 0) {
         return -1;
     }
 
@@ -1006,7 +1220,10 @@ static int run_stages(const mapping_config *cfg, const reads_format *formats,
                                        &to_sorter, error, error_len);
 
     if (status == 0) {
-        status       = correct_alignments(cfg, from_aligner, to_sorter, error, error_len);
+        status       = correct_alignments(cfg,
+                                          reads_from_bam(cfg, formats) ? cfg->reads_paths[0]
+                                                                        : NULL,
+                                          from_aligner, to_sorter, error, error_len);
         from_aligner = -1;
         to_sorter    = -1;
     }
