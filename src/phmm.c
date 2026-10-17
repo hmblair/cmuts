@@ -1627,13 +1627,20 @@ static double agreement(const context *ctx)
     return total;
 }
 
-/* A total away from one means the two passes described different sets of paths, and a
- * total that is not a number or infinite means a value overflowed between them. Both
- * are faults: every row is scaled as the forward pass goes, so no read the rates
- * admit reaches either. */
+/* A total that is not finite means the backward pass overflowed. Every forward row is
+ * scaled by its own total, but a backward value is the probability of the rest of the
+ * read from a cell relative to the probability of the read itself, and on a read whose
+ * every path is astronomically unlikely, as under rates set to zero and a band too
+ * narrow for its gaps, that ratio leaves the range of a double. The read has no path
+ * worth scoring, and is rejected as one with none. A finite total away from one means
+ * the two passes described different sets of paths, which is a fault. */
 static phmm_status passes_agree(const context *ctx)
 {
     double total = agreement(ctx);
+
+    if (!isfinite(total)) {
+        return PHMM_NO_PATH;
+    }
 
     return fabs(total - 1.0) < NORMALIZATION_TOLERANCE ? PHMM_OK : PHMM_UNSOUND;
 }
