@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `cmuts hmm --ultima-tag-order sequenced` reads the run-length tags of a reverse-strand read in the order the bases were sequenced, which is the order `minimap2 -y` leaves them in. The default, `stored`, is the order of the stored sequence, as before.
+- `cmuts hmm` warns when primary reads whose `RG` tag names a read group with a flow order carry no usable `tp` tag, and when the command line on an `@PG` line gives a `--tp-output-order` that disagrees with `--ultima-tag-order`.
+
+### Fixed
+
+- `cmuts align` kept only the name, bases and qualities of an unaligned BAM, so the run-length tags of an Ultima read and its read group were lost and `cmuts hmm` scored the reads without run-length errors. It now carries `tp` and `t0`, the `RG` tag of every read, and the `@RG` header lines through, with `tp` and `t0` reversed on reverse-strand alignments, and drops minimap2's `tp:A` from records that carry a run-length `tp`. The output of a BAM with read groups therefore gains them, and minimap2 runs with `-y`, which its `@PG` line records.
+- `cmuts hmm` read only the first `tp` field of a record, so a file holding minimap2's `tp:A` ahead of a run-length `tp:B:c` was scored as untagged. It now takes the first `tp` field holding signed bytes.
+
 ## [2.1.0] - 2026-10-16
 
 ### Added
