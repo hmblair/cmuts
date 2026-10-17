@@ -10,13 +10,15 @@
 
 /* The rates the pair HMM runs on, one value for each rate, which fill every base of every
  * reference. What a transition rate leaves over goes to the step back to a match, so the
- * two opening rates sum below one and each extending rate is below one. */
+ * two opening rates and the termination rate sum below one and each extending rate is
+ * below one. */
 typedef struct {
     double open_deletion;     /* a match steps to a deletion */
     double open_insertion;    /* a match steps to an insertion */
     double extend_deletion;   /* a deletion runs on */
     double extend_insertion;  /* an insertion runs on */
     double modification;      /* a reference base was modified before it was read */
+    double termination;       /* a match steps to the end state */
 } phmm_uniform_rates;
 
 /* The default rates a run uses. Overridden by fields present in the file passed to

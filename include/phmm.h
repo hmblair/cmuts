@@ -37,11 +37,13 @@
  * The arrays hold one value per reference base, indexed as the counted events are.
  * modification[b] is the chance base b was modified before it was read.
  * open_insertion[b] opens the insertion counted at base b, and open_deletion[b] the
- * deletion run whose 3'-most deleted base is b; the two are the arms of the decision
- * made at the pairing 3' of each run. ends[b] is proportional to the number of reads
- * whose 5'-most paired base is b, which is the termination rate at b times the coverage
- * at b; only the ratios between bases in one read's band matter. A cell outside the
- * reference reads the nearest value, which reaches only terms a zero emission clears. */
+ * deletion run whose 3'-most deleted base is b. termination[b] is the chance that the
+ * reverse transcriptase stops once it has copied base b: the transition from the
+ * pairing of b to the end state, which emits nothing and has no transitions out of
+ * it. Each pairing makes one decision with four arms: it opens an insertion, opens a
+ * deletion, stops, or pairs the next base with what the other three leave. A cell
+ * outside the reference reads the nearest value, which reaches only terms a zero
+ * emission clears. */
 typedef struct {
     double        match_to_insertion;
     double        match_to_deletion;
@@ -50,7 +52,7 @@ typedef struct {
     const double *modification;
     const double *open_insertion;
     const double *open_deletion;
-    const double *ends;
+    const double *termination;
 } phmm_rates;
 
 /* The arrays of phmm_rates. */

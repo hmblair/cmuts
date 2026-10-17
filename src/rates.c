@@ -20,37 +20,25 @@ static const accum_field_id EVENTS_OF[FMT_N_CHANNELS] = {
     [FMT_CHANNEL_TERMINATIONS] = ACCUM_ENDS,
 };
 
-/* Where each channel's trials sit. A mismatch is tried on every pairing of the position,
- * and so is the end of a read's placed span. Each opening is one arm of the decision a
- * pairing makes toward the next base. Its trials are therefore the pairings that decide,
- * which are the coverage less the reads whose placed span ends there. That pairing sits
- * at the position itself for an insertion, and one base 3' of it for a deletion. */
-static const struct {
-    size_t shift;      /* bases 3' of the position the deciding pairing sits */
-    bool   deciding;   /* count only the pairings a decision follows */
-} TRIALS_OF[FMT_N_CHANNELS] = {
-    [FMT_CHANNEL_MISMATCHES]   = { 0, false },
-    [FMT_CHANNEL_INSERTIONS]   = { 0, true },
-    [FMT_CHANNEL_DELETIONS]    = { 1, true },
-    [FMT_CHANNEL_TERMINATIONS] = { 0, false },
+/* How many bases 3' of the position each channel's trials sit. A mismatch is tried on
+ * every pairing of the position. An insertion, a deletion, and the end of a read's
+ * placed span are arms of the one decision that each pairing makes, so their trials are
+ * the pairings that make it. That pairing sits at the position itself for an insertion
+ * and an end, and one base 3' of it for a deletion. */
+static const size_t TRIALS_SHIFT[FMT_N_CHANNELS] = {
+    [FMT_CHANNEL_MISMATCHES]   = 0,
+    [FMT_CHANNEL_INSERTIONS]   = 0,
+    [FMT_CHANNEL_DELETIONS]    = 1,
+    [FMT_CHANNEL_TERMINATIONS] = 0,
 };
 
-/* Returns a channel's trials at one position, or zero where the deciding pairing falls
- * past the reference. Rounding can push the difference a hair below zero, so it is
- * floored. */
-static double depth_at(fmt_channel channel, const double *coverage,
-                       const double *ends, size_t i, size_t len)
+/* Returns a channel's trials at one position, or zero where the pairing that tries it
+ * falls past the reference. */
+static double depth_at(fmt_channel channel, const double *coverage, size_t i, size_t len)
 {
-    size_t at = i + TRIALS_OF[channel].shift;
-    double depth;
+    size_t at = i + TRIALS_SHIFT[channel];
 
-    if (at >= len) {
-        return 0.0;
-    }
-
-    depth = TRIALS_OF[channel].deciding ? coverage[at] - ends[at] : coverage[at];
-
-    return depth > 0.0 ? depth : 0.0;
+    return at < len ? coverage[at] : 0.0;
 }
 
 /* Returns whether a position carries enough depth to report on. Some is always required:
@@ -114,10 +102,9 @@ void rate_of(const rate_config *cfg, const accum *acc, size_t len,
 {
     const double *events   = accum_const_data(acc, EVENTS_OF[channel]);
     const double *coverage = accum_const_data(acc, ACCUM_COVERAGE);
-    const double *ends     = accum_const_data(acc, ACCUM_ENDS);
 
     for (size_t i = 0; i < len; i++) {
-        double depth = depth_at(channel, coverage, ends, i, len);
+        double depth = depth_at(channel, coverage, i, len);
 
         out[i] = rate_at(cfg, events[i], depth, i, len);
     }
@@ -128,10 +115,9 @@ void rate_error_of(const rate_config *cfg, const accum *acc, size_t len,
 {
     const double *events   = accum_const_data(acc, EVENTS_OF[channel]);
     const double *coverage = accum_const_data(acc, ACCUM_COVERAGE);
-    const double *ends     = accum_const_data(acc, ACCUM_ENDS);
 
     for (size_t i = 0; i < len; i++) {
-        double depth = depth_at(channel, coverage, ends, i, len);
+        double depth = depth_at(channel, coverage, i, len);
 
         out[i] = error_at(cfg, events[i], depth, i, len);
     }

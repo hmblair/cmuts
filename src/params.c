@@ -21,6 +21,7 @@ phmm_uniform_rates phmm_uniform_defaults(void)
         .extend_deletion  = 0.35,
         .extend_insertion = 0.35,
         .modification     = 5e-3,
+        .termination      = 1e-3,
     };
 }
 
@@ -38,6 +39,7 @@ static const params_entry ENTRIES[] = {
     ENTRY("insertion-open",    open_insertion),
     ENTRY("insertion-extend",  extend_insertion),
     ENTRY("modification-rate", modification),
+    ENTRY("termination-rate",  termination),
 };
 
 #define N_ENTRIES ((int)(sizeof ENTRIES / sizeof *ENTRIES))
@@ -147,8 +149,8 @@ static int read_entry(char *line, phmm_uniform_rates *uniform, const char *path,
     return 0;
 }
 
-/* Returns whether every rate is a probability, and whether the two opening rates leave
- * anything for a pairing. */
+/* Returns whether every rate is a probability, and whether the two opening rates and the
+ * termination rate leave anything for a pairing. */
 static int check(const phmm_uniform_rates *uniform, const char *path, char *error,
                  size_t error_len)
 {
@@ -162,9 +164,10 @@ static int check(const phmm_uniform_rates *uniform, const char *path, char *erro
         }
     }
 
-    if (uniform->open_deletion + uniform->open_insertion > 1.0) {
+    if (uniform->open_deletion + uniform->open_insertion + uniform->termination > 1.0) {
         snprintf(error, error_len,
-                 "%s: deletion-open and insertion-open sum above 1", path);
+                 "%s: deletion-open, insertion-open, and termination-rate sum above 1",
+                 path);
         return -1;
     }
 

@@ -19,6 +19,12 @@
  * closes, times the emission of the comparison. A gap pays its extension rate per base
  * after the first.
  *
+ * The reverse transcriptase copies the reference 3' to 5', so the read's 5'-most
+ * pairing is where it reached the end state. The passes run 5' to 3', so the end
+ * state is where every path starts: row 0 holds the termination rate of each base,
+ * and the first pairing pays nothing more. Stopping is one arm of the decision at
+ * each later pairing, beside the openings of the two gaps.
+ *
  * A deletion that follows the last pairing of a segment leaves the inner matrix as the
  * open deletion state of the outer cell, and extends or closes in the next inner
  * matrix. A deletion inside a segment opens, extends, and closes within one inner
@@ -102,11 +108,13 @@ static double rate_at(const double *values, size_t len, hts_pos_t b)
     return values[clamp_base(len, b)];
 }
 
-/* Returns the weight a pairing of base b pays when no gap precedes it. */
+/* Returns the weight a pairing of base b pays when no gap precedes it: what opening
+ * either gap and stopping leave. */
 static double after_no_gap_at(const phmm_rates *rates, size_t len, hts_pos_t b)
 {
     return 1.0 - rate_at(rates->open_insertion, len, b)
-               - rate_at(rates->open_deletion, len, b - 1);
+               - rate_at(rates->open_deletion, len, b - 1)
+               - rate_at(rates->termination, len, b);
 }
 
 static int grow(void **ptr, size_t *cap, size_t needed, size_t size)
@@ -985,10 +993,10 @@ static inline void add_end_worth(const segment_end *end, int32_t x, double *pair
 }
 
 /* What the step from inner row j to inner row j + 1 reads: the two spans, and whether
- * a pairing from row j is the read's 5'-most. The backward pass also reads what row j
- * is worth at the end of the segment, and where the backward values of row j go. They
- * go to the slot of the row's parity, or, for row 0, to the outer backward cells of
- * row k - 1. */
+ * a pairing from row j is the read's 5'-most, which follows the end state. The
+ * backward pass also reads what row j is worth at the end of the segment, and where
+ * the backward values of row j go. They go to the slot of the row's parity, or, for
+ * row 0, to the outer backward cells of row k - 1. */
 typedef struct {
     const inner_span  *span;      /* of row j */
     const inner_span  *next;      /* of row j + 1 */
@@ -1030,21 +1038,29 @@ static inline int32_t min_prefix(int32_t a, int32_t b)
     return a < b ? a : b;
 }
 
+/* Returns the weight a pairing of base b pays after the paired state of the cell before:
+ * nothing more for the read's 5'-most pairing, whose cell before is the termination
+ * state, and the weight after no gap otherwise. */
+static inline double after_paired(const phmm_base *b, bool first)
+{
+    return first ? 1.0 : b->after_no_gap;
+}
+
 /* Returns the weight of the paths from cell from into the pairing of reference base b,
  * which lands one prefix further along the next row. */
-static inline double pairing_into(const double *from, const phmm_base *b)
+static inline double pairing_into(const double *from, const phmm_base *b, bool first)
 {
-    return from[PAIRED] * b->after_no_gap + from[GAP_DELETION] * b->after_deletion
+    return from[PAIRED] * after_paired(b, first) + from[GAP_DELETION] * b->after_deletion
          + from[GAP_INSERTION] * b->after_insertion;
 }
 
-/* Fills inner row j + 1 from inner row j, whose read base is uncounted or not. Each
- * cell of the next row is written once: its pairing comes from the cell one prefix
- * back, its insertion from the cell at the same prefix, and its open deletion from the
- * cell before it in its own row. A cell whose source lies outside the band of the row
- * above takes nothing from it. */
+/* Fills inner row j + 1 from inner row j, whose read base is uncounted or not, and
+ * whose pairings are the read's 5'-most or not. Each cell of the next row is written
+ * once: its pairing comes from the cell one prefix back, its insertion from the cell
+ * at the same prefix, and its open deletion from the cell before it in its own row. A
+ * cell whose source lies outside the band of the row above takes nothing from it. */
 ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step *s,
-                                 bool uncounted)
+                                 bool uncounted, bool first)
 {
     const phmm_base        *bases    = ctx->model->bases;
     const inner_span       *span     = s->span;
@@ -1082,7 +1098,7 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
         const double    *back   = line + (size_t)(x - 1 - from) * N_INNER;
         const phmm_base *b      = &bases[x - 1];
         double          *cell   = next + (size_t)(x - next_from) * N_INNER;
-        double           paired = pairing_into(back, b)
+        double           paired = pairing_into(back, b, first)
                                 * (uncounted ? 1.0 : emission_of(o, b));
         double           inserted = x <= ins_hi
             ? back[N_INNER + PAIRED] * w.open_insertion
@@ -1107,13 +1123,16 @@ ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step 
 
 /* Fills inner row j + 1 from inner row j. A template base the sequencer did not count
  * emits one and cannot be inserted, so its step is the step without the emission and
- * the insertion. */
+ * the insertion. The read's first base is a base of its first segment, so it is
+ * counted. */
 static void inner_forward_step(const context *ctx, size_t k, const inner_step *s)
 {
-    if (s->span->uncounted) {
-        forward_cells(ctx, k, s, true);
+    if (s->ends) {
+        forward_cells(ctx, k, s, false, true);
+    } else if (s->span->uncounted) {
+        forward_cells(ctx, k, s, true, false);
     } else {
-        forward_cells(ctx, k, s, false);
+        forward_cells(ctx, k, s, false, false);
     }
 }
 
@@ -1262,7 +1281,8 @@ static double missed_run_forward(const context *ctx, size_t k)
 
     for (int32_t x = row->lo; x < row->hi; x++) {
         if (missed_run_at(ctx, row, x)) {
-            double missed = outer_at(cells, row->lo, x)[CLOSED] * row->missed;
+            double missed = outer_at(cells, row->lo, x)[CLOSED] * row->missed
+                          * ctx->model->bases[x].after_no_gap;
 
             outer_at(cells, row->lo, x + 1)[CLOSED] += missed;
             added                                   += missed;
@@ -1324,8 +1344,9 @@ static phmm_status scale_row(const context *ctx, size_t k, double total)
     return PHMM_OK;
 }
 
-/* Fills row 0, where the read can start at any base of the first window with that
- * base's weight in ends, and returns its total. */
+/* Fills row 0, the end state, which reaches the 5'-most pairing of the read at
+ * any base of the first window with the termination rate of that base, and returns its
+ * total. */
 static double forward_first_row(const context *ctx)
 {
     const outer_row *row   = row_of(ctx, 0);
@@ -1335,7 +1356,7 @@ static double forward_first_row(const context *ctx)
     for (int32_t x = row->lo; x <= row->hi; x++) {
         double *cell = outer_at(cells, row->lo, x);
 
-        cell[CLOSED]    = rate_at(ctx->rates->ends, ctx->model->len, x);
+        cell[CLOSED]    = rate_at(ctx->rates->termination, ctx->model->len, x);
         cell[DELETION]  = 0.0;
         cell[INSERTION] = 0.0;
         total          += cell[CLOSED];
@@ -1381,6 +1402,7 @@ static void missed_run_backward(const context *ctx, size_t k)
     for (int32_t x = row->hi - 1; x >= row->lo; x--) {
         if (missed_run_at(ctx, row, x)) {
             backward_at(ctx, k, x)[CLOSED] += row->missed
+                                            * ctx->model->bases[x].after_no_gap
                                             * backward_at(ctx, k, x + 1)[CLOSED];
         }
     }
@@ -1485,7 +1507,7 @@ static inline double backward_gap_cell(double *cell, const segment_end *end, int
  * emission divides out. The backward values carry the inverse of the scale of the
  * segment, so the posteriors need no further factor. */
 ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step *s,
-                                  int32_t j, bool uncounted)
+                                  int32_t j, bool uncounted, bool first)
 {
     const phmm_base        *bases    = ctx->model->bases;
     const inner_span       *span     = s->span;
@@ -1494,7 +1516,6 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
     const segment_end       end      = s->end;
     gap_weights             w        = ctx->gaps;
     double                  deletes  = span->deletes ? 1.0 : 0.0;
-    bool                    ends     = s->ends;
     const double           *forward  = inner_row_at(ctx, k, span);
     double                 *line     = s->line;
     const double           *next     = inner_back_row_at(ctx, j + 1);
@@ -1523,7 +1544,7 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
         double            *cell     = line + (size_t)(x - from) * N_INNER;
         double             emission = uncounted ? 1.0 : emission_of(o, b);
         double             reach    = on[PAIRED] * emission;
-        double             no_gap   = fwd[PAIRED] * b->after_no_gap;
+        double             no_gap   = fwd[PAIRED] * after_paired(b, first);
         double             deleted  = fwd[GAP_DELETION] * b->after_deletion;
         double             inserted = fwd[GAP_INSERTION] * b->after_insertion;
         double             through  = (no_gap + deleted + inserted) * on[PAIRED];
@@ -1533,7 +1554,8 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
             .deleted  = deleted * reach,
             .inserted = inserted * reach,
         };
-        double             to_paired   = b->after_no_gap * reach + deletes * deletion;
+        double             to_paired   = after_paired(b, first) * reach
+                                       + deletes * deletion;
         double             to_deleted  = b->after_deletion * reach
                                        + deletion * w.extend_deletion;
         double             to_inserted = b->after_insertion * reach;
@@ -1547,7 +1569,7 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
             to_inserted += w.extend_insertion * gap;
         }
 
-        carried = accumulate_pairing(ctx, x, &p, !uncounted, ends, carried);
+        carried = accumulate_pairing(ctx, x, &p, !uncounted, first, carried);
 
         cell[PAIRED]        = to_paired;
         cell[GAP_DELETION]  = to_deleted;
@@ -1567,14 +1589,17 @@ ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step
 
 /* Writes the backward inner row j of segment k. A template base the sequencer did not
  * count emits one, cannot be inserted, and covers nothing, so its step is the step
- * without the emission, the insertion, and the coverage. */
+ * without the emission, the insertion, and the coverage. The read's first base is
+ * counted. */
 static void inner_backward_step(const context *ctx, size_t k, const inner_step *s,
                                 int32_t j)
 {
-    if (s->span->uncounted) {
-        backward_cells(ctx, k, s, j, true);
+    if (s->ends) {
+        backward_cells(ctx, k, s, j, false, true);
+    } else if (s->span->uncounted) {
+        backward_cells(ctx, k, s, j, true, false);
     } else {
-        backward_cells(ctx, k, s, j, false);
+        backward_cells(ctx, k, s, j, false, false);
     }
 }
 

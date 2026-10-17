@@ -1,10 +1,10 @@
 """The pair HMM's rates, read from a file.
 
 `--params` replaces the built-in rates. A file is refused where a rate is out of
-range or the two opening rates sum above one. Anything else is read, and whether
-a read can be scored against the model it describes is settled per read: a model
-that forbids what a read contains gives that read a probability of zero, and the
-read is counted as rejected.
+range or the two opening rates and the termination rate sum above one. Anything
+else is read, and whether a read can be scored against the model it describes is
+settled per read: a model that forbids what a read contains gives that read a
+probability of zero, and the read is counted as rejected.
 """
 
 from __future__ import annotations
@@ -22,13 +22,12 @@ USABLE = {
     "insertion-open":    "0.0002",
     "insertion-extend":  "0.35",
     "modification-rate": "0.005",
+    "termination-rate":  "0.001",
 }
 
-# A model no read of more than one base can be scored against: every step out of
-# a match is a deletion, which consumes a reference base and not a read one, so
-# there is no way to reach the second base of a read. Legal to the reader, every
-# rate being in range and the openings summing to one.
-NO_SECOND_BASE = {"deletion-open": "1.0", "insertion-open": "0.0"}
+# A model no read can be scored against: the reverse transcriptase never stops,
+# and every read ends somewhere. Legal to the reader, every rate being in range.
+NEVER_STOPS = {"termination-rate": "0"}
 
 # A model that forbids indels, by never opening one. A read whose indels are short
 # enough for the band to cross is scored as a run of mismatches; a read carrying a
@@ -40,6 +39,8 @@ REFUSED = {
     "above one":    {"modification-rate": "1.5"},
     "below zero":   {"deletion-extend": "-0.1"},
     "openings sum": {"deletion-open": "0.7", "insertion-open": "0.7"},
+    "openings and termination sum": {"deletion-open": "0.6", "insertion-open": "0.3",
+                                     "termination-rate": "0.2"},
     "unknown key":  {"substitution-rate": "0.1"},
     "not a number": {"deletion-open": "often"},
 }
@@ -120,7 +121,7 @@ def test_a_missing_file_is_refused(data, falsifiable, tmp_path):
 
 @pytest.mark.parametrize("fmt", [NATIVE], indirect=True)
 def test_a_read_with_no_path_is_not_counted(data, falsifiable, tmp_path):
-    params = write_params(tmp_path / "params.txt", **NO_SECOND_BASE)
+    params = write_params(tmp_path / "params.txt", **NEVER_STOPS)
 
     summary = read_summary(run_cmuts(data, tmp_path / "out.h5", params=params))
 
@@ -134,7 +135,7 @@ def test_a_read_with_no_path_is_counted_as_rejected(data, falsifiable, tmp_path)
     """Every mapped read lands in one of the two counts whether or not the model
     can score it, so a run against rates that fit no read still accounts for the
     file it read."""
-    params = write_params(tmp_path / "params.txt", **NO_SECOND_BASE)
+    params = write_params(tmp_path / "params.txt", **NEVER_STOPS)
 
     summary = read_summary(run_cmuts(data, tmp_path / "out.h5", params=params))
 

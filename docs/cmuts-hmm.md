@@ -13,7 +13,7 @@ Alignments must be single-end to avoid double-counting; a read carrying the pair
 
 ## Model Parameters
 
-The pair HMM is configured by five internal parameters. `--dump-params` writes them in the form `--params` reads.
+The pair HMM is configured by six internal parameters. `--dump-params` writes them in the form `--params` reads.
 
 ```sh
 cmuts hmm --dump-params > params.txt
@@ -81,18 +81,18 @@ $$
 
 ### Insertions
 
-The insertion opening rate is the probability that one or more bases were inserted directly 5' of base $b$. A read that terminates at base $b$ cannot open an insertion past it, so the denominator is the reads that pair base $b$ and continue 5'.
+The insertion opening rate is the probability that one or more bases were inserted directly 5' of base $b$. Each pairing of base $b$ makes one decision: it opens an insertion, opens a deletion, terminates, or pairs the next base. The denominator is therefore every read that pairs base $b$.
 
 $$
-r_{\mathrm{I},b} = \frac{I_b}{C_b - T_b}
+r_{\mathrm{I},b} = \frac{I_b}{C_b}
 $$
 
 ### Deletions
 
-The deletion opening rate is the probability that base $b$ is the 3'-most base of a run of one or more deleted bases. A deletion at base $b$ is opened from base $b+1$, so the denominator is the reads that pair base $b+1$ and continue 5'.
+The deletion opening rate is the probability that base $b$ is the 3'-most base of a run of one or more deleted bases. A deletion at base $b$ is opened from base $b+1$, so the denominator is the reads that pair base $b+1$.
 
 $$
-r_{\mathrm{D},b} = \frac{D_b}{C_{b+1} - T_{b+1}}
+r_{\mathrm{D},b} = \frac{D_b}{C_{b+1}}
 $$
 
 ### Terminations

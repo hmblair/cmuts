@@ -15,10 +15,6 @@
 #include "filter.h"
 #include "runs.h"
 
-/* A value of ends equal at every base, which leaves every placement of a read's 5'-most
- * paired base within its band equally likely. */
-#define UNIFORM_ENDS 1.0
-
 /* The substitution score of every base of an Ultima read. */
 #define DEFAULT_ULTIMA_PHRED 40
 
@@ -243,7 +239,7 @@ static void bind_arrays(phmm_rates *rates, const double *storage, size_t len)
     rates->modification   = storage;
     rates->open_insertion = storage + len;
     rates->open_deletion  = storage + 2 * len;
-    rates->ends           = storage + 3 * len;
+    rates->termination    = storage + 3 * len;
 }
 
 /* Writes the uniform rates into storage, in the order bind_arrays lays the arrays out. */
@@ -252,7 +248,7 @@ static void fill_arrays(double *storage, size_t len, const phmm_uniform_rates *u
     fill_uniform(storage, len, uniform->modification);
     fill_uniform(storage + len, len, uniform->open_insertion);
     fill_uniform(storage + 2 * len, len, uniform->open_deletion);
-    fill_uniform(storage + 3 * len, len, UNIFORM_ENDS);
+    fill_uniform(storage + 3 * len, len, uniform->termination);
 }
 
 void tally_rates_fill(phmm_rates *rates, double *storage, size_t len,
