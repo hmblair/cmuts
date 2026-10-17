@@ -36,6 +36,9 @@ struct tally_scratch {
     run           *runs;      /* of the placed span of the read being marginalized */
     size_t         cap_runs;
     ultima_errors  errors;    /* the run-length errors of that read */
+    int8_t        *tp;        /* the tp values of a read, put in stored order */
+    char          *t0;        /* and its t0 values */
+    size_t         cap_tags;
 };
 
 /* Counts the read in its length bin. Binned by stored length, as the length filters are
@@ -190,6 +193,7 @@ tally_config tally_defaults(void)
         .band         = PHMM_DEFAULT_BAND,
         .min_phred    = 0,
         .ultima_phred = DEFAULT_ULTIMA_PHRED,
+        .ultima_tag_order = ULTIMA_TAGS_STORED,
         .uniform      = phmm_uniform_defaults(),
     };
 }
@@ -219,6 +223,7 @@ int tally_tables_build(tally_tables *tables, const tally_config *config,
 {
     phred_build(&tables->quality, config->min_phred);
     ultima_decoder_build(&tables->ultima, config->ultima_phred);
+    tables->ultima_tag_order = config->ultima_tag_order;
     tables->uniform   = config->uniform;
     tables->band      = config->band;
     tables->emissions = phmm_emissions_create(&tables->quality);
@@ -290,6 +295,8 @@ void tally_scratch_destroy(tally_scratch *scratch)
     phmm_scratch_destroy(scratch->model);
     ultima_errors_free(&scratch->errors);
     free(scratch->runs);
+    free(scratch->tp);
+    free(scratch->t0);
     free(scratch);
 }
 
@@ -308,10 +315,64 @@ static accum_field_id rejected_field(const cm_bam_record *read)
                                          : ACCUM_PRIMARY_REJECTED;
 }
 
+/* Writes into oriented a view of a reverse-strand read whose tags are in the order the
+ * bases were read, with the tp and t0 values put in the order of its stored sequence.
+ * Returns -1 if the buffers cannot be grown. */
+static int orient_tags(const cm_bam_record *read, tally_scratch *scratch,
+                       cm_bam_record *oriented)
+{
+    size_t len = (size_t)read->l_qseq;
+
+    if (len > scratch->cap_tags) {
+        int8_t *tp = realloc(scratch->tp, len);
+        char   *t0 = tp ? realloc(scratch->t0, len) : NULL;
+
+        if (tp) {
+            scratch->tp = tp;
+        }
+
+        if (!tp || !t0) {
+            return -1;
+        }
+
+        scratch->t0       = t0;
+        scratch->cap_tags = len;
+    }
+
+    *oriented = *read;
+
+    for (size_t i = 0; i < len; i++) {
+        scratch->tp[i] = read->tp[len - 1 - i];
+    }
+
+    oriented->tp = scratch->tp;
+
+    if (read->t0) {
+        for (size_t i = 0; i < len; i++) {
+            scratch->t0[i] = read->t0[len - 1 - i];
+        }
+
+        oriented->t0 = scratch->t0;
+    }
+
+    return 0;
+}
+
 phmm_status tally(const cm_bam_record *read, const cm_fasta_record *ref,
                   const phmm_model *model, const tally_tables *tables,
                   tally_scratch *scratch, accum *target, pairs *target_pairs)
 {
+    cm_bam_record oriented;
+
+    if (tables->ultima_tag_order == ULTIMA_TAGS_SEQUENCED && read->tp
+        && (read->flag & BAM_FREVERSE)) {
+        if (orient_tags(read, scratch, &oriented) < 0) {
+            return PHMM_NO_MEMORY;
+        }
+
+        read = &oriented;
+    }
+
     context ctx = {
         .read         = read,
         .ref          = ref,

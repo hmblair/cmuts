@@ -14,6 +14,7 @@
 #include "pairs.h"
 #include "params.h"
 #include "phred.h"
+#include "ultima.h"
 
 static const cli_choice VERIFY_CHOICES[] = {
     { "name",     REFSEQ_VERIFY_NAME,     NULL },
@@ -31,6 +32,12 @@ static const cli_choice STRAND_CHOICES[] = {
     { "forward", FILTER_STRAND_FORWARD, NULL },
     { "reverse", FILTER_STRAND_REVERSE, NULL },
     { NULL,      0,                     NULL },
+};
+
+static const cli_choice TAG_ORDER_CHOICES[] = {
+    { "stored",    ULTIMA_TAGS_STORED,    NULL },
+    { "sequenced", ULTIMA_TAGS_SEQUENCED, NULL },
+    { NULL,        0,                     NULL },
 };
 
 static const cli_choice ALIGNMENT_CHOICES[] = {
@@ -174,6 +181,18 @@ static const cli_option OPTIONS[] = {
         .label   = "Ultima Substitution Quality",
         .minimum = 0,
         .maximum = PHRED_MAX,
+    },
+    {
+        .group   = "Counting",
+        .name    = "ultima-tag-order",
+        .type    = OPT_ENUM,
+        .offset  = offsetof(cli_args, pipeline.tally_config.ultima_tag_order),
+        .metavar = "ORDER",
+        .help    = "whether the tp and t0 values of a reverse-strand read follow its "
+                   "stored sequence, as Ultima's aligner and cmuts align write them, or "
+                   "the order its bases were sequenced, as minimap2 -y leaves them",
+        .label   = "Ultima Tag Order",
+        .choices = TAG_ORDER_CHOICES,
     },
     {
         .group        = "Counting",

@@ -35,6 +35,8 @@ Ultima reports a Phred quality per homopolymer run, which is the probability tha
 
 A file may hold both kinds of read. `cmuts hmm` selects the error handling of each read from its tags.
 
+The run-length tags are `tp`, a signed byte per base, and `t0`, a string of one score per base. They are read in the order of the stored sequence, which is the order Ultima's aligner writes with `--tp-output-order=reference`. A tool that copies the tags from the unaligned reads, as `minimap2 -y` does, leaves them in the order the bases were sequenced on a reverse-strand read, and `--ultima-tag-order sequenced` reads them in that order instead. `cmuts align` writes them in the order of the stored sequence, so its output needs no option. A warning is printed when the command line on an `@PG` line gives a `--tp-output-order` that disagrees with the order chosen, and when primary reads whose `RG` tag names a read group with a flow order carry no usable `tp` tag.
+
 ## Error Checking
 
 `cmuts hmm` verifies the FASTA against the alignment header, by comparing each sequence's name and length, and its MD5 checksum when present. Any mismatch between the header and the FASTA ends the run early. This behavior is configurable via the `--verify` flag.
@@ -169,6 +171,7 @@ Each rate is accompanied by a per-base estimate for its error, computed as the b
 | `--band N` | reference positions the pair HMM may look either side of the CIGAR (default 2) |
 | `--min-phred Q` | assign the maximum sequencing error to bases below this quality (0 to 255; default 0) |
 | `--ultima-phred Q` | the substitution Phred score of every base of an Ultima read, whose quality string describes run lengths only (0 to 255; default 40) |
+| `--ultima-tag-order ORDER` | whether the tp and t0 values of a reverse-strand read follow its stored sequence, as Ultima's aligner and cmuts align write them, or the order its bases were sequenced, as minimap2 -y leaves them (stored, sequenced; default stored) |
 | `--pairwise STATS` | write these statistics of how often two positions are modified together (correlation, conditional, none; default none) |
 | `--min-depth D` | write NaN rates and errors for positions below this depth (default 1) |
 | `--nan-5p N` | write NaN rates and errors for this many bases at the 5' end (default 0) |

@@ -202,12 +202,82 @@ static const uint8_t *quality_scores(const bam1_t *record)
     return qual;
 }
 
+/* The bytes the value of an aux field takes, after its type, or 0 where the type is not
+ * one SAM defines or the value runs past end. */
+static size_t aux_value_size(const uint8_t *type, const uint8_t *end)
+{
+    const uint8_t *nul;
+    size_t         available = (size_t)(end - type - 1);
+    size_t         size;
+
+    switch (type[0]) {
+    case 'A': case 'c': case 'C': size = 1; break;
+    case 's': case 'S':           size = 2; break;
+    case 'i': case 'I': case 'f': size = 4; break;
+    case 'd':                     size = 8; break;
+    case 'Z': case 'H':
+        nul  = memchr(type + 1, '\0', available);
+        size = nul ? (size_t)(nul - type) : 0;
+        break;
+    case AUX_ARRAY:
+        if (available < AUX_ARRAY_HEADER - 1) {
+            return 0;
+        }
+
+        switch (type[1]) {
+        case 'c': case 'C':           size = 1; break;
+        case 's': case 'S':           size = 2; break;
+        case 'i': case 'I': case 'f': size = 4; break;
+        default:                      return 0;
+        }
+
+        /* The count is checked against the bytes left before it is multiplied, so a
+         * malformed count cannot wrap the product. */
+        if (bam_auxB_len(type) > (available - (AUX_ARRAY_HEADER - 1)) / size) {
+            return 0;
+        }
+
+        size = AUX_ARRAY_HEADER - 1 + (size_t)bam_auxB_len(type) * size;
+        break;
+    default:
+        return 0;
+    }
+
+    return size <= available ? size : 0;
+}
+
+/* The first field of a tag that holds an array of one element type, by its type byte.
+ * bam_aux_get() stops at the first field of the tag whatever its type, and a tag may
+ * appear twice: minimap2 writes tp:A, its alignment type, before the tags -y copies. */
+static const uint8_t *array_tag(const bam1_t *record, const char tag[2], char element)
+{
+    const uint8_t *field = bam_get_aux(record);
+    const uint8_t *end   = record->data + record->l_data;
+
+    while (end - field > 2) {
+        const uint8_t *type = field + 2;
+        size_t         size = aux_value_size(type, end);
+
+        if (!size) {
+            return NULL;
+        }
+
+        if (field[0] == (uint8_t)tag[0] && field[1] == (uint8_t)tag[1]
+            && type[0] == AUX_ARRAY && type[1] == (uint8_t)element) {
+            return type;
+        }
+
+        field = type + 1 + size;
+    }
+
+    return NULL;
+}
+
 static const int8_t *signed_bytes_per_base(const bam1_t *record, const char tag[2])
 {
-    const uint8_t *aux = bam_aux_get(record, tag);
+    const uint8_t *aux = array_tag(record, tag, AUX_SIGNED_BYTE);
 
-    if (!aux || aux[0] != AUX_ARRAY || aux[1] != AUX_SIGNED_BYTE
-        || bam_auxB_len(aux) != (uint32_t)record->core.l_qseq) {
+    if (!aux || bam_auxB_len(aux) != (uint32_t)record->core.l_qseq) {
         return NULL;
     }
 
@@ -480,6 +550,55 @@ static const char *next_read_group(const char *line)
     for (; line; line = next_line(line)) {
         if (strncmp(line, "@RG", RECORD_TYPE_LEN) == 0) {
             return line;
+        }
+    }
+
+    return NULL;
+}
+
+const char *cm_bam_program_option(const cm_bam_reader *reader, const char *name,
+                                  size_t *len)
+{
+    static const char COMMAND_LINE[] = "\tCL:";
+    const char       *text = sam_hdr_str(reader->header);
+    size_t            n    = strlen(name);
+    size_t            head = n + 3;  /* the two dashes, the name, and the equals sign */
+
+    for (const char *line = text; line; line = next_line(line)) {
+        const char *end;
+        const char *p;
+
+        if (strncmp(line, "@PG", RECORD_TYPE_LEN) != 0) {
+            continue;
+        }
+
+        /* Only the command line counts, word by word; a name or a description may hold
+         * the same text. */
+        end = line_end(line);
+        p   = line;
+
+        while (p < end && strncmp(p, COMMAND_LINE, sizeof COMMAND_LINE - 1) != 0) {
+            p++;
+        }
+
+        if (p >= end) {
+            continue;
+        }
+
+        for (p += sizeof COMMAND_LINE - 1; p < end && *p != '\t';) {
+            const char *stop = p;
+
+            while (stop < end && *stop != ' ' && *stop != '\t') {
+                stop++;
+            }
+
+            if ((size_t)(stop - p) >= head && p[0] == '-' && p[1] == '-'
+                && strncmp(p + 2, name, n) == 0 && p[2 + n] == '=') {
+                *len = (size_t)(stop - p) - head;
+                return p + head;
+            }
+
+            p = stop < end && *stop == ' ' ? stop + 1 : stop;
         }
     }
 

@@ -184,6 +184,17 @@ int ultima_decoder_add_read_groups(ultima_decoder *tables, const cm_bam_reader *
     return 0;
 }
 
+bool ultima_decoder_has_flow_order(const ultima_decoder *tables)
+{
+    for (size_t g = 0; g < tables->n_groups; g++) {
+        if (tables->groups[g].has_cycle) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /* A read with no RG tag belongs to the only read group, if there is exactly one. */
 static const ultima_read_group *group_of(const ultima_decoder *tables, const char *id)
 {
@@ -198,6 +209,13 @@ static const ultima_read_group *group_of(const ultima_decoder *tables, const cha
     }
 
     return NULL;
+}
+
+bool ultima_decoder_names_flow_order(const ultima_decoder *tables, const char *rg)
+{
+    const ultima_read_group *group = rg ? group_of(tables, rg) : NULL;
+
+    return group && group->has_cycle;
 }
 
 void ultima_decoder_build(ultima_decoder *tables, int phred)

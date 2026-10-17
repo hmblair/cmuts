@@ -157,5 +157,13 @@ typedef struct {
 
 void cm_bam_rg_open(cm_bam_rg_cursor *cursor, const cm_bam_reader *reader);
 
+/* Returns the value that the header gives an option of the program that wrote the file,
+ * as a word "--name=value" of the CL field of an @PG line, or NULL where no line gives it.
+ * The first line that gives it is taken. The value points into
+ * the header text, has no terminator, and lives as long as the reader does; its length is
+ * written to len. */
+const char *cm_bam_program_option(const cm_bam_reader *reader, const char *name,
+                                  size_t *len);
+
 /* Returns false after the last read group. A line without an ID is passed over. */
 bool cm_bam_rg_next(cm_bam_rg_cursor *cursor, cm_bam_read_group *out);

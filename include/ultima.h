@@ -33,6 +33,19 @@
 /* The offset that the t0 string adds to a Phred score to make it printable. */
 #define ULTIMA_PHRED_OFFSET 33
 
+/* How the tp and t0 values of a read are laid out against its stored sequence.
+ *
+ * Ultima's aligner, run with --tp-output-order=reference, writes them in the order of the
+ * stored sequence, which is the reverse of the order the instrument read the bases on a
+ * reverse-strand alignment. A read aligned by another program, its tags copied from the
+ * unaligned file, has them in the order the bases were read. Read in the wrong layout, the
+ * values of a reverse-strand read fall on the wrong runs, and nothing in the record shows
+ * it. */
+typedef enum {
+    ULTIMA_TAGS_STORED    = 0,  /* in the order of the stored sequence */
+    ULTIMA_TAGS_SEQUENCED = 1,  /* in the order the instrument read the bases */
+} ultima_tag_order;
+
 /* The flow order of one read group: the cycle of four bases the sequencer repeats, and
  * the bases that can be missed between a run of one base and a run of the next,
  * as bits indexed by nuc, for a forward read and for a reversed one. */
@@ -61,6 +74,14 @@ void ultima_decoder_build(ultima_decoder *tables, int phred);
 int ultima_decoder_add_read_groups(ultima_decoder *tables, const cm_bam_reader *reader);
 
 void ultima_decoder_free(ultima_decoder *tables);
+
+/* Returns whether any read group declares a flow order, which only an Ultima run does. */
+bool ultima_decoder_has_flow_order(const ultima_decoder *tables);
+
+/* Returns whether a read names, by its RG tag, a read group that declares a flow order. A
+ * read with no RG tag names none, so reads of another sequencer in the same run, which
+ * carry no tag, are not taken for Ultima reads that lost theirs. */
+bool ultima_decoder_names_flow_order(const ultima_decoder *tables, const char *rg);
 
 /* The length errors of one read, decoded from its tags, one entry per run. */
 typedef struct {

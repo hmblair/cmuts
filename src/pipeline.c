@@ -64,6 +64,7 @@ typedef struct {
     size_t         batch;
     size_t         ref_cap;    /* longest reference, sizing every accumulator */
     bool           pairwise;
+    bool           flow_order; /* a read group declares a flow order: an Ultima run */
     bool           wanted[FMT_N_FIELDS];   /* the optional fields this run writes */
 } pipeline;
 
@@ -129,6 +130,8 @@ typedef struct {
     tally_scratch *scratch; /* buffers for the processing step */
     void         **slots;   /* a batch of workitems, allocated before the
                                thread starts */
+    size_t         flow_reads;     /* primary reads of a read group with a flow order */
+    size_t         flow_untagged;  /* of those, the reads without a usable tp tag */
     pthread_t      thread;
 } worker;
 
@@ -185,6 +188,13 @@ static void worker_count_run(worker *w, void **slots, size_t n,
 
         cm_bam_record_view(item->rec, &read);
         cm_bam_record_view_tags(item->rec, &read);
+
+        if (w->pipe->flow_order && !filter_is_supplementary(&read)
+            && ultima_decoder_names_flow_order(&w->pipe->tally_tables.ultima, read.rg)) {
+            w->flow_reads++;
+            w->flow_untagged += read.tp == NULL;
+        }
+
         status = tally(&read, ref, model, &w->pipe->tally_tables, w->scratch,
                        &w->shadow,
                        w->shadow_pairs.cells ? &w->shadow_pairs : NULL);
@@ -862,6 +872,51 @@ static int worker_start_all(worker *workers, size_t n, const pipeline *p,
     return 0;
 }
 
+/* Warns where a file states how Ultima's aligner laid out its tags and the run reads them
+ * the other way. Ultima's aligner records the layout as --tp-output-order on its @PG line;
+ * "reference" is the order of the stored sequence. */
+static void warn_on_tag_order(const pipeline *p, const pipeline_config *cfg,
+                              const char *program)
+{
+    static const char STORED[] = "reference";
+    int               order    = cfg->tally_config.ultima_tag_order;
+
+    for (size_t file = 0; file < cm_bam_stream_count(p->bam); file++) {
+        size_t      len    = 0;
+        const char *value  = cm_bam_program_option(cm_bam_stream_reader(p->bam, file),
+                                                   "tp-output-order", &len);
+        bool        stored = value && len == strlen(STORED)
+                             && memcmp(value, STORED, len) == 0;
+
+        if (value && len > 0 && stored != (order == ULTIMA_TAGS_STORED)) {
+            fprintf(stderr, "%s: warning: %s was written with --tp-output-order=%.*s, but "
+                            "--ultima-tag-order is %s\n", program, cfg->bam_paths[file],
+                    (int)len, value, order == ULTIMA_TAGS_STORED ? "stored" : "sequenced");
+        }
+    }
+}
+
+/* Warns where reads of an Ultima read group carry no run-length tags. Such a read is
+ * handled as one from a sequencer with no run-length errors, which is what a read
+ * re-aligned without its tags looks like, so the count is reported rather than left in the
+ * output. */
+static void warn_on_untagged(const worker *workers, size_t n, const char *program)
+{
+    size_t reads    = 0;
+    size_t untagged = 0;
+
+    for (size_t i = 0; i < n; i++) {
+        reads    += workers[i].flow_reads;
+        untagged += workers[i].flow_untagged;
+    }
+
+    if (untagged > 0) {
+        fprintf(stderr, "%s: warning: %zu of %zu primary reads of a read group with a "
+                        "flow order carry no usable tp tag, so no run-length errors are "
+                        "modelled for them\n", program, untagged, reads);
+    }
+}
+
 int pipeline_run(const pipeline_config *cfg, const char *program,
                  const fmt_manifest *writes, char *error, size_t error_len)
 {
@@ -900,6 +955,9 @@ int pipeline_run(const pipeline_config *cfg, const char *program,
         goto done;
     }
 
+    p.flow_order = ultima_decoder_has_flow_order(&p.tally_tables.ultima);
+    warn_on_tag_order(&p, cfg, program);
+
     /* Started last, so that no setup step fails after the bar is drawn. */
     p.bar = progress_start(cm_bam_stream_span(p.bam));
 
@@ -935,6 +993,10 @@ int pipeline_run(const pipeline_config *cfg, const char *program,
     if (status == 0 && (cons.status < 0 ||
                         h5writer_total(p.out, FMT_UNMAPPED, unmapped) < 0)) {
         status = h5writer_fail(p.out, cfg->output_path, error, error_len);
+    }
+
+    if (status == 0 && p.flow_order) {
+        warn_on_untagged(workers, cfg->workers, program);
     }
 
 done:

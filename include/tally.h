@@ -22,6 +22,8 @@ typedef struct {
     int                min_phred;  /* a base scoring below this takes the maximum error */
     int                ultima_phred; /* the substitution score of every base of an
                                       Ultima read */
+    int                ultima_tag_order; /* an ultima_tag_order: how the tp and t0
+                                      values of a read lie against its stored bases */
     phmm_uniform_rates uniform;    /* the rates that fill every base of every reference */
 } tally_config;
 
@@ -35,6 +37,7 @@ typedef struct {
     phred              quality;
     phmm_emissions    *emissions;  /* owned */
     ultima_decoder     ultima;
+    int                ultima_tag_order;  /* an ultima_tag_order */
     phmm_uniform_rates uniform;  /* the rates tally_rates_fill writes */
     int                band;     /* the half-width every row of the marginal is given */
 } tally_tables;
