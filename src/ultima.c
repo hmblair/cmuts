@@ -28,56 +28,62 @@ static size_t cycle_index(const nuc *cycle, nuc base)
     return i;
 }
 
-/* Returns the bases of the cycle between from and to, as bits indexed by nuc. Their
- * flows between the two runs measured zero bases. */
-static uint8_t bases_between(const nuc *cycle, nuc from, nuc to)
+/* Writes the bases of the cycle between from and to, in the order of the cycle. Their
+ * flows between the two runs measured no base. */
+static void bases_between(const nuc *cycle, nuc from, nuc to, ultima_missed_bases *out)
 {
-    uint8_t bases = 0;
+    out->n = 0;
 
     for (size_t i = (cycle_index(cycle, from) + 1) % NUC_BASES; cycle[i] != to;
          i = (i + 1) % NUC_BASES) {
-        bases |= (uint8_t)(1U << cycle[i]);
+        out->base[out->n++] = cycle[i];
     }
-
-    return bases;
 }
 
-static uint8_t complement_bases(uint8_t bases)
+/* Writes the complements of the bases of sequenced in reverse order. */
+static void reverse_complement(const ultima_missed_bases *sequenced,
+                               ultima_missed_bases *out)
 {
-    uint8_t complemented = 0;
+    out->n = sequenced->n;
 
-    for (nuc base = NUC_A; base < NUC_COUNT; base++) {
-        if (bases & (1U << base)) {
-            complemented |= (uint8_t)(1U << nuc_complement(base));
-        }
+    for (uint8_t i = 0; i < sequenced->n; i++) {
+        out->base[i] = nuc_complement(sequenced->base[sequenced->n - 1 - i]);
     }
-
-    return complemented;
 }
 
-/* Returns the bases that can be missing between a run of from and a run of to, in
- * the orientation of the stored read. A reverse-strand read was sequenced as the
- * complement of to followed by the complement of from. */
-static uint8_t bases_missed_between(const nuc *cycle, nuc from, nuc to,
-                                      bool reversed)
+/* Writes the bases that can be missing between a run of from and a run of to, in the
+ * orientation of the stored read. A reverse-strand read was sequenced as the
+ * complement of to followed by the complement of from, so the bases between are the
+ * complements of the flows between those, in reverse order. */
+static void bases_missed_between(const nuc *cycle, nuc from, nuc to, bool reversed,
+                                 ultima_missed_bases *out)
 {
+    ultima_missed_bases sequenced;
+
     if (!reversed) {
-        return bases_between(cycle, from, to);
+        bases_between(cycle, from, to, out);
+        return;
     }
 
-    return complement_bases(bases_between(cycle, nuc_complement(to),
-                                              nuc_complement(from)));
+    bases_between(cycle, nuc_complement(to), nuc_complement(from), &sequenced);
+    reverse_complement(&sequenced, out);
 }
 
 /* Writes the bases that can be missed between a run of each base and a run of each
- * other base, for each orientation. */
+ * other base, for each orientation. Two runs of one base are never adjacent, so that
+ * entry holds no base. */
 static void fill_bases_missed(ultima_read_group *group)
 {
     for (int reversed = 0; reversed < 2; reversed++) {
         for (nuc from = NUC_A; from < NUC_COUNT; from++) {
             for (nuc to = NUC_A; to < NUC_COUNT; to++) {
-                group->bases_missed[reversed][from][to]
-                    = bases_missed_between(group->cycle, from, to, reversed != 0);
+                ultima_missed_bases *missed = &group->missed[reversed][from][to];
+
+                missed->n = 0;
+
+                if (from != to) {
+                    bases_missed_between(group->cycle, from, to, reversed != 0, missed);
+                }
             }
         }
     }
@@ -228,7 +234,7 @@ void ultima_decoder_free(ultima_decoder *tables)
 
 static int grow_errors(ultima_errors *errors, size_t n_runs)
 {
-    phmm_run_errors *of_run;
+    graph_run_errors *of_run;
 
     if (n_runs <= errors->cap) {
         return 0;
@@ -304,13 +310,13 @@ static one_base_errors keep_called_length(one_base_errors errors)
 
 /* Writes the chance of each template length from the one-base chances, with the rest
  * on the called length. */
-static void write_lengths(phmm_run_errors *out, one_base_errors errors)
+static void write_lengths(graph_run_errors *out, one_base_errors errors)
 {
     double *length = out->length;
 
-    length[PHMM_MAX_LENGTH_ERROR + 1] = errors.longer;
-    length[PHMM_MAX_LENGTH_ERROR - 1] = errors.shorter;
-    length[PHMM_MAX_LENGTH_ERROR]     = 1.0 - errors.longer - errors.shorter;
+    length[GRAPH_MAX_LENGTH_ERROR + 1] = errors.longer;
+    length[GRAPH_MAX_LENGTH_ERROR - 1] = errors.shorter;
+    length[GRAPH_MAX_LENGTH_ERROR]     = 1.0 - errors.longer - errors.shorter;
 }
 
 static double missed_chance_at(const ultima_decoder *tables, const cm_bam_record *read,
@@ -329,18 +335,20 @@ static double capped_gap_chance(double chance)
 }
 
 /* Writes the chance that a base unlike either run is missing between a run and the
- * next. The t0 tag gives a chance at the last base of one run and at the first of the
- * next. The lesser is the chance of the gap, as in GATK's FlowBasedRead. The function
- * caps the chance so that the called gap keeps the minimal chance. */
-static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
+ * next, and the bases that can be. The t0 tag gives a chance at the last base of one
+ * run and at the first of the next. The lesser is the chance of the gap, as in GATK's
+ * FlowBasedRead, and it holds for each flow between the two runs. The function caps
+ * the chance so that the called gap keeps the minimal chance. */
+static void decode_gap_after(graph_run_errors *out, const ultima_decoder *tables,
                              const cm_bam_record *read, const ultima_read_group *group,
                              const run *r, const run *next)
 {
-    double at_before, at_after;
-    bool   reversed = (read->flag & BAM_FREVERSE) != 0;
+    const ultima_missed_bases *missed;
+    double                     at_before, at_after;
+    bool                       reversed = (read->flag & BAM_FREVERSE) != 0;
 
-    out->missed       = 0.0;
-    out->missed_bases = 0;
+    out->missed   = 0.0;
+    out->n_missed = 0;
 
     if (!next || !read->t0 || !group || !group->has_cycle) {
         return;
@@ -353,8 +361,14 @@ static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
     at_before = missed_chance_at(tables, read, r->start + r->len - 1);
     at_after  = missed_chance_at(tables, read, next->start);
 
-    out->missed       = capped_gap_chance(at_before < at_after ? at_before : at_after);
-    out->missed_bases = group->bases_missed[reversed][r->base][next->base];
+    missed = &group->missed[reversed][r->base][next->base];
+
+    out->missed   = capped_gap_chance(at_before < at_after ? at_before : at_after);
+    out->n_missed = missed->n;
+
+    for (uint8_t i = 0; i < missed->n; i++) {
+        out->missed_base[i] = missed->base[i];
+    }
 }
 
 bool ultima_read_tagged(const cm_bam_record *read)
@@ -375,7 +389,7 @@ int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
     group         = group_of(tables, read->rg);
 
     for (size_t k = 0; k < n_runs; k++) {
-        phmm_run_errors *out  = &errors->of_run[k];
+        graph_run_errors *out  = &errors->of_run[k];
         const run       *next = k + 1 < n_runs ? &runs[k + 1] : NULL;
 
         write_lengths(out, keep_called_length(sum_lengths(tables, read, &runs[k])));

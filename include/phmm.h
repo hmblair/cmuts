@@ -1,17 +1,19 @@
-/* phmm.h -- a banded pair HMM.
+/* phmm.h -- a banded pair HMM over the reference and the cDNA.
  *
- * The model aligns a read to its reference through pairings, deletions, and insertions,
- * at the rates of the reverse transcriptase, and reads the posterior of each event at
- * each reference base off the forward and backward passes.
+ * The read x is produced from the reference y in two stages. The reverse transcriptase
+ * walks along y and writes the cDNA z, pairing, deleting, and inserting bases at its
+ * rates, and stopping at its termination rate; the path of the walk is the alignment a.
+ * The sequencer then reads z and reports x, with errors of its own. The joint
+ * probability is P(a | y) P(z | a, y) P(x | z). The first two factors are the model of
+ * reverse transcription, a pair HMM over y and z, which this module holds. The third
+ * is the model of the sequencer, which graph.h holds as the sequence graph of the
+ * cDNAs the read admits.
  *
- * The read is scored one segment at a time. The bases of a segment are paired one at a
- * time, as a pair HMM over bases does, within a band around the CIGAR path. A sequencer
- * that measures run lengths, as Ultima does, reports its errors per run of one base,
- * and they enter where a run ends, so each run of such a read is a segment: the
- * template run can be longer or shorter than the read run by one base, at the chances
- * the read's tags give, and a run of one base can be missing from the read between two
- * runs. A read without the tags is cut into segments of a fixed number of bases and
- * scored exactly as a pair HMM over bases would score it.
+ * Both a and z are hidden. The posterior of every event of reverse transcription at
+ * each reference base, given x and y, is read off a forward and a backward pass over
+ * the product of the pair HMM and the graph, within a band around the CIGAR path.
+ * Every base of z is a step of the reverse transcriptase and enters the counts,
+ * whether or not the sequencer reported it.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -20,9 +22,9 @@
 
 #include "bam.h"
 #include "fasta.h"
+#include "graph.h"
 #include "params.h"
 #include "phred.h"
-#include "runs.h"
 
 /* How far either side of the CIGAR path the model may look. */
 #define PHMM_DEFAULT_BAND 2
@@ -64,40 +66,37 @@ void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uni
 
 /* One reference base as every pairing of it reads it: what the pairing pays after no
  * gap, after a deletion whose last base is the one before, and after an insertion; the
- * modification rate; the base as nuc names it; and the base as a bit indexed by nuc
- * where the base is by itself a run of one named base, else zero. */
+ * termination rate, which the first pairing of a read pays in place of the three; the
+ * modification rate; and the base as nuc names it. */
 typedef struct {
     double  after_no_gap;
     double  after_deletion;
     double  after_insertion;
+    double  termination;
     double  modification;
     uint8_t code;
-    uint8_t run_bit;
 } phmm_base;
 
-/* One reference prepared for the marginal: its runs and each base as the pairings read
- * it. Built once per reference and read by every read against it, from any thread. */
+/* One reference prepared for the marginal: each base as the pairings read it. Built
+ * once per reference and read by every read against it, from any thread. */
 typedef struct {
     const phmm_rates *rates;
-    run              *runs;      /* owned */
     phmm_base        *bases;     /* owned; one per base */
-    size_t            n_runs;
     size_t            len;
-    size_t            cap_runs;
     size_t            cap_bases;
     int               band;
 } phmm_model;
 
 /* Prepares ref under rates, whose arrays must hold one value per base of ref and must
- * outlive every use of the model. The buffers are grown to fit and never shrink, so a
- * model can be prepared again for another reference. Returns -1 where they cannot be
+ * outlive every use of the model. The buffer is grown to fit and never shrinks, so a
+ * model can be prepared again for another reference. Returns -1 where it cannot be
  * grown. */
 int phmm_model_prepare(phmm_model *model, const phmm_rates *rates,
                        const cm_fasta_record *ref, int band);
 
 void phmm_model_free(phmm_model *model);
 
-/* The comparisons of a read base with the reference at each quality score. Built once
+/* The comparisons of a base of z with the reference at each quality score. Built once
  * from the quality table and read by every thread. */
 typedef struct phmm_emissions phmm_emissions;
 
@@ -113,8 +112,8 @@ void          phmm_scratch_destroy(phmm_scratch *scratch);
 
 /* The computed values for one read at one reference position. */
 typedef struct {
-    double coverage;     /* base read there */
-    double mismatches;   /* template differences under the read bases */
+    double coverage;     /* a base of z pairs with it */
+    double mismatches;   /* the base of z differs from it, under those pairings */
     double insertions;   /* insertions opened after this base */
     double deletions;    /* deletions opened at this base */
     double ends;         /* the read's 5'-most pairing lands here */
@@ -141,39 +140,13 @@ typedef enum {
     PHMM_UNSOUND,     /* the two passes did not agree */
 } phmm_status;
 
-/* How many bases a run length can be off by. */
-#define PHMM_MAX_LENGTH_ERROR 1
-#define PHMM_LENGTH_OFFSETS   (2 * PHMM_MAX_LENGTH_ERROR + 1)
-
-/* What a sequencer that measures run lengths reports on one read run: the chance of
- * each template length, from PHMM_MAX_LENGTH_ERROR bases shorter than the read run to
- * as many longer, indexed by the offset plus PHMM_MAX_LENGTH_ERROR; the chance that a
- * run of one base is missing between this run and the next; and the bases that run
- * can be, as bits indexed by nuc. */
-typedef struct {
-    double  length[PHMM_LENGTH_OFFSETS];
-    double  missed;
-    uint8_t missed_bases;
-} phmm_run_errors;
-
-/* The run-length errors of one read: one entry per run of its placed span, and the
- * substitution score every base takes, since the quality string of such a read
- * describes run lengths. */
-typedef struct {
-    int                    phred;
-    const phmm_run_errors *of_run;
-} phmm_length_errors;
-
-/* Marginalizes one read over the alignments its band admits, leaving the result in
- * out, which borrows from scratch and is valid until the next call on it.
+/* Marginalizes one read over the cDNAs its graph admits and the alignments its band
+ * admits, leaving the result in out, which borrows from scratch and is valid until the
+ * next call on it.
  *
- * errors holds the run-length errors of the read, and is NULL for a read whose
- * sequencer reports none, which is then scored by the rates and its base qualities
- * alone. With errors, runs holds the n_runs runs of the placed span of the read, as
- * runs_of_read gives them; without, runs is not read. The model must be prepared for
- * the read's reference. The read must store a sequence and place at least one base,
- * which the filter enforces. */
+ * g is the graph of the read, laid out over its placed span. The band of each node is
+ * taken from the CIGAR of the read. The model must be prepared for the read's
+ * reference. The read must store a sequence, which the filter enforces. */
 phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
-                     const cm_bam_record *read, const run *runs, size_t n_runs,
-                     const phmm_length_errors *errors, phmm_scratch *scratch,
+                     const cm_bam_record *read, const graph *g, phmm_scratch *scratch,
                      phmm_window *out);

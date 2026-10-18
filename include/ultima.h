@@ -8,7 +8,10 @@
  * either run was missed between the run and the next run.
  *
  * The decoding follows the class FlowBasedRead of GATK, which reads the same tags, and
- * the description of the base calling in Almogy et al., bioRxiv 2022.05.29.493900.
+ * the description of the base calling in Almogy et al., bioRxiv 2022.05.29.493900. Each
+ * flow between two runs that measured no base can have held one base, and the t0 tag
+ * gives the chance of each such miss, so the bases that can be missed between two runs
+ * are the bases of the cycle between theirs, in the order of the cycle.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -21,7 +24,7 @@
 
 #include "bam.h"
 #include "nuc.h"
-#include "phmm.h"
+#include "graph.h"
 #include "phred.h"
 #include "runs.h"
 
@@ -37,14 +40,21 @@
 /* The offset that the t0 string adds to a Phred score to make it printable. */
 #define ULTIMA_PHRED_OFFSET 33
 
-/* The flow order of one read group: the cycle of four bases the sequencer repeats, and
- * the bases that can be missed between a run of one base and a run of the next,
- * as bits indexed by nuc, for a forward read and for a reversed one. */
+/* The bases that can be missed between a run of one base and a run of the next, in the
+ * order the reverse transcriptase wrote them. */
 typedef struct {
-    char    *id;
-    nuc      cycle[NUC_BASES];
-    bool     has_cycle;  /* false if the header declares an order of another form */
-    uint8_t  bases_missed[2][NUC_COUNT][NUC_COUNT];
+    uint8_t n;
+    nuc     base[GRAPH_MISSED_BASES];
+} ultima_missed_bases;
+
+/* The flow order of one read group: the cycle of four bases the sequencer repeats, and
+ * the bases that can be missed between a run of one base and a run of the next, for a
+ * forward read and for a reversed one. */
+typedef struct {
+    char                *id;
+    nuc                  cycle[NUC_BASES];
+    bool                 has_cycle;  /* false if the header declares an order of another form */
+    ultima_missed_bases  missed[2][NUC_COUNT][NUC_COUNT];
 } ultima_read_group;
 
 /* What decoding the tags needs: the error chance of each quality score, the
@@ -68,9 +78,9 @@ void ultima_decoder_free(ultima_decoder *tables);
 
 /* The length errors of one read, decoded from its tags, one entry per run. */
 typedef struct {
-    int              phred;   /* the substitution score of every base */
-    phmm_run_errors *of_run;
-    size_t           cap;     /* runs of_run is sized for */
+    int               phred;   /* the substitution score of every base */
+    graph_run_errors *of_run;
+    size_t            cap;     /* runs of_run is sized for */
 } ultima_errors;
 
 /* Returns whether a read carries the tp tag and the base qualities that the decoding

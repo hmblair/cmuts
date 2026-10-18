@@ -13,6 +13,7 @@
 
 #include "align.h"
 #include "filter.h"
+#include "graph.h"
 #include "runs.h"
 
 /* The substitution score of every base of an Ultima read. */
@@ -32,6 +33,7 @@ struct tally_scratch {
     run           *runs;      /* of the placed span of the read being marginalized */
     size_t         cap_runs;
     ultima_errors  errors;    /* the run-length errors of that read */
+    graph          g;         /* the sequence graph of that read */
 };
 
 /* Counts the read in its length bin. Binned by stored length, as the length filters are
@@ -112,10 +114,10 @@ static void add_window(const context *ctx, const phmm_window *window)
 
 /* Splits the placed span of the read into runs and returns their count, or -1 where
  * the runs cannot be grown. */
-static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read)
+static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read,
+                               aln_span span)
 {
-    aln_span span = aln_placed_span(read);
-    run     *runs;
+    run *runs;
 
     if ((size_t)read->l_qseq > scratch->cap_runs) {
         runs = realloc(scratch->runs, (size_t)read->l_qseq * sizeof *runs);
@@ -133,9 +135,9 @@ static ssize_t split_into_runs(tally_scratch *scratch, const cm_bam_record *read
 
 /* Splits a tagged read into runs and decodes its run-length errors. Returns the count
  * of runs, or -1 where a buffer cannot be grown. */
-static ssize_t decode_errors(const context *ctx, tally_scratch *scratch)
+static ssize_t decode_errors(const context *ctx, tally_scratch *scratch, aln_span span)
 {
-    ssize_t n_runs = split_into_runs(scratch, ctx->read);
+    ssize_t n_runs = split_into_runs(scratch, ctx->read, span);
 
     if (n_runs < 0
         || ultima_errors_decode(&scratch->errors, &ctx->tables->ultima, ctx->read,
@@ -146,24 +148,40 @@ static ssize_t decode_errors(const context *ctx, tally_scratch *scratch)
     return n_runs;
 }
 
-static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
+/* Lays out the sequence graph of the read: over its run-length errors where it carries
+ * the tags, and as the chain of its placed bases otherwise. Returns -1 where a buffer
+ * cannot be grown. */
+static int lay_out_graph(const context *ctx, tally_scratch *scratch)
 {
-    phmm_window        window;
-    phmm_status        status;
-    phmm_length_errors errors;
-    bool               tagged = ultima_read_tagged(ctx->read);
-    ssize_t            n_runs = tagged ? decode_errors(ctx, scratch) : 0;
+    aln_span          span   = aln_placed_span(ctx->read);
+    bool              tagged = ultima_read_tagged(ctx->read);
+    ssize_t           n_runs = tagged ? decode_errors(ctx, scratch, span) : 0;
+    graph_read_errors errors;
 
     if (n_runs < 0) {
-        return PHMM_NO_MEMORY;
+        return -1;
     }
 
-    errors = (phmm_length_errors){
+    errors = (graph_read_errors){
         .phred  = scratch->errors.phred,
         .of_run = scratch->errors.of_run,
     };
-    status = phmm_run(ctx->model, ctx->tables->emissions, ctx->read, scratch->runs,
-                      (size_t)n_runs, tagged ? &errors : NULL, scratch->model, &window);
+
+    return graph_lay_out(&scratch->g, ctx->read, span, scratch->runs, (size_t)n_runs,
+                         tagged ? &errors : NULL);
+}
+
+static phmm_status marginalize(const context *ctx, tally_scratch *scratch)
+{
+    phmm_window window;
+    phmm_status status;
+
+    if (lay_out_graph(ctx, scratch) < 0) {
+        return PHMM_NO_MEMORY;
+    }
+
+    status = phmm_run(ctx->model, ctx->tables->emissions, ctx->read, &scratch->g,
+                      scratch->model, &window);
 
     if (status == PHMM_OK) {
         add_window(ctx, &window);
@@ -285,6 +303,7 @@ void tally_scratch_destroy(tally_scratch *scratch)
 
     phmm_scratch_destroy(scratch->model);
     ultima_errors_free(&scratch->errors);
+    graph_free(&scratch->g);
     free(scratch->runs);
     free(scratch);
 }

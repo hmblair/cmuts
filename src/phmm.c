@@ -1,35 +1,37 @@
-/* phmm.c -- a banded pair HMM.
+/* phmm.c -- a banded pair HMM over the reference and the cDNA.
  *
- * The read is cut into segments. A read whose sequencer reports run-length errors has
- * one segment per run of one base, since the errors enter where a run ends. A read
- * without them has segments of up to SEGMENT_BASES bases, since nothing enters where
- * such a segment ends.
+ * The matrix has one row per node of the sequence graph of the read. A cell of a row
+ * is a prefix length of the reference within the band of the row, which is the band
+ * around the CIGAR at the read prefix the node stands at, and holds three states: the
+ * last event was a pairing, an insertion is open, or a deletion is open.
  *
- * The matrix has one outer row per segment, and row 0 before the first. A cell of an
- * outer row is a prefix length of the reference, and holds three states: the segment
- * is complete and the last event was a pairing, a deletion is open after it, or an
- * insertion is open after it.
- *
- * Between two outer rows lies the inner matrix of a segment, which pairs the bases of
- * the segment with the reference one at a time. Its rows are the bases of the segment,
- * and one more for a template base that an Ultima sequencer did not count. Each
- * row holds the prefix lengths within the band of its base, and nothing else. Its
- * states are the three of a pair HMM over bases, with the weights of that model. A
- * pairing pays the weight of its base after no gap, or the opening rate of the gap it
- * closes, times the emission of the comparison. A gap pays its extension rate per base
- * after the first.
+ * A row is filled from the row before it by one step of the reverse transcriptase over
+ * the base edge of its node: a pairing of the base with the next reference base, which
+ * pays the weight of that base after no gap or the opening rate of the gap it closes,
+ * times the emission of the comparison; an insertion of the base, which pays the
+ * opening or the extension of the insertion; and, within the row, a deletion of the
+ * next reference base, which pays its extension per base after the first. Every move
+ * of the step carries the weight of the base edge. A row is also filled over each skip
+ * edge of its node, which carries all three states of the cell at the same prefix of
+ * the node the edge leaves, at the weight of the edge. A deletion beside a skip edge
+ * is placed before the edge, in the row the edge leaves, so that each path through
+ * the graph is one alignment of one cDNA.
  *
  * The reverse transcriptase copies the reference 3' to 5', so the read's 5'-most
- * pairing is where it reached the end state. The passes run 5' to 3', so the end
- * state is where every path starts: row 0 holds the termination rate of each base,
- * and the first pairing pays nothing more. Stopping is one arm of the decision at
- * each later pairing, beside the openings of the two gaps.
+ * pairing is where it reached the end state. The passes run 5' to 3', so the end state
+ * is where every path starts. It is held as one weight per row, the start, which is
+ * one on the source and reaches a later row over skip edges alone; the pairing out of
+ * it pays the termination rate of the base in place of the weight after no gap.
+ * Stopping is one arm of the decision at each later pairing, beside the openings of
+ * the two gaps.
  *
- * A deletion that follows the last pairing of a segment leaves the inner matrix as the
- * open deletion state of the outer cell, and extends or closes in the next inner
- * matrix. A deletion inside a segment opens, extends, and closes within one inner
- * matrix. The two never describe the same path, since an open deletion extends only in
- * the inner matrix that closes it.
+ * The forward pass keeps every row. Every SCALE_EVERY rows, a row whose total leaves a
+ * wide range is divided by it, except a row that a skip edge passes over, so that the
+ * rows a later row reads carry one scale. The backward pass keeps only the rows a row
+ * can reach. It applies to each row the weights of the edges into it and one over the
+ * scale of its forward row, and to the last row one over the total of the read, so
+ * that a forward value times a transition times the backward value it reaches is the
+ * posterior of that transition, which the pass adds to the window as it goes.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -45,12 +47,6 @@
 #include "align.h"
 #include "nuc.h"
 
-/* The states of an outer cell. */
-enum { CLOSED, DELETION, INSERTION, N_OUTER };
-
-/* The states of an inner cell. */
-enum { PAIRED, GAP_DELETION, GAP_INSERTION, N_INNER };
-
 /* Emission of a comparison that carries no information. */
 #define UNINFORMATIVE (1.0 / NUC_BASES)
 
@@ -58,24 +54,28 @@ enum { PAIRED, GAP_DELETION, GAP_INSERTION, N_INNER };
  * hold. */
 #define OTHER_BASES ((double)(NUC_BASES - 1))
 
-/* Forward times backward sums to one on the first row within this tolerance. */
+/* The posteriors of the read's 5'-most pairing sum to one within this tolerance. */
 #define NORMALIZATION_TOLERANCE 1e-6
 
-/* The most bases a segment of a read without run-length errors holds. The paths
- * through this many bases stay far above the smallest double. */
-#define SEGMENT_BASES 32
-
-/* An outer row is divided by its total only when the total leaves this range. The
- * posteriors of a segment divide by the scale of its row, which is one where the row
- * was not divided, so the result is the same either way. The range keeps the totals
- * far from the smallest and the largest double. */
+/* A row is divided by its total only when the total leaves this range. The range keeps
+ * the totals far from the smallest and the largest double. */
 #define SCALE_FLOOR   1e-50
 #define SCALE_CEILING 1e50
 
-/* The step over an inner row is written once and compiled twice, for a read base the
- * sequencer counted and for one it did not. The compiler makes the two copies only
- * when told to inline the step at both calls. */
-#define ALWAYS_INLINE static inline __attribute__((always_inline))
+/* How often the rows are checked. The paths through this many rows stay far above the
+ * smallest double. */
+#define SCALE_EVERY 32
+
+/* The backward pass keeps the rows a row can reach: the row after it and the rows
+ * its skip edges land on. */
+#define BACKWARD_ROWS (GRAPH_SKIPS + 1)
+
+/* The three states of one cell. */
+typedef struct {
+    double paired;
+    double inserted;
+    double deleted;
+} cell;
 
 void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uniform)
 {
@@ -86,7 +86,7 @@ void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uni
 }
 
 /* ------------------------------------------------------------------------ */
-/* The model                                                                 */
+/* The model of reverse transcription                                        */
 /* ------------------------------------------------------------------------ */
 
 /* Returns a 0-based base clamped to a reference of len bases. */
@@ -137,17 +137,8 @@ static int grow(void **ptr, size_t *cap, size_t needed, size_t size)
     return 0;
 }
 
-static int grow_model(phmm_model *model, size_t len)
-{
-    if (grow((void **)&model->runs, &model->cap_runs, len, sizeof *model->runs) < 0) {
-        return -1;
-    }
-
-    return grow((void **)&model->bases, &model->cap_bases, len, sizeof *model->bases);
-}
-
 static phmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
-                           hts_pos_t b)
+                         hts_pos_t b)
 {
     size_t len = ref->len;
 
@@ -156,221 +147,35 @@ static phmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
         .after_deletion  = rate_at(rates->open_deletion, len, b - 1)
                          * rates->match_to_deletion,
         .after_insertion = rate_at(rates->open_insertion, len, b),
+        .termination     = rate_at(rates->termination, len, b),
         .modification    = rates->modification[b],
         .code            = (uint8_t)nuc_from_char(ref->seq[b]),
-        .run_bit         = 0,
     };
 }
 
-static void fill_bases(phmm_model *model, const cm_fasta_record *ref)
-{
-    for (size_t b = 0; b < ref->len; b++) {
-        model->bases[b] = base_at(model->rates, ref, (hts_pos_t)b);
-    }
-
-    for (size_t m = 0; m < model->n_runs; m++) {
-        const run *r = &model->runs[m];
-
-        /* The runs were split from the reference, and both buffers are sized to it.
-         * NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
-        if (r->len == 1 && nuc_is_base(r->base)) {
-            model->bases[r->start].run_bit = (uint8_t)(1U << r->base);
-        }
-    }
-}
-
 int phmm_model_prepare(phmm_model *model, const phmm_rates *rates,
-                         const cm_fasta_record *ref, int band)
+                       const cm_fasta_record *ref, int band)
 {
-    if (grow_model(model, ref->len) < 0) {
+    if (grow((void **)&model->bases, &model->cap_bases, ref->len,
+             sizeof *model->bases) < 0) {
         return -1;
     }
 
-    model->rates  = rates;
-    model->len    = ref->len;
-    model->band   = band;
-    model->n_runs = runs_of_text(ref->seq, ref->len, model->runs);
+    model->rates = rates;
+    model->len   = ref->len;
+    model->band  = band;
 
-    fill_bases(model, ref);
+    for (size_t b = 0; b < ref->len; b++) {
+        model->bases[b] = base_at(rates, ref, (hts_pos_t)b);
+    }
 
     return 0;
 }
 
 void phmm_model_free(phmm_model *model)
 {
-    free(model->runs);
     free(model->bases);
     *model = (phmm_model){ 0 };
-}
-
-/* The comparison of one read base with each reference base, by the code of the
- * reference base, as lines in the modification rate m of the reference base. The
- * emission is intercept + slope * m. The part of the emission on which the template
- * differed is share * m. A read base agrees with its template base with chance
- * (1 - m)(1 - e) + m e / 3, and differs from it into one given base with chance
- * (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the base was misread. An
- * unnamed base on either side emits the uninformative chance and carries nothing. A
- * template base the sequencer did not count was never observed, so it emits one and
- * carries nothing. */
-typedef struct {
-    double intercept[NUC_COUNT];
-    double slope[NUC_COUNT];
-    double share[NUC_COUNT];
-} comparisons;
-
-/* Writes the comparison with a reference base of code theirs. */
-static void set_comparison(comparisons *o, nuc theirs, double intercept, double slope,
-                           double share)
-{
-    o->intercept[theirs] = intercept;
-    o->slope[theirs]     = slope;
-    o->share[theirs]     = share;
-}
-
-/* Writes the comparisons of a read base ours, counted or not, that was misread with
- * chance error. */
-static void set_comparisons(comparisons *o, nuc ours, bool uncounted, double error)
-{
-    double other = error / OTHER_BASES;
-    double shift = 1.0 - error - other;
-    double blank = uncounted ? 1.0 : UNINFORMATIVE;
-
-    for (nuc theirs = NUC_N; theirs < NUC_COUNT; theirs++) {
-        set_comparison(o, theirs, blank, 0.0, 0.0);
-    }
-
-    if (uncounted || !nuc_is_base(ours)) {
-        return;
-    }
-
-    for (nuc theirs = NUC_A; theirs < NUC_COUNT; theirs++) {
-        set_comparison(o, theirs, other, shift / OTHER_BASES,
-                       (1.0 - other) / OTHER_BASES);
-    }
-
-    set_comparison(o, ours, 1.0 - error, -shift, other);
-}
-
-/* The comparisons of a read base of each base at each quality score, and of such a
- * base in a read that stores no qualities, which is never misread. The last entry is
- * for a template base the sequencer did not count. */
-struct phmm_emissions {
-    comparisons at_quality[NUC_COUNT][PHRED_MAX + 1];
-    comparisons without_quality[NUC_COUNT];
-    comparisons uncounted;
-};
-
-phmm_emissions *phmm_emissions_create(const phred *quality)
-{
-    phmm_emissions *emissions = malloc(sizeof *emissions);
-
-    if (!emissions) {
-        return NULL;
-    }
-
-    for (nuc ours = NUC_N; ours < NUC_COUNT; ours++) {
-        for (unsigned q = 0; q <= PHRED_MAX; q++) {
-            set_comparisons(&emissions->at_quality[ours][q], ours, false,
-                            phred_error(quality, (uint8_t)q));
-        }
-
-        set_comparisons(&emissions->without_quality[ours], ours, false, 0.0);
-    }
-
-    set_comparisons(&emissions->uncounted, NUC_N, true, 0.0);
-
-    return emissions;
-}
-
-void phmm_emissions_destroy(phmm_emissions *emissions)
-{
-    free(emissions);
-}
-
-/* ------------------------------------------------------------------------ */
-/* Scratch                                                                   */
-/* ------------------------------------------------------------------------ */
-
-/* Where one outer row lies and what its inner matrix needs. Row 0 stands before the
- * first segment, around where the CIGAR starts. */
-typedef struct {
-    int32_t start;                   /* first read base of the segment; unused on row 0 */
-    int32_t len;                     /* bases of the segment; unused on row 0 */
-    int32_t lo, hi;                  /* the prefixes the row's cells cover */
-    int32_t last_inner_row;          /* the segment's bases, and the uncounted rows */
-    const double *length;            /* chance of each template length, by offset */
-    double  missed;                  /* chance a one-base run after it was not read */
-    uint8_t missed_bases;            /* the bases that run can be, as bits by nuc */
-    size_t  inner;                   /* offset of the inner matrix in scratch */
-    size_t  first_span;              /* index of the span of inner row 0 */
-} outer_row;
-
-/* One inner row of a segment: the prefixes of its band, from from to to; where its
- * cells lie, as an offset in doubles from the start of the inner matrix of its
- * segment; the comparisons of its read base; and what the row allows. */
-typedef struct {
-    int32_t                 from;
-    int32_t                 to;
-    size_t                  cells;
-    const comparisons      *comparisons;
-    bool                    uncounted;  /* a template base the sequencer did not count */
-    bool                    deletes;    /* a deletion can open inside after the row */
-    bool                    inserts;    /* the read base of the row can be inserted */
-} inner_span;
-
-/* The band around one point of the CIGAR path, within the reference. It runs from the
- * band before the prefix reached once the base is taken, to the band after the prefix
- * reached once the deletion straight after the base is taken too. */
-typedef struct {
-    int32_t from;
-    int32_t to;
-} band_edges;
-
-struct phmm_scratch {
-    aln_place     *places;
-    size_t         cap_places;
-    band_edges    *bands;        /* one per place */
-    size_t         cap_bands;
-    outer_row    *rows;
-    size_t         cap_rows;
-    inner_span    *spans;        /* one per inner row of every inner matrix */
-    size_t         cap_spans;
-    double        *forward;      /* outer, the last row, widest * N_OUTER */
-    double        *backward;     /* outer, two rows of widest * N_OUTER */
-    size_t         cap_outer;
-    double        *scale;        /* one per outer row */
-    size_t         cap_scale;
-    double        *inner;        /* the inner matrices of every segment; row 0 of each
-                                    is the outer row before it */
-    size_t         cap_inner;
-    double        *inner_back;   /* two inner rows of the widest span, backward */
-    size_t         cap_inner_back;
-    phmm_position *window;
-    size_t         cap_window;
-};
-
-phmm_scratch *phmm_scratch_create(void)
-{
-    return calloc(1, sizeof(phmm_scratch));
-}
-
-void phmm_scratch_destroy(phmm_scratch *scratch)
-{
-    if (!scratch) {
-        return;
-    }
-
-    free(scratch->places);
-    free(scratch->bands);
-    free(scratch->rows);
-    free(scratch->spans);
-    free(scratch->forward);
-    free(scratch->backward);
-    free(scratch->scale);
-    free(scratch->inner);
-    free(scratch->inner_back);
-    free(scratch->window);
-    free(scratch);
 }
 
 /* The weights of the gaps, which hold along every reference. A deletion pays its
@@ -394,158 +199,250 @@ static gap_weights gap_weights_of(const phmm_rates *rates)
 }
 
 /* ------------------------------------------------------------------------ */
-/* One read                                                                  */
+/* The emissions                                                             */
 /* ------------------------------------------------------------------------ */
 
+/* The comparison of one base of z, as the read gives it, with each reference base, by
+ * the code of the reference base, as lines in the modification rate m of the reference
+ * base. The emission is intercept + slope * m. The part of the emission on which the
+ * base of z differed from the reference is share * m. The base agrees with the
+ * reference base with chance (1 - m)(1 - e) + m e / 3, and differs from it into one
+ * given base with chance (1 - m) e / 3 + m (1 - e / 3) / 3, where e is the chance the
+ * base was misread. An unnamed base on either side emits the uninformative chance and
+ * carries nothing. */
 typedef struct {
-    const phmm_model         *model;
-    const phmm_rates         *rates;
-    const phmm_emissions     *emissions;
-    const cm_bam_record      *read;
-    const run                *read_runs;  /* of the placed span */
-    size_t                    n_read_runs;
-    const phmm_length_errors *errors;     /* NULL for a read without them */
-    phmm_scratch             *scratch;
+    double intercept[NUC_COUNT];
+    double slope[NUC_COUNT];
+    double share[NUC_COUNT];
+} comparisons;
 
-    aln_span    span;
-    gap_weights gaps;         /* the weights of the gaps under the rates */
-    size_t      n_segments;
-    int32_t     widest;       /* cells of the widest outer row */
-    int32_t     widest_span;  /* cells of the widest inner row */
-    size_t      n_spans;      /* inner rows of every inner matrix */
-    int32_t     origin;       /* reference position of window value 0 */
-    size_t      window_len;
-} context;
-
-static size_t n_rows(const context *ctx)
+/* Writes the comparison with a reference base of code theirs. */
+static void set_comparison(comparisons *o, nuc theirs, double intercept, double slope,
+                           double share)
 {
-    return ctx->n_segments + 1;
+    o->intercept[theirs] = intercept;
+    o->slope[theirs]     = slope;
+    o->share[theirs]     = share;
 }
 
-static inline outer_row *row_of(const context *ctx, size_t k)
+/* Writes the comparisons of a read base ours that was misread with chance error. */
+static void set_comparisons(comparisons *o, nuc ours, double error)
 {
-    return &ctx->scratch->rows[k];
-}
+    double other = error / OTHER_BASES;
+    double shift = 1.0 - error - other;
 
-/* Returns the forward cells of outer row k, at prefix lo. They are inner row 0 of the
- * next segment, which holds the same prefixes. The last outer row has a row of its
- * own. */
-static inline double *outer_cells(const context *ctx, size_t k)
-{
-    const outer_row *next;
-
-    if (k == ctx->n_segments) {
-        return ctx->scratch->forward;
+    for (nuc theirs = NUC_N; theirs < NUC_COUNT; theirs++) {
+        set_comparison(o, theirs, UNINFORMATIVE, 0.0, 0.0);
     }
 
-    next = row_of(ctx, k + 1);
-
-    return ctx->scratch->inner + next->inner
-         + ctx->scratch->spans[next->first_span].cells;
-}
-
-/* Returns the cell at prefix x of a row of outer cells that starts at prefix lo. */
-static inline double *outer_at(double *cells, int32_t lo, int32_t x)
-{
-    return cells + (size_t)(x - lo) * N_OUTER;
-}
-
-/* Returns the backward cells of outer row k at prefix x. The pass fills row k - 1 from
- * the inner matrix of row k, so it keeps two rows, and row k lies in the slot of its
- * parity. The cells of a row have the layout of inner cells, so that inner row 0 of a
- * segment can be written straight into them. */
-static inline double *backward_at(const context *ctx, size_t k, int32_t x)
-{
-    const outer_row *row = row_of(ctx, k);
-
-    return ctx->scratch->backward
-         + ((k & 1) * (size_t)ctx->widest + (size_t)(x - row->lo)) * N_OUTER;
-}
-
-/* Returns the span of inner row j of row. */
-static inline const inner_span *span_at(const context *ctx, const outer_row *row,
-                                        int32_t j)
-{
-    return &ctx->scratch->spans[row->first_span + (size_t)j];
-}
-
-/* Returns the forward cells of the inner row of segment k that span describes. The
- * first cell is at prefix span->from. */
-static inline double *inner_row_at(const context *ctx, size_t k, const inner_span *span)
-{
-    return ctx->scratch->inner + row_of(ctx, k)->inner + span->cells;
-}
-
-/* Returns the backward cells of inner row j. The pass keeps two rows, and row j lies
- * in the slot of its parity. */
-static inline double *inner_back_row_at(const context *ctx, int32_t j)
-{
-    return ctx->scratch->inner_back
-         + ((size_t)j & 1) * (size_t)ctx->widest_span * N_INNER;
-}
-
-/* Returns the cell at prefix x of a row whose cells start at span->from. */
-static inline double *cell_at(double *cells, const inner_span *span, int32_t x)
-{
-    return cells + (size_t)(x - span->from) * N_INNER;
-}
-
-/* Returns the cell at prefix x of a row whose cells start at span->from, for reading. */
-static inline const double *cell_in(const double *cells, const inner_span *span,
-                                    int32_t x)
-{
-    return cells + (size_t)(x - span->from) * N_INNER;
-}
-
-/* ------------------------------------------------------------------------ */
-/* One base against the reference                                            */
-/* ------------------------------------------------------------------------ */
-
-/* Returns the comparisons of read base q. Every base of an Ultima read takes one
- * score, since its quality string describes run lengths. */
-static const comparisons *comparisons_of(const context *ctx, int32_t q)
-{
-    const phmm_emissions *emissions = ctx->emissions;
-    nuc                   ours      = nuc_from_read(ctx->read->seq, q);
-
-    if (ctx->errors) {
-        return &emissions->at_quality[ours][(uint8_t)ctx->errors->phred];
-    }
-    if (!ctx->read->qual) {
-        return &emissions->without_quality[ours];
+    if (!nuc_is_base(ours)) {
+        return;
     }
 
-    return &emissions->at_quality[ours][ctx->read->qual[q]];
+    for (nuc theirs = NUC_A; theirs < NUC_COUNT; theirs++) {
+        set_comparison(o, theirs, other, shift / OTHER_BASES,
+                       (1.0 - other) / OTHER_BASES);
+    }
+
+    set_comparison(o, ours, 1.0 - error, -shift, other);
 }
 
-/* Returns the emission of the comparison of a read base with reference base base. */
+/* The comparisons of a read base of each base at each quality score, and of such a
+ * base in a read that stores no qualities, which is never misread. */
+struct phmm_emissions {
+    comparisons at_quality[NUC_COUNT][PHRED_MAX + 1];
+    comparisons without_quality[NUC_COUNT];
+};
+
+phmm_emissions *phmm_emissions_create(const phred *quality)
+{
+    phmm_emissions *emissions = malloc(sizeof *emissions);
+
+    if (!emissions) {
+        return NULL;
+    }
+
+    for (nuc ours = NUC_N; ours < NUC_COUNT; ours++) {
+        for (unsigned q = 0; q <= PHRED_MAX; q++) {
+            set_comparisons(&emissions->at_quality[ours][q], ours,
+                            phred_error(quality, (uint8_t)q));
+        }
+
+        set_comparisons(&emissions->without_quality[ours], ours, 0.0);
+    }
+
+    return emissions;
+}
+
+void phmm_emissions_destroy(phmm_emissions *emissions)
+{
+    free(emissions);
+}
+
+/* Returns the comparisons of a base of a node. */
+static const comparisons *comparisons_of(const phmm_emissions *emissions,
+                                         const graph_node *node)
+{
+    if (node->quality == GRAPH_NO_QUALITY) {
+        return &emissions->without_quality[node->base];
+    }
+
+    return &emissions->at_quality[node->base][(uint8_t)node->quality];
+}
+
+/* Returns the emission of the comparison with reference base base. */
 static inline double emission_of(const comparisons *o, const phmm_base *base)
 {
     return o->intercept[base->code] + o->slope[base->code] * base->modification;
 }
 
-/* Returns the part of that emission on which the template differed. */
+/* Returns the part of that emission on which the base of z differed. */
 static inline double modified_of(const comparisons *o, const phmm_base *base)
 {
     return o->share[base->code] * base->modification;
 }
 
 /* ------------------------------------------------------------------------ */
+/* Scratch                                                                   */
+/* ------------------------------------------------------------------------ */
+
+/* One row of the matrix: the comparisons of its node's base, NULL on the source; the
+ * index of its first cell in the forward matrix; its band, from lo to hi; the weight
+ * of the start state in it; and one over the total it was divided by in the forward
+ * pass. */
+typedef struct {
+    const comparisons *comparisons;
+    size_t             first;
+    int32_t            lo;
+    int32_t            hi;
+    double             start;
+    double             restore;
+} matrix_row;
+
+struct phmm_scratch {
+    aln_place     *places;
+    size_t         cap_places;
+    matrix_row    *rows;         /* one per node */
+    size_t         cap_rows;
+    cell          *forward;      /* every row */
+    size_t         cap_forward;
+    cell          *backward;     /* BACKWARD_ROWS rows of the widest row */
+    size_t         cap_backward;
+    phmm_position *window;
+    size_t         cap_window;
+};
+
+phmm_scratch *phmm_scratch_create(void)
+{
+    return calloc(1, sizeof(phmm_scratch));
+}
+
+void phmm_scratch_destroy(phmm_scratch *scratch)
+{
+    if (!scratch) {
+        return;
+    }
+
+    free(scratch->places);
+    free(scratch->rows);
+    free(scratch->forward);
+    free(scratch->backward);
+    free(scratch->window);
+    free(scratch);
+}
+
+/* ------------------------------------------------------------------------ */
+/* One read                                                                  */
+/* ------------------------------------------------------------------------ */
+
+typedef struct {
+    const phmm_model     *model;
+    const phmm_emissions *emissions;
+    const cm_bam_record  *read;
+    const graph          *g;
+    phmm_scratch         *scratch;
+
+    gap_weights gaps;         /* the weights of the gaps under the rates */
+    size_t      n_rows;
+    size_t      cells;        /* cells of every row */
+    int32_t     widest;       /* cells of the widest row */
+    int32_t     lo;           /* the lowest prefix of any row */
+    int32_t     hi;           /* and the highest */
+    int32_t     origin;       /* reference position of window value 0 */
+    size_t      window_len;
+    double      ends;         /* the posteriors of the read's 5'-most pairing, summed */
+} context;
+
+static inline const graph_node *node_of(const context *ctx, size_t r)
+{
+    return &ctx->g->nodes[r];
+}
+
+static inline matrix_row *row_of(const context *ctx, size_t r)
+{
+    return &ctx->scratch->rows[r];
+}
+
+/* Returns the forward cells of row r, the first at the first prefix of the row. */
+static inline cell *forward_cells_of(const context *ctx, size_t r)
+{
+    return ctx->scratch->forward + row_of(ctx, r)->first;
+}
+
+/* Returns the backward cells of row r, the first at the first prefix of the row. The
+ * pass keeps BACKWARD_ROWS rows, and a row lies in the slot of its index modulo their
+ * count. */
+static inline cell *backward_cells_of(const context *ctx, size_t r)
+{
+    return ctx->scratch->backward + (r % BACKWARD_ROWS) * (size_t)ctx->widest;
+}
+
+/* The cells of one row as a step reads them, with the band they cover. */
+typedef struct {
+    const cell *cells;
+    int32_t     lo;
+    int32_t     hi;
+} row_view;
+
+/* Returns a view that holds no cell. */
+static row_view empty_view(void)
+{
+    return (row_view){ .cells = NULL, .lo = 0, .hi = -1 };
+}
+
+static row_view forward_view(const context *ctx, size_t r)
+{
+    const matrix_row *row = row_of(ctx, r);
+
+    return (row_view){ .cells = forward_cells_of(ctx, r), .lo = row->lo, .hi = row->hi };
+}
+
+static row_view backward_view(const context *ctx, size_t r)
+{
+    const matrix_row *row = row_of(ctx, r);
+
+    return (row_view){ .cells = backward_cells_of(ctx, r), .lo = row->lo, .hi = row->hi };
+}
+
+static inline bool view_holds(const row_view *view, int32_t x)
+{
+    return x >= view->lo && x <= view->hi;
+}
+
+static inline const cell *view_cell(const row_view *view, int32_t x)
+{
+    return view->cells + (x - view->lo);
+}
+
+/* ------------------------------------------------------------------------ */
 /* Layout                                                                    */
 /* ------------------------------------------------------------------------ */
 
-/* Returns whether read base j of a segment can be inserted. The first base of the read
- * cannot be, nor can a template base the sequencer did not count. */
-static bool may_insert(const outer_row *row, size_t k, int32_t j)
-{
-    return j < row->len && (j >= 1 || k >= 2);
-}
-
-/* Returns whether a deletion can open inside the segment after inner row j. */
-static bool may_delete_inside(const outer_row *row, int32_t j)
-{
-    return j >= 1 && j < row->last_inner_row;
-}
+/* The band around one point of the CIGAR path, within the reference. */
+typedef struct {
+    int32_t from;
+    int32_t to;
+} band_edges;
 
 /* Clamps a prefix to the reference. */
 static int32_t clamp_prefix(const context *ctx, int32_t x)
@@ -560,294 +457,66 @@ static int32_t clamp_prefix(const context *ctx, int32_t x)
     return x;
 }
 
-/* Writes the band around every point of the CIGAR path of the placed span. */
-static void fill_bands(const context *ctx)
+/* Returns the band around the point of the CIGAR path at a prefix of the placed span.
+ * It runs from the band before the prefix reached once the base is taken, to the band
+ * after the prefix reached once the deletion straight after the base is taken too. */
+static band_edges band_at(const context *ctx, int32_t prefix)
 {
-    size_t placed = (size_t)(ctx->span.end - ctx->span.begin);
+    const aln_place *place = &ctx->scratch->places[prefix];
 
-    for (size_t prefix = 0; prefix <= placed; prefix++) {
-        const aln_place *place = &ctx->scratch->places[prefix];
-        band_edges      *band  = &ctx->scratch->bands[prefix];
-
-        band->from = clamp_prefix(ctx, (int32_t)place->first - ctx->model->band);
-        band->to   = clamp_prefix(ctx, (int32_t)place->last + ctx->model->band);
-    }
+    return (band_edges){
+        .from = clamp_prefix(ctx, (int32_t)place->first - ctx->model->band),
+        .to   = clamp_prefix(ctx, (int32_t)place->last + ctx->model->band),
+    };
 }
 
-/* Returns the band around where the CIGAR has reached after j bases of the segment
- * that starts at read base start. */
-static const band_edges *band_at(const context *ctx, int32_t start, int32_t j)
+/* Lays out row r: its band, around the prefix its node stands at; its cells, after
+ * those of the rows before it; and its comparisons. */
+static void lay_out_row(context *ctx, size_t r)
 {
-    size_t prefix = (size_t)(start - ctx->span.begin) + (size_t)j;
+    const graph_node *node  = node_of(ctx, r);
+    band_edges        band  = band_at(ctx, node->prefix);
+    int32_t           width = band.to - band.from + 1;
 
-    return &ctx->scratch->bands[prefix];
+    *row_of(ctx, r) = (matrix_row){
+        .comparisons = r > 0 ? comparisons_of(ctx->emissions, node) : NULL,
+        .first       = ctx->cells,
+        .lo          = band.from,
+        .hi          = band.to,
+        .start       = r == 0 ? 1.0 : 0.0,
+        .restore     = 1.0,
+    };
+
+    ctx->cells += (size_t)width;
+    ctx->widest = width > ctx->widest ? width : ctx->widest;
+    ctx->lo     = band.from < ctx->lo ? band.from : ctx->lo;
+    ctx->hi     = band.to > ctx->hi ? band.to : ctx->hi;
 }
 
-/* Writes the window of a row: the band around the prefix the CIGAR has reached after
- * the segment. */
-static void lay_out_window(const context *ctx, outer_row *row)
-{
-    const band_edges *band = band_at(ctx, row->start, row->len);
-
-    row->lo = band->from;
-    row->hi = band->to;
-}
-
-/* Fills span with inner row j of the segment of row k: its band, its comparisons, and
- * what the row allows. The band is the band around the prefix the CIGAR has reached
- * after j bases of the segment. A row past the bases of the segment takes the band of
- * the last base. */
-static void set_inner_span(inner_span *span, const context *ctx, size_t k, int32_t j)
-{
-    const outer_row  *row  = row_of(ctx, k);
-    int32_t           real = j < row->len ? j : row->len;
-    const band_edges *band = band_at(ctx, row->start, real);
-
-    span->from        = band->from;
-    span->to          = band->to;
-    span->uncounted   = j >= row->len;
-    span->deletes     = may_delete_inside(row, j);
-    span->inserts     = may_insert(row, k, j);
-    span->comparisons = span->uncounted ? &ctx->emissions->uncounted
-                                        : comparisons_of(ctx, row->start + j);
-}
-
-/* Returns how many cells the row holds. */
-static int32_t span_width(const inner_span *span)
-{
-    return span->to - span->from + 1;
-}
-
-/* Returns whether a read run continues into the clipped bases on one side, which
- * leaves its length unknown. */
-static bool clipped_before(const context *ctx, const run *read_run)
-{
-    int32_t before = ctx->span.begin - 1;
-
-    return before >= 0 && nuc_is_base(read_run->base)
-        && nuc_from_read(ctx->read->seq, before) == read_run->base;
-}
-
-static bool clipped_after(const context *ctx, const run *read_run)
-{
-    int32_t after = ctx->span.end;
-
-    return after < ctx->read->l_qseq && nuc_is_base(read_run->base)
-        && nuc_from_read(ctx->read->seq, after) == read_run->base;
-}
-
-/* Returns how many bases past the read run the longest template length with any chance
- * reaches, which is how many inner rows the run needs past its bases. */
-static int32_t uncounted_rows(const double *length)
-{
-    for (int offset = PHMM_MAX_LENGTH_ERROR; offset > 0; offset--) {
-        if (length[PHMM_MAX_LENGTH_ERROR + offset] > 0.0) {
-            return offset;
-        }
-    }
-
-    return 0;
-}
-
-/* Writes the chance of each template length of the run that is segment k. A run whose
- * length the read does not give in full has the read length. */
-static void lay_out_run_lengths(const context *ctx, outer_row *row, size_t k)
-{
-    const run *read_run = &ctx->read_runs[k - 1];
-    bool       clipped  = (k == 1 && clipped_before(ctx, read_run))
-                       || (k == ctx->n_segments && clipped_after(ctx, read_run));
-
-    if (clipped || !nuc_is_base(read_run->base)) {
-        return;
-    }
-
-    row->length         = ctx->errors->of_run[k - 1].length;
-    row->last_inner_row = row->len + uncounted_rows(row->length);
-}
-
-/* The chances of the template lengths of a segment whose length the read gives. */
-static const double READ_LENGTH[PHMM_LENGTH_OFFSETS] = {
-    [PHMM_MAX_LENGTH_ERROR] = 1.0,
-};
-
-/* Points the row at the chance of each template length of segment k. A read without
- * the tags has the read length. */
-static void lay_out_lengths(const context *ctx, outer_row *row, size_t k)
-{
-    row->length         = READ_LENGTH;
-    row->last_inner_row = row->len;
-
-    if (ctx->errors) {
-        lay_out_run_lengths(ctx, row, k);
-    }
-}
-
-/* Writes the chance that a one-base run is missing after the run that is segment k,
- * where that run is not the last of the read. */
-static void lay_out_missed(const context *ctx, outer_row *row, size_t k)
-{
-    row->missed       = 0.0;
-    row->missed_bases = 0;
-
-    if (ctx->errors && k < ctx->n_segments) {
-        row->missed       = ctx->errors->of_run[k - 1].missed;
-        row->missed_bases = ctx->errors->of_run[k - 1].missed_bases;
-    }
-}
-
-/* Returns how many segments the read is cut into. */
-static size_t count_segments(const context *ctx)
-{
-    size_t placed = (size_t)(ctx->span.end - ctx->span.begin);
-
-    if (ctx->errors) {
-        return ctx->n_read_runs;
-    }
-
-    return (placed + SEGMENT_BASES - 1) / SEGMENT_BASES;
-}
-
-/* Writes the read bases of segment k. */
-static void lay_out_segment(const context *ctx, outer_row *row, size_t k)
-{
-    int32_t end;
-
-    if (ctx->errors) {
-        row->start = ctx->read_runs[k - 1].start;
-        row->len   = ctx->read_runs[k - 1].len;
-        return;
-    }
-
-    row->start = ctx->span.begin + (int32_t)(k - 1) * SEGMENT_BASES;
-    end        = row->start + SEGMENT_BASES;
-    row->len   = (end < ctx->span.end ? end : ctx->span.end) - row->start;
-}
-
-/* Lays out every outer row. */
+/* Lays out every row, and the window that covers them all. */
 static void lay_out_rows(context *ctx)
 {
-    outer_row        *rows   = ctx->scratch->rows;
-    const band_edges *start;
-    int32_t           widest = 0;
+    ctx->cells  = 0;
+    ctx->widest = 0;
+    ctx->lo     = INT32_MAX;
+    ctx->hi     = INT32_MIN;
 
-    for (size_t k = 1; k < n_rows(ctx); k++) {
-        lay_out_segment(ctx, &rows[k], k);
-        lay_out_window(ctx, &rows[k]);
-        lay_out_lengths(ctx, &rows[k], k);
-        lay_out_missed(ctx, &rows[k], k);
+    for (size_t r = 0; r < ctx->n_rows; r++) {
+        lay_out_row(ctx, r);
     }
 
-    start = band_at(ctx, rows[1].start, 0);
-
-    rows[0].lo             = start->from;
-    rows[0].hi             = start->to;
-    rows[0].last_inner_row = 0;
-
-    ctx->n_spans = 0;
-
-    for (size_t k = 1; k < n_rows(ctx); k++) {
-        rows[k].first_span = ctx->n_spans;
-        ctx->n_spans      += (size_t)rows[k].last_inner_row + 1;
-    }
-
-    for (size_t k = 0; k < n_rows(ctx); k++) {
-        int32_t width = rows[k].hi - rows[k].lo + 1;
-
-        if (width > widest) {
-            widest = width;
-        }
-    }
-
-    ctx->widest = widest;
+    ctx->origin     = ctx->lo - 1;
+    ctx->window_len = (size_t)(ctx->hi - ctx->origin) + 1;
 }
 
-/* Writes the span of every inner row of every inner matrix, and where each lies.
- * Returns the doubles the inner matrices need in all. */
-static size_t lay_out_spans(context *ctx)
+/* Grows the buffers of the passes to the layout. */
+static int grow_buffers(context *ctx)
 {
-    size_t  inner  = 0;
-    int32_t widest = 0;
+    phmm_scratch *s = ctx->scratch;
 
-    for (size_t k = 1; k < n_rows(ctx); k++) {
-        outer_row *row   = row_of(ctx, k);
-        size_t     cells = 0;
-
-        row->inner = inner;
-
-        for (int32_t j = 0; j <= row->last_inner_row; j++) {
-            inner_span *span = &ctx->scratch->spans[row->first_span + (size_t)j];
-
-            set_inner_span(span, ctx, k, j);
-            span->cells = cells;
-            cells      += (size_t)span_width(span) * N_INNER;
-
-            if (span_width(span) > widest) {
-                widest = span_width(span);
-            }
-        }
-
-        inner += cells;
-    }
-
-    ctx->widest_span = widest;
-
-    return inner;
-}
-
-static void lay_out_output(context *ctx)
-{
-    const outer_row *rows = ctx->scratch->rows;
-    int32_t           lo   = rows[0].lo;
-    int32_t           hi   = rows[0].hi;
-
-    for (size_t k = 1; k < n_rows(ctx); k++) {
-        if (rows[k].lo < lo) {
-            lo = rows[k].lo;
-        }
-        if (rows[k].hi > hi) {
-            hi = rows[k].hi;
-        }
-    }
-
-    ctx->origin     = lo - 1;
-    ctx->window_len = (size_t)(hi - ctx->origin) + 1;
-}
-
-/* Returns the doubles one outer row holds. */
-static size_t outer_row_doubles(const context *ctx)
-{
-    return (size_t)ctx->widest * N_OUTER;
-}
-
-/* Grows every buffer the passes need. The outer buffers are a pair, so they are grown
- * together. */
-static int grow_buffers(context *ctx, size_t inner)
-{
-    phmm_scratch *s     = ctx->scratch;
-    size_t          outer = 2 * outer_row_doubles(ctx);
-    size_t          back  = 2 * (size_t)ctx->widest_span * N_INNER;
-
-    if (outer > s->cap_outer) {
-        double *forward  = realloc(s->forward, outer * sizeof *forward);
-        double *backward = realloc(s->backward, outer * sizeof *backward);
-
-        if (forward) {
-            s->forward = forward;
-        }
-        if (backward) {
-            s->backward = backward;
-        }
-        if (!forward || !backward) {
-            return -1;
-        }
-
-        s->cap_outer = outer;
-    }
-
-    if (grow((void **)&s->scale, &s->cap_scale, n_rows(ctx), sizeof *s->scale) < 0
-        || grow((void **)&s->inner, &s->cap_inner, inner, sizeof *s->inner) < 0
-        || grow((void **)&s->inner_back, &s->cap_inner_back, back,
-                sizeof *s->inner_back) < 0
+    if (grow((void **)&s->forward, &s->cap_forward, ctx->cells, sizeof *s->forward) < 0
+        || grow((void **)&s->backward, &s->cap_backward,
+                BACKWARD_ROWS * (size_t)ctx->widest, sizeof *s->backward) < 0
         || grow((void **)&s->window, &s->cap_window, ctx->window_len,
                 sizeof *s->window) < 0) {
         return -1;
@@ -856,465 +525,157 @@ static int grow_buffers(context *ctx, size_t inner)
     return 0;
 }
 
+/* Places the CIGAR, lays out the matrix over the graph, and clears the window. */
 static phmm_status prepare(context *ctx)
 {
-    phmm_scratch      *s    = ctx->scratch;
+    phmm_scratch        *s    = ctx->scratch;
     const cm_bam_record *read = ctx->read;
-    size_t               inner;
 
     if (grow((void **)&s->places, &s->cap_places, (size_t)read->l_qseq + 1,
              sizeof *s->places) < 0
-        || grow((void **)&s->bands, &s->cap_bands, (size_t)read->l_qseq + 1,
-                sizeof *s->bands) < 0) {
+        || grow((void **)&s->rows, &s->cap_rows, ctx->n_rows, sizeof *s->rows) < 0) {
         return PHMM_NO_MEMORY;
     }
 
-    ctx->span = aln_places(read, s->places);
-
-    if (ctx->span.begin >= ctx->span.end) {
-        return PHMM_NO_PATH;
-    }
-
-    fill_bands(ctx);
-    ctx->n_segments = count_segments(ctx);
-
-    if (grow((void **)&s->rows, &s->cap_rows, n_rows(ctx), sizeof *s->rows) < 0) {
-        return PHMM_NO_MEMORY;
-    }
-
+    aln_places(read, s->places);
     lay_out_rows(ctx);
-    lay_out_output(ctx);
 
-    if (grow((void **)&s->spans, &s->cap_spans, ctx->n_spans, sizeof *s->spans) < 0) {
-        return PHMM_NO_MEMORY;
-    }
-
-    inner = lay_out_spans(ctx);
-
-    if (grow_buffers(ctx, inner) < 0) {
+    if (grow_buffers(ctx) < 0) {
         return PHMM_NO_MEMORY;
     }
 
     memset(s->window, 0, ctx->window_len * sizeof *s->window);
+    ctx->ends = 0.0;
 
     return PHMM_OK;
 }
 
 /* ------------------------------------------------------------------------ */
-/* The inner matrix of a segment                                             */
+/* The moves of a step                                                       */
 /* ------------------------------------------------------------------------ */
 
-/* The inner row at which a segment ends when the template is offset bases longer than
- * the read, and the chance of that length. The chance is zero where the inner matrix
- * has no such row. */
-typedef struct {
-    int32_t jend;
-    double  chance;
-} template_length;
-
-/* Returns the template length of the segment of row at offset. */
-static template_length template_length_at(const outer_row *row, int offset)
-{
-    template_length length = {
-        .jend   = row->len + offset,
-        .chance = row->length[offset + PHMM_MAX_LENGTH_ERROR],
-    };
-
-    if (length.jend < 0 || length.jend > row->last_inner_row) {
-        length.chance = 0.0;
-    }
-
-    return length;
-}
-
-/* What the cells of an inner row are worth at the end of the segment, in the backward
- * pass: the chance of the template length that ends the segment at the row, divided
- * by the scale of the segment, which is zero where no length ends there; the outer
- * backward cells of the row of the segment, from prefix lo to hi; and what can follow
- * the end. Nothing follows the last segment. */
-typedef struct {
-    double        chance;
-    const double *cells;
-    int32_t       lo, hi;
-    bool          deletes;   /* a deletion can open after the segment */
-    bool          inserts;   /* an insertion left open can end at the row */
-} segment_end;
-
-/* Fills end with what inner row j of segment k is worth at the end of the segment.
- * restore undoes the scaling of the segment and is folded into the chance. Every
- * backward value of the segment then carries restore, which the posteriors need and
- * which the outer cells of row k - 1 are defined with. */
-static inline void set_segment_end(segment_end *end, const context *ctx, size_t k,
-                                   int32_t j, double restore)
-{
-    const outer_row *row    = row_of(ctx, k);
-    int              offset = j - row->len;
-    bool             last   = k == ctx->n_segments;
-
-    end->chance  = 0.0;
-    end->cells   = backward_at(ctx, k, row->lo);
-    end->lo      = row->lo;
-    end->hi      = row->hi;
-    end->deletes = !last;
-    end->inserts = !last && offset <= 0;
-
-    if (offset >= -PHMM_MAX_LENGTH_ERROR && offset <= PHMM_MAX_LENGTH_ERROR) {
-        end->chance = template_length_at(row, offset).chance * restore;
-    }
-}
-
-/* Adds what the paired and the open insertion states of a cell at prefix x are worth
- * at the end of the segment to paired and inserted. The paired state is worth the
- * chance of ending there times what the outer row is worth closed at x, plus what it
- * is worth with a deletion open at x + 1. The open insertion state is worth that
- * chance times what the outer row is worth with an insertion open at x. */
-static inline void add_end_worth(const segment_end *end, int32_t x, double *paired,
-                                 double *inserted)
-{
-    const double *cell;
-    double        worth;
-
-    if (end->chance <= 0.0 || x < end->lo || x > end->hi) {
-        return;
-    }
-
-    cell  = end->cells + (size_t)(x - end->lo) * N_OUTER;
-    worth = cell[CLOSED];
-
-    if (end->deletes && x < end->hi) {
-        worth += cell[N_OUTER + DELETION];
-    }
-
-    *paired += worth * end->chance;
-
-    if (end->inserts) {
-        *inserted += cell[INSERTION] * end->chance;
-    }
-}
-
-/* What the step from inner row j to inner row j + 1 reads: the two spans, and whether
- * a pairing from row j is the read's 5'-most, which follows the end state. The
- * backward pass also reads what row j is worth at the end of the segment, and where
- * the backward values of row j go. They go to the slot of the row's parity, or, for
- * row 0, to the outer backward cells of row k - 1. */
-typedef struct {
-    const inner_span  *span;      /* of row j */
-    const inner_span  *next;      /* of row j + 1 */
-    double            *line;      /* where the backward values of row j go */
-    segment_end        end;
-    bool               ends;      /* a pairing from row j is the read's 5'-most */
-} inner_step;
-
-/* Fills s with the step from inner row j of segment k, for the forward pass. The
- * struct is filled in place, since a struct returned by value is copied through the
- * stack on every inner row. */
-static inline void set_inner_step(inner_step *s, const context *ctx, size_t k, int32_t j)
-{
-    const outer_row *row = row_of(ctx, k);
-
-    s->span = span_at(ctx, row, j);
-    s->next = span_at(ctx, row, j + 1);
-    s->ends = k == 1 && j == 0;
-}
-
-/* Fills s with the step from inner row j of segment k, for the backward pass. */
-static inline void set_backward_step(inner_step *s, const context *ctx, size_t k,
-                                     int32_t j, double restore)
-{
-    const outer_row *above = row_of(ctx, k - 1);
-
-    set_inner_step(s, ctx, k, j);
-    s->line = j == 0 ? backward_at(ctx, k - 1, above->lo) : inner_back_row_at(ctx, j);
-    set_segment_end(&s->end, ctx, k, j, restore);
-}
-
-static inline int32_t max_prefix(int32_t a, int32_t b)
-{
-    return a > b ? a : b;
-}
-
-static inline int32_t min_prefix(int32_t a, int32_t b)
-{
-    return a < b ? a : b;
-}
-
-/* Returns the weight a pairing of base b pays after the paired state of the cell before:
- * nothing more for the read's 5'-most pairing, whose cell before is the termination
- * state, and the weight after no gap otherwise. */
-static inline double after_paired(const phmm_base *b, bool first)
-{
-    return first ? 1.0 : b->after_no_gap;
-}
-
 /* Returns the weight of the paths from cell from into the pairing of reference base b,
- * which lands one prefix further along the next row. */
-static inline double pairing_into(const double *from, const phmm_base *b, bool first)
+ * where start is the weight of the end state in the row of from. */
+static inline double pairing_from(const cell *from, const phmm_base *b, double start)
 {
-    return from[PAIRED] * after_paired(b, first) + from[GAP_DELETION] * b->after_deletion
-         + from[GAP_INSERTION] * b->after_insertion;
+    return from->paired * b->after_no_gap + from->deleted * b->after_deletion
+         + from->inserted * b->after_insertion + start * b->termination;
 }
 
-/* Fills inner row j + 1 from inner row j, whose read base is uncounted or not, and
- * whose pairings are the read's 5'-most or not. Each cell of the next row is written
- * once: its pairing comes from the cell one prefix back, its insertion from the cell
- * at the same prefix, and its open deletion from the cell before it in its own row. A
- * cell whose source lies outside the band of the row above takes nothing from it. */
-ALWAYS_INLINE void forward_cells(const context *ctx, size_t k, const inner_step *s,
-                                 bool uncounted, bool first)
+/* Returns the weight of the paths from cell from into an insertion. */
+static inline double insertion_from(const cell *from, const gap_weights *w)
 {
-    const phmm_base        *bases    = ctx->model->bases;
-    const inner_span       *span     = s->span;
-    const inner_span       *after    = s->next;
-    const comparisons      *o        = span->comparisons;
-    gap_weights             w        = ctx->gaps;
-    const double           *line     = inner_row_at(ctx, k, span);
-    double                 *next     = inner_row_at(ctx, k, after);
-    int32_t                 from     = span->from;
-    int32_t                 to       = span->to;
-    int32_t                 next_from = after->from;
-    int32_t                 next_to  = after->to;
-    bool                    deletes  = after->deletes;
-    int32_t                 pair_lo  = max_prefix(next_from, from + 1);
-    int32_t                 pair_hi  = min_prefix(next_to, to + 1);
-    int32_t                 ins_hi   = !uncounted && span->inserts
-                                     ? min_prefix(after->to, to) : -1;
-    double                  deletion = 0.0;
-    int32_t                 x        = next_from;
-
-    for (; x < pair_lo; x++) {
-        const double *same = line + (size_t)(x - from) * N_INNER;
-        double       *cell = next + (size_t)(x - next_from) * N_INNER;
-        double        inserted = x <= ins_hi
-            ? same[PAIRED] * w.open_insertion + same[GAP_INSERTION] * w.extend_insertion
-            : 0.0;
-
-        cell[PAIRED]        = 0.0;
-        cell[GAP_DELETION]  = deletion;
-        cell[GAP_INSERTION] = inserted;
-        deletion            = deletion * w.extend_deletion;
-    }
-
-    for (; x <= pair_hi; x++) {
-        const double    *back   = line + (size_t)(x - 1 - from) * N_INNER;
-        const phmm_base *b      = &bases[x - 1];
-        double          *cell   = next + (size_t)(x - next_from) * N_INNER;
-        double           paired = pairing_into(back, b, first)
-                                * (uncounted ? 1.0 : emission_of(o, b));
-        double           inserted = x <= ins_hi
-            ? back[N_INNER + PAIRED] * w.open_insertion
-              + back[N_INNER + GAP_INSERTION] * w.extend_insertion
-            : 0.0;
-
-        cell[PAIRED]        = paired;
-        cell[GAP_DELETION]  = deletion;
-        cell[GAP_INSERTION] = inserted;
-        deletion            = deletion * w.extend_deletion + (deletes ? paired : 0.0);
-    }
-
-    for (; x <= next_to; x++) {
-        double *cell = next + (size_t)(x - next_from) * N_INNER;
-
-        cell[PAIRED]        = 0.0;
-        cell[GAP_DELETION]  = deletion;
-        cell[GAP_INSERTION] = 0.0;
-        deletion            = deletion * w.extend_deletion;
-    }
+    return from->paired * w->open_insertion + from->inserted * w->extend_insertion;
 }
 
-/* Fills inner row j + 1 from inner row j. A template base the sequencer did not count
- * emits one and cannot be inserted, so its step is the step without the emission and
- * the insertion. The read's first base is a base of its first segment, so it is
- * counted. */
-static void inner_forward_step(const context *ctx, size_t k, const inner_step *s)
+/* Adds the states of cell from to cell to over a skip edge of the given weight. */
+static inline void add_skipped(cell *to, const cell *from, double weight)
 {
-    if (s->ends) {
-        forward_cells(ctx, k, s, false, true);
-    } else if (s->span->uncounted) {
-        forward_cells(ctx, k, s, true, false);
-    } else {
-        forward_cells(ctx, k, s, false, false);
-    }
+    to->paired   += weight * from->paired;
+    to->inserted += weight * from->inserted;
+    to->deleted  += weight * from->deleted;
 }
 
-/* Fills the inner matrix of segment k from its inner row 0. */
-static void inner_forward(const context *ctx, size_t k)
-{
-    const outer_row *row = row_of(ctx, k);
+/* ------------------------------------------------------------------------ */
+/* Forward                                                                   */
+/* ------------------------------------------------------------------------ */
 
-    for (int32_t j = 0; j < row->last_inner_row; j++) {
-        inner_step s;
-
-        set_inner_step(&s, ctx, k, j);
-        inner_forward_step(ctx, k, &s);
-    }
-}
-
-/* Returns whether the sequencer can have missed a one-base run after the segment of
- * row k. */
-static bool missed_run_possible(const context *ctx, size_t k)
-{
-    const outer_row *row = row_of(ctx, k);
-
-    return k != ctx->n_segments && row->missed > 0.0 && row->missed_bases != 0;
-}
-
-/* Returns whether reference base x is a run of one base that the sequencer can have
- * missed after the segment of row. */
-static inline bool missed_run_at(const context *ctx, const outer_row *row, int32_t x)
-{
-    const phmm_model *model = ctx->model;
-
-    return (size_t)x < model->len && (row->missed_bases & model->bases[x].run_bit) != 0;
-}
-
-/* One inner row at which the segment can end, as the exits read it: the chance of the
- * template length that ends there, the cell of the row at the first prefix of the
- * outer row, the last prefix at which the row has a cell, and whether an insertion
- * left open can end there. An insertion can end there where the template is no longer
- * than the read. The band of the row begins at or before the outer row, since the
- * outer row lies around the end of the segment. */
+/* What one step of the forward pass reads: the reference, the comparisons of the
+ * node's base, the gap weights, the row before with its start, the row the skip edge
+ * of two nodes back leaves, and the weights of the three edges into the node. */
 typedef struct {
-    double        chance;
-    const double *at_lo;
-    int32_t       to;
-    bool          inserts;
-} exit_row;
+    const phmm_base   *bases;
+    const comparisons *o;
+    gap_weights        w;
+    row_view           from;
+    row_view           far;
+    double             start;
+    double             weight;
+    double             skip_one;
+    double             skip_two;
+} forward_step;
 
-/* Writes the rows at which the segment of row k can end and reach its outer row, and
- * returns their count. */
-static size_t exit_rows_of(const context *ctx, size_t k, exit_row *exits)
+/* Returns the cell at prefix x. deletion carries the open deletion of the step along
+ * the row: what it is worth at x on the way in, and at x + 1 on the way out, which the
+ * pairing of the step opens and the skip edges leave alone. */
+static inline cell forward_cell(const forward_step *s, int32_t x, double *deletion)
 {
-    const outer_row *row = row_of(ctx, k);
-    size_t           n   = 0;
+    cell   c      = { .deleted = *deletion };
+    double paired = 0.0;
 
-    for (int offset = -PHMM_MAX_LENGTH_ERROR; offset <= PHMM_MAX_LENGTH_ERROR; offset++) {
-        template_length   length = template_length_at(row, offset);
-        const inner_span *span;
+    if (view_holds(&s->from, x - 1)) {
+        const phmm_base *b = &s->bases[x - 1];
 
-        if (length.chance <= 0.0) {
-            continue;
-        }
-
-        span = span_at(ctx, row, length.jend);
-
-        if (span->to < row->lo) {
-            continue;
-        }
-
-        exits[n].chance  = length.chance;
-        exits[n].at_lo   = cell_in(inner_row_at(ctx, k, span), span, row->lo);
-        exits[n].to      = span->to;
-        exits[n].inserts = offset <= 0;
-        n++;
+        paired = s->weight * pairing_from(view_cell(&s->from, x - 1), b, s->start)
+               * emission_of(s->o, b);
     }
 
-    return n;
-}
+    *deletion = *deletion * s->w.extend_deletion + paired;
+    c.paired  = paired;
 
-/* Adds what one exit row holds at prefix x, weighted by its chance, to closed and
- * inserted. cell is the offset in doubles of x from the first prefix of the outer
- * row. A row with no cell at x adds nothing. */
-static inline void exit_at(const exit_row *exit, int32_t x, size_t cell, double *closed,
-                           double *inserted)
-{
-    const double *at = exit->at_lo + cell;
+    if (view_holds(&s->from, x)) {
+        const cell *same = view_cell(&s->from, x);
 
-    if (x > exit->to) {
-        return;
+        c.inserted = s->weight * insertion_from(same, &s->w);
+        add_skipped(&c, same, s->skip_one);
     }
 
-    *closed += at[PAIRED] * exit->chance;
-
-    if (exit->inserts) {
-        *inserted += at[GAP_INSERTION] * exit->chance;
+    if (view_holds(&s->far, x)) {
+        add_skipped(&c, view_cell(&s->far, x), s->skip_two);
     }
+
+    return c;
 }
 
-/* Scales the three states of an outer cell by factor. */
-static inline void scale_outer_cell(double *cell, double factor)
+/* Fills row r from the row before it and from the row its further skip edge leaves,
+ * and carries the start state over the skip edges. */
+static void forward_row(context *ctx, size_t r)
 {
-    cell[CLOSED]    *= factor;
-    cell[DELETION]  *= factor;
-    cell[INSERTION] *= factor;
-}
-
-/* Returns the sum of the three states of an outer cell. */
-static inline double outer_cell_total(const double *cell)
-{
-    return cell[CLOSED] + cell[DELETION] + cell[INSERTION];
-}
-
-/* Writes the outer cells of row k from the inner rows at which the segment can end,
- * each weighted by its chance, and returns their total. A deletion that opens after
- * the segment and an insertion left open end in their own states, which the last row
- * cannot hold. The deletion open at a prefix comes from the pairings closed at the
- * prefix before, and extends from the deletion open there. Every cell then holds the
- * whole of its open deletion state as the next segment reads it. */
-static double fill_outer_row(const context *ctx, size_t k)
-{
-    const outer_row *row      = row_of(ctx, k);
-    double          *cells    = outer_cells(ctx, k);
-    bool             last     = k == ctx->n_segments;
-    double           extend   = ctx->rates->deletion_to_deletion;
-    exit_row         exits[PHMM_LENGTH_OFFSETS];
-    size_t           n        = exit_rows_of(ctx, k, exits);
-    double           deletion = 0.0;
-    double           total    = 0.0;
+    const graph_node *node   = node_of(ctx, r);
+    const matrix_row *before = row_of(ctx, r - 1);
+    matrix_row       *row    = row_of(ctx, r);
+    bool              far    = node->skip[1] > 0.0;
+    forward_step      s      = {
+        .bases    = ctx->model->bases,
+        .o        = row->comparisons,
+        .w        = ctx->gaps,
+        .from     = forward_view(ctx, r - 1),
+        .far      = far ? forward_view(ctx, r - 2) : empty_view(),
+        .start    = before->start,
+        .weight   = node->weight,
+        .skip_one = node->skip[0],
+        .skip_two = node->skip[1],
+    };
+    cell             *to       = forward_cells_of(ctx, r);
+    double            deletion = 0.0;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *to       = outer_at(cells, row->lo, x);
-        size_t  cell     = (size_t)(x - row->lo) * N_INNER;
-        double  closed   = 0.0;
-        double  inserted = 0.0;
+        to[x - row->lo] = forward_cell(&s, x, &deletion);
+    }
 
-        for (size_t e = 0; e < n; e++) {
-            exit_at(&exits[e], x, cell, &closed, &inserted);
-        }
+    row->start = node->skip[0] * before->start
+               + (far ? node->skip[1] * row_of(ctx, r - 2)->start : 0.0);
+}
 
-        to[CLOSED]    = closed;
-        to[DELETION]  = last ? 0.0 : deletion;
-        to[INSERTION] = last ? 0.0 : inserted;
-        total        += outer_cell_total(to);
-        deletion      = deletion * extend + closed;
+/* Returns the total of row r. */
+static double row_total(const context *ctx, size_t r)
+{
+    const matrix_row *row   = row_of(ctx, r);
+    const cell       *cells = forward_cells_of(ctx, r);
+    double            total = 0.0;
+
+    for (int32_t x = row->lo; x <= row->hi; x++) {
+        const cell *c = &cells[x - row->lo];
+
+        total += c->paired + c->inserted + c->deleted;
     }
 
     return total;
 }
 
-/* Passes over the one-base runs the sequencer can have missed after the row's
- * segment, and returns what the pass adds to the total of the row. A path that skips a
- * run takes the chance of the missed run, and every other path takes the chance that
- * no run was missed. skipped is what the paths that skip the run at x - 1 carry to x. */
-static double missed_run_forward(const context *ctx, size_t k)
-{
-    const outer_row *row     = row_of(ctx, k);
-    double          *cells   = outer_cells(ctx, k);
-    double           keep    = 1.0 - row->missed;
-    double           skipped = 0.0;
-    double           added   = 0.0;
-
-    if (!missed_run_possible(ctx, k)) {
-        return 0.0;
-    }
-
-    for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *cell   = outer_at(cells, row->lo, x);
-        double  closed = cell[CLOSED] + skipped;
-        double  before = outer_cell_total(cell);
-
-        scale_outer_cell(cell, keep);
-        cell[CLOSED] += skipped;
-        added        += outer_cell_total(cell) - before;
-        skipped       = x < row->hi && missed_run_at(ctx, row, x)
-                      ? closed * row->missed * ctx->model->bases[x].after_no_gap
-                      : 0.0;
-    }
-
-    return added;
-}
-
-/* Maps the total of a row to a status. A negative, infinite, or NaN total is a fault.
- * A zero or subnormal total means the band admits no path. */
+/* Maps the total of a row that every path passes through to a status. A negative,
+ * infinite, or NaN total is a fault. A zero or subnormal total means the band admits
+ * no path. */
 static phmm_status total_status(double total)
 {
     if (!(total >= 0.0) || total > DBL_MAX) {
@@ -1327,382 +688,307 @@ static phmm_status total_status(double total)
     return PHMM_OK;
 }
 
-/* Keeps the scale of row k. The scale is the total of the row where the row is the
- * last or where the total has left the range the rows are kept in, and the row is
- * then divided by it. Elsewhere the scale is one. */
-static phmm_status scale_row(const context *ctx, size_t k, double total)
+/* Divides row r and its start by its total, keeping one over it. */
+static void divide_row(const context *ctx, size_t r, double total)
 {
-    const outer_row *row    = row_of(ctx, k);
-    double          *cells  = outer_cells(ctx, k);
-    phmm_status      status = total_status(total);
-    double           share;
+    matrix_row *row   = row_of(ctx, r);
+    cell       *cells = forward_cells_of(ctx, r);
+    double      share = 1.0 / total;
 
-    if (status != PHMM_OK) {
-        return status;
-    }
-
-    if (k == ctx->n_segments) {
-        ctx->scratch->scale[k] = total;
-        return PHMM_OK;
-    }
-
-    if (total >= SCALE_FLOOR && total <= SCALE_CEILING) {
-        ctx->scratch->scale[k] = 1.0;
-        return PHMM_OK;
-    }
-
-    ctx->scratch->scale[k] = total;
-    share                  = 1.0 / total;
+    row->restore  = share;
+    row->start   *= share;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        scale_outer_cell(outer_at(cells, row->lo, x), share);
+        cells[x - row->lo].paired   *= share;
+        cells[x - row->lo].inserted *= share;
+        cells[x - row->lo].deleted  *= share;
     }
-
-    return PHMM_OK;
 }
 
-/* Fills row 0, the end state, which reaches the 5'-most pairing of the read at
- * any base of the first window with the termination rate of that base, and returns its
- * total. */
-static double forward_first_row(const context *ctx)
+/* Checks the total of row r, and divides the row by it where it has left the range the
+ * rows are kept in. A row that a skip edge passes over is left as it is, since the row
+ * the edge lands on reads it beside the row before, and the two must carry one scale. */
+static phmm_status scale_row(const context *ctx, size_t r)
 {
-    const outer_row *row   = row_of(ctx, 0);
-    double          *cells = outer_cells(ctx, 0);
-    double           total = 0.0;
+    double      total;
+    phmm_status status;
+
+    if (graph_node_passed_over(ctx->g, r)) {
+        return PHMM_OK;
+    }
+
+    total  = row_total(ctx, r);
+    status = total_status(total);
+
+    if (status == PHMM_OK && (total < SCALE_FLOOR || total > SCALE_CEILING)) {
+        divide_row(ctx, r, total);
+    }
+
+    return status;
+}
+
+/* Returns the probability of the read relative to the scales: the paired state of the
+ * last row summed, since every path ends with a pairing. */
+static double read_total(const context *ctx)
+{
+    size_t            r     = ctx->n_rows - 1;
+    const matrix_row *row   = row_of(ctx, r);
+    const cell       *cells = forward_cells_of(ctx, r);
+    double            total = 0.0;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *cell = outer_at(cells, row->lo, x);
-
-        cell[CLOSED]    = rate_at(ctx->rates->termination, ctx->model->len, x);
-        cell[DELETION]  = 0.0;
-        cell[INSERTION] = 0.0;
-        total          += cell[CLOSED];
+        total += cells[x - row->lo].paired;
     }
 
     return total;
 }
 
-static phmm_status forward(const context *ctx)
+/* Clears the cells of the source, whose start alone holds weight. */
+static void forward_source(const context *ctx)
 {
-    phmm_status status = scale_row(ctx, 0, forward_first_row(ctx));
+    const matrix_row *row = row_of(ctx, 0);
 
-    for (size_t k = 1; k < n_rows(ctx) && status == PHMM_OK; k++) {
-        double total;
+    memset(forward_cells_of(ctx, 0), 0, (size_t)(row->hi - row->lo + 1) * sizeof(cell));
+}
 
-        inner_forward(ctx, k);
-        total  = fill_outer_row(ctx, k);
-        total += missed_run_forward(ctx, k);
-        status = scale_row(ctx, k, total);
+/* Fills every row and leaves the probability of the read in total. The rows are
+ * checked and scaled every SCALE_EVERY rows, which keeps them far inside the range of
+ * a double; a fault or an empty row before a check reaches the check as a total that
+ * is not finite or is zero. The last row is checked but never divided. */
+static phmm_status forward(context *ctx, double *total)
+{
+    forward_source(ctx);
+
+    for (size_t r = 1; r < ctx->n_rows; r++) {
+        forward_row(ctx, r);
+
+        if (r % SCALE_EVERY == 0 && r + 1 < ctx->n_rows) {
+            phmm_status status = scale_row(ctx, r);
+
+            if (status != PHMM_OK) {
+                return status;
+            }
+        }
     }
 
-    return status;
+    *total = read_total(ctx);
+
+    return total_status(*total);
 }
 
 /* ------------------------------------------------------------------------ */
 /* Backward, with the posteriors                                             */
 /* ------------------------------------------------------------------------ */
 
-/* Returns the window position of reference base x. */
-static phmm_position *landing(const context *ctx, int32_t x)
+/* What one step of the backward pass reads, for row a and the row b after it: the
+ * reference, the comparisons of the base of b, the gap weights, the forward cells of a
+ * with its start, the backward cells of b and of the row the further skip edge into
+ * the row after b leaves, the weights of the edges into those rows, each times one
+ * over the scale of its row, and the window the posteriors go to. */
+typedef struct {
+    const phmm_base   *bases;
+    const comparisons *o;
+    gap_weights        w;
+    row_view           forward;
+    row_view           next;
+    row_view           far;
+    double             start;
+    double             weight;
+    double             skip_one;
+    double             skip_two;
+    phmm_position     *window;
+    int32_t            origin;
+} backward_step;
+
+/* What a cell of the next row is worth once the weight of its base edge and the scale
+ * of its row are applied and its open deletion is extended from the right. The pass
+ * carries the values of the cell one prefix on as it sweeps the cells of a from the
+ * right. */
+typedef struct {
+    double paired;
+    double deleted;
+} completed;
+
+/* Completes the cell of the next row at prefix x, whose cell one prefix on k holds on
+ * the way in. Returns the completed insertion state of the cell. */
+static inline double complete_next(const backward_step *s, int32_t x, completed *k)
 {
-    return ctx->scratch->window + (size_t)(x - ctx->origin);
-}
+    const cell *c       = view_cell(&s->next, x);
+    double      deleted = s->weight * c->deleted + s->w.extend_deletion * k->deleted;
 
-/* Passes back over the one-base runs the sequencer can have missed after the row's
- * segment, as the transpose of the forward pass. A cell then holds what an exit of the
- * segment at its prefix is worth. onward is what a path that skips the run at x is
- * worth at x + 1. */
-static void missed_run_backward(const context *ctx, size_t k)
-{
-    const outer_row *row    = row_of(ctx, k);
-    double           keep   = 1.0 - row->missed;
-    double           onward = 0.0;
+    k->paired  = s->weight * c->paired + k->deleted;
+    k->deleted = deleted;
 
-    if (!missed_run_possible(ctx, k)) {
-        return;
-    }
-
-    for (int32_t x = row->hi; x >= row->lo; x--) {
-        double *cell  = backward_at(ctx, k, x);
-        double  skips = x < row->hi && missed_run_at(ctx, row, x)
-                      ? row->missed * ctx->model->bases[x].after_no_gap * onward
-                      : 0.0;
-
-        onward = cell[CLOSED] + skips;
-        scale_outer_cell(cell, keep);
-        cell[CLOSED] += skips;
-    }
-}
-
-/* Writes the backward values of the last inner row of segment k. Each cell is worth
- * what it is worth at the end of the segment. */
-static void start_inner_backward(const context *ctx, size_t k, double restore)
-{
-    const outer_row  *row   = row_of(ctx, k);
-    const inner_span *span  = span_at(ctx, row, row->last_inner_row);
-    double           *cells = inner_back_row_at(ctx, row->last_inner_row);
-    segment_end       end;
-
-    set_segment_end(&end, ctx, k, row->last_inner_row, restore);
-
-    for (int32_t x = span->from; x <= span->to; x++) {
-        double *cell     = cell_at(cells, span, x);
-        double  paired   = 0.0;
-        double  inserted = 0.0;
-
-        add_end_worth(&end, x, &paired, &inserted);
-
-        cell[PAIRED]        = paired;
-        cell[GAP_DELETION]  = 0.0;
-        cell[GAP_INSERTION] = inserted;
-    }
+    return s->weight * c->inserted;
 }
 
 /* The posterior of one pairing of a reference base: the paths through it, the paths
- * through it on which the template differed, and the paths that close a deletion or an
- * insertion at it. */
+ * through it on which the base of z differed, the paths that close an insertion or a
+ * deletion at it, and the paths on which it is the read's 5'-most. */
 typedef struct {
     double covered;
     double modified;
-    double deleted;
     double inserted;
+    double deleted;
+    double ended;
 } pairing_posterior;
 
-/* Accumulates one pairing of reference base x into the window. The deletion closed at
- * x belongs to the base before, so it is carried to the next cell, which the pass
- * reaches next, and the deletion carried from the cell after lands here. A pairing of
- * a template base the sequencer did not count observed no read base, so it covers
- * nothing and is not counted. Returns the deletion to carry. */
-static inline double accumulate_pairing(const context *ctx, int32_t x,
-                                        const pairing_posterior *p, bool counted,
-                                        bool ends, double carried)
+/* Returns the posterior of the pairing of reference base x out of cell fwd of row a,
+ * where landing is the completed paired state of the cell the pairing lands in. The
+ * posterior of a difference is the posterior of the pairing times the modified part
+ * of its emission over the whole emission, so the emission divides out. The posterior
+ * of the read ending at the base is multiplied in the order of the coverage, so that
+ * the two are the same number where nothing else reaches the pairing. */
+static inline pairing_posterior posterior_of(const backward_step *s, int32_t x,
+                                             const cell *fwd, double landing)
 {
-    phmm_position *at = landing(ctx, x);
+    const phmm_base *b        = &s->bases[x];
+    double           emission = emission_of(s->o, b);
+    double           reach    = landing * emission;
+    double           no_gap   = fwd->paired * b->after_no_gap;
+    double           closed   = fwd->deleted * b->after_deletion;
+    double           joined   = fwd->inserted * b->after_insertion;
+    double           started  = s->start * b->termination;
+    double           through  = (no_gap + closed + joined + started) * landing;
 
-    if (counted) {
-        at->coverage   += p->covered;
-        at->mismatches += p->modified;
-    }
-
-    at->insertions += p->inserted;
-    at->deletions  += carried;
-
-    if (ends) {
-        at->ends += p->covered - p->deleted - p->inserted;
-    }
-
-    return p->deleted;
+    return (pairing_posterior){
+        .covered  = through * emission,
+        .modified = through * modified_of(s->o, b),
+        .inserted = joined * reach,
+        .deleted  = closed * reach,
+        .ended    = (started * landing) * emission,
+    };
 }
 
-/* Writes a backward cell at prefix x whose read base pairs with nothing. The cell is
- * worth the end of the segment, plus the insertion of its read base into gap, which is
- * the cell of the next row at the same prefix or NULL where that cell does not exist,
- * plus the open deletion of the cell after it in its own row. A deletion opens there
- * with weight deletes, which is one or zero. Returns the open deletion state of the
- * cell. */
-static inline double backward_gap_cell(double *cell, const segment_end *end, int32_t x,
-                                       const double *gap, const gap_weights *w,
-                                       double deletes, double deletion)
+/* Accumulates the posterior of a pairing of reference base x into the window. The
+ * deletion the pairing closes belongs to the base before. */
+static inline void accumulate_pairing(const backward_step *s, int32_t x,
+                                      const pairing_posterior *p)
 {
-    double paired   = deletes * deletion;
-    double deleted  = deletion * w->extend_deletion;
-    double inserted = 0.0;
+    phmm_position *at = s->window + (x - s->origin);
 
-    add_end_worth(end, x, &paired, &inserted);
-
-    if (gap) {
-        paired   += w->open_insertion * gap[GAP_INSERTION];
-        inserted += w->extend_insertion * gap[GAP_INSERTION];
-    }
-
-    cell[PAIRED]        = paired;
-    cell[GAP_DELETION]  = deleted;
-    cell[GAP_INSERTION] = inserted;
-
-    return deleted;
+    at->coverage     += p->covered;
+    at->mismatches   += p->modified;
+    at->insertions   += p->inserted;
+    at[-1].deletions += p->deleted;
+    at->ends         += p->ended;
 }
 
-/* Writes the backward inner row j of segment k, whose read base is uncounted or not.
- * Each cell is worth the end of the segment plus what it reaches through inner row
- * j + 1, and each pairing is accumulated with its posterior. A cell reads the cell one
- * prefix on in the next row, which its pairing lands in, the cell at the same prefix,
- * which its insertion lands in, and the cell after it in its own row, which its open
- * deletion extends into. A cell whose target lies outside the next row takes nothing
- * from it. The posterior of a template difference at a pairing is the posterior of the
- * pairing times the modified part of its emission over the whole emission, so the
- * emission divides out. The backward values carry the inverse of the scale of the
- * segment, so the posteriors need no further factor. */
-ALWAYS_INLINE void backward_cells(const context *ctx, size_t k, const inner_step *s,
-                                  int32_t j, bool uncounted, bool first)
+/* Returns the cell of row a at prefix x: what the row reaches through the row after it
+ * by the pairing of reference base x into the cell one prefix on, whose completed
+ * values k holds, by the insertion into the cell at the same prefix, and over the skip
+ * edges that leave the cell at the same prefix. The pairing is accumulated with its
+ * posterior. k is left holding the completed cell at x. */
+static inline cell backward_cell(const backward_step *s, int32_t x, completed *k,
+                                 double *ends)
 {
-    const phmm_base        *bases    = ctx->model->bases;
-    const inner_span       *span     = s->span;
-    const inner_span       *after    = s->next;
-    const comparisons      *o        = span->comparisons;
-    const segment_end       end      = s->end;
-    gap_weights             w        = ctx->gaps;
-    double                  deletes  = span->deletes ? 1.0 : 0.0;
-    const double           *forward  = inner_row_at(ctx, k, span);
-    double                 *line     = s->line;
-    const double           *next     = inner_back_row_at(ctx, j + 1);
-    int32_t                 from     = span->from;
-    int32_t                 to       = span->to;
-    int32_t                 next_from = after->from;
-    int32_t                 pair_lo  = max_prefix(from, next_from - 1);
-    int32_t                 pair_hi  = min_prefix(to, after->to - 1);
-    int32_t                 ins_lo   = !uncounted && span->inserts
-                                     ? max_prefix(from, next_from) : INT32_MAX;
-    double                  deletion = 0.0;  /* of the cell to the right */
-    double                  carried  = 0.0;  /* deletion posterior of the cell after */
-    int32_t                 x        = to;
+    cell c = { 0 };
 
-    for (; x > pair_hi; x--) {
-        const double *gap = x >= ins_lo ? next + (size_t)(x - next_from) * N_INNER : NULL;
+    if (view_holds(&s->next, x + 1)) {
+        const phmm_base  *b     = &s->bases[x];
+        double            reach = k->paired * emission_of(s->o, b);
+        pairing_posterior p     = posterior_of(s, x, view_cell(&s->forward, x),
+                                               k->paired);
 
-        deletion = backward_gap_cell(line + (size_t)(x - from) * N_INNER, &end, x, gap,
-                                     &w, deletes, deletion);
+        accumulate_pairing(s, x, &p);
+        *ends += p.ended;
+
+        c.paired   = b->after_no_gap * reach;
+        c.deleted  = b->after_deletion * reach;
+        c.inserted = b->after_insertion * reach;
     }
 
-    for (; x >= pair_lo; x--) {
-        const phmm_base   *b        = &bases[x];
-        const double      *fwd      = forward + (size_t)(x - from) * N_INNER;
-        const double      *on       = next + (size_t)(x + 1 - next_from) * N_INNER;
-        double            *cell     = line + (size_t)(x - from) * N_INNER;
-        double             emission = uncounted ? 1.0 : emission_of(o, b);
-        double             reach    = on[PAIRED] * emission;
-        double             no_gap   = fwd[PAIRED] * after_paired(b, first);
-        double             deleted  = fwd[GAP_DELETION] * b->after_deletion;
-        double             inserted = fwd[GAP_INSERTION] * b->after_insertion;
-        double             through  = (no_gap + deleted + inserted) * on[PAIRED];
-        pairing_posterior  p        = {
-            .covered  = through * emission,
-            .modified = uncounted ? 0.0 : through * modified_of(o, b),
-            .deleted  = deleted * reach,
-            .inserted = inserted * reach,
-        };
-        double             to_paired   = after_paired(b, first) * reach
-                                       + deletes * deletion;
-        double             to_deleted  = b->after_deletion * reach
-                                       + deletion * w.extend_deletion;
-        double             to_inserted = b->after_insertion * reach;
+    if (view_holds(&s->next, x)) {
+        const cell *same = view_cell(&s->next, x);
+        double      open = complete_next(s, x, k);
 
-        add_end_worth(&end, x, &to_paired, &to_inserted);
-
-        if (x >= ins_lo) {
-            double gap = on[-N_INNER + GAP_INSERTION];
-
-            to_paired   += w.open_insertion * gap;
-            to_inserted += w.extend_insertion * gap;
-        }
-
-        carried = accumulate_pairing(ctx, x, &p, !uncounted, first, carried);
-
-        cell[PAIRED]        = to_paired;
-        cell[GAP_DELETION]  = to_deleted;
-        cell[GAP_INSERTION] = to_inserted;
-        deletion            = to_deleted;
-    }
-
-    landing(ctx, x)->deletions += carried;
-
-    for (; x >= from; x--) {
-        const double *gap = x >= ins_lo ? next + (size_t)(x - next_from) * N_INNER : NULL;
-
-        deletion = backward_gap_cell(line + (size_t)(x - from) * N_INNER, &end, x, gap,
-                                     &w, deletes, deletion);
-    }
-}
-
-/* Writes the backward inner row j of segment k. A template base the sequencer did not
- * count emits one, cannot be inserted, and covers nothing, so its step is the step
- * without the emission, the insertion, and the coverage. The read's first base is
- * counted. */
-static void inner_backward_step(const context *ctx, size_t k, const inner_step *s,
-                                int32_t j)
-{
-    if (s->ends) {
-        backward_cells(ctx, k, s, j, false, true);
-    } else if (s->span->uncounted) {
-        backward_cells(ctx, k, s, j, true, false);
+        c.paired   += s->w.open_insertion * open;
+        c.inserted += s->w.extend_insertion * open;
+        add_skipped(&c, same, s->skip_one);
     } else {
-        backward_cells(ctx, k, s, j, false, false);
+        *k = (completed){ 0.0, 0.0 };
+    }
+
+    if (view_holds(&s->far, x)) {
+        add_skipped(&c, view_cell(&s->far, x), s->skip_two);
+    }
+
+    return c;
+}
+
+/* Fills the backward cells of row r from those of the rows after it, from the right,
+ * and accumulates the posteriors of the pairings out of r. The cells of the next row
+ * past the band of r are completed first, since the open deletion of each extends
+ * from the one after it. */
+static void backward_row(context *ctx, size_t r)
+{
+    const matrix_row *row  = row_of(ctx, r);
+    const matrix_row *next = row_of(ctx, r + 1);
+    const graph_node *node = node_of(ctx, r + 1);
+    bool              far  = r + 2 < ctx->n_rows && node_of(ctx, r + 2)->skip[1] > 0.0;
+    backward_step     s    = {
+        .bases    = ctx->model->bases,
+        .o        = next->comparisons,
+        .w        = ctx->gaps,
+        .forward  = forward_view(ctx, r),
+        .next     = backward_view(ctx, r + 1),
+        .far      = far ? backward_view(ctx, r + 2) : empty_view(),
+        .start    = row->start,
+        .weight   = node->weight * next->restore,
+        .skip_one = node->skip[0] * next->restore,
+        .skip_two = far ? node_of(ctx, r + 2)->skip[1] * row_of(ctx, r + 2)->restore
+                        : 0.0,
+        .window   = ctx->scratch->window,
+        .origin   = ctx->origin,
+    };
+    cell             *to   = backward_cells_of(ctx, r);
+    completed         k    = { 0.0, 0.0 };
+
+    for (int32_t x = next->hi; x > row->hi && x >= next->lo; x--) {
+        complete_next(&s, x, &k);
+    }
+
+    for (int32_t x = row->hi; x >= row->lo; x--) {
+        to[x - row->lo] = backward_cell(&s, x, &k, &ctx->ends);
     }
 }
 
-/* Fills the backward inner matrix of segment k row by row from its last. Its row 0
- * is written as the outer cells of row k - 1. */
-static void inner_backward(const context *ctx, size_t k)
+/* Fills the backward cells of the last row: every path ends with a pairing, worth one
+ * over the probability of the read. */
+static void backward_last_row(const context *ctx, double total)
 {
-    const outer_row *row     = row_of(ctx, k);
-    double           restore = 1.0 / ctx->scratch->scale[k];
-
-    start_inner_backward(ctx, k, restore);
-
-    for (int32_t j = row->last_inner_row - 1; j >= 0; j--) {
-        inner_step s;
-
-        set_backward_step(&s, ctx, k, j, restore);
-        inner_backward_step(ctx, k, &s, j);
-    }
-}
-
-static void backward_last_row(const context *ctx)
-{
-    size_t            k   = ctx->n_segments;
-    const outer_row *row = row_of(ctx, k);
+    size_t            r     = ctx->n_rows - 1;
+    const matrix_row *row   = row_of(ctx, r);
+    cell             *cells = backward_cells_of(ctx, r);
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *cell = backward_at(ctx, k, x);
-
-        cell[CLOSED]    = 1.0;
-        cell[DELETION]  = 0.0;
-        cell[INSERTION] = 0.0;
+        cells[x - row->lo] = (cell){ .paired = 1.0 / total };
     }
 }
 
-/* Returns the first row's total of forward times backward, which is one when the two
- * passes describe the same set of paths. Inner row 0 of the first inner matrix holds
- * the forward values of row 0. */
-static double agreement(const context *ctx)
-{
-    const outer_row  *row   = row_of(ctx, 0);
-    const inner_span *span  = span_at(ctx, row_of(ctx, 1), 0);
-    const double     *cells = inner_row_at(ctx, 1, span);
-    double            total = 0.0;
-
-    for (int32_t x = row->lo; x <= row->hi; x++) {
-        total += cell_in(cells, span, x)[PAIRED]
-               * backward_at(ctx, 0, x)[CLOSED];
-    }
-
-    return total;
-}
-
-/* A total that is not finite means the backward pass overflowed. Every forward row is
- * scaled by its own total, but a backward value is the probability of the rest of the
- * read from a cell relative to the probability of the read itself, and on a read whose
- * every path is astronomically unlikely, as under rates set to zero and a band too
- * narrow for its gaps, that ratio leaves the range of a double. The read has no path
- * worth scoring, and is rejected as one with none. A finite total away from one means
- * the two passes described different sets of paths, which is a fault. */
+/* The posteriors of the read's 5'-most pairing sum to one when the two passes describe
+ * the same set of paths. A sum that is not finite means the backward pass overflowed:
+ * every forward row is kept in range, but a backward value is the probability of the
+ * rest of the read from a cell relative to the probability of the read itself, and on
+ * a read whose every path is astronomically unlikely, as under rates set to zero and a
+ * band too narrow for its gaps, that ratio leaves the range of a double. The read has
+ * no path worth scoring, and is rejected as one with none. A finite sum away from one
+ * means the two passes described different sets of paths, which is a fault. */
 static phmm_status passes_agree(const context *ctx)
 {
-    double total = agreement(ctx);
-
-    if (!isfinite(total)) {
+    if (!isfinite(ctx->ends)) {
         return PHMM_NO_PATH;
     }
 
-    return fabs(total - 1.0) < NORMALIZATION_TOLERANCE ? PHMM_OK : PHMM_UNSOUND;
+    return fabs(ctx->ends - 1.0) < NORMALIZATION_TOLERANCE ? PHMM_OK : PHMM_UNSOUND;
 }
 
-static phmm_status backward(const context *ctx)
+static phmm_status backward(context *ctx, double total)
 {
-    backward_last_row(ctx);
+    backward_last_row(ctx, total);
 
-    for (size_t k = ctx->n_segments; k >= 1; k--) {
-        missed_run_backward(ctx, k);
-        inner_backward(ctx, k);
+    for (size_t r = ctx->n_rows - 1; r-- > 0;) {
+        backward_row(ctx, r);
     }
 
     return passes_agree(ctx);
@@ -1730,22 +1016,24 @@ void phmm_window_bounds(const phmm_window *window, size_t len,
 }
 
 phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
-                     const cm_bam_record *read, const run *runs, size_t n_runs,
-                     const phmm_length_errors *errors, phmm_scratch *scratch,
+                     const cm_bam_record *read, const graph *g, phmm_scratch *scratch,
                      phmm_window *out)
 {
     context ctx = {
-        .model       = model,
-        .rates       = model->rates,
-        .emissions   = emissions,
-        .read        = read,
-        .read_runs   = runs,
-        .n_read_runs = n_runs,
-        .errors      = errors,
-        .scratch     = scratch,
-        .gaps        = gap_weights_of(model->rates),
+        .model     = model,
+        .emissions = emissions,
+        .read      = read,
+        .g         = g,
+        .scratch   = scratch,
+        .gaps      = gap_weights_of(model->rates),
+        .n_rows    = g->n_nodes,
     };
     phmm_status status;
+    double      total = 0.0;
+
+    if (g->n_nodes < 2) {
+        return PHMM_NO_PATH;
+    }
 
     status = prepare(&ctx);
 
@@ -1753,13 +1041,13 @@ phmm_status phmm_run(const phmm_model *model, const phmm_emissions *emissions,
         return status;
     }
 
-    status = forward(&ctx);
+    status = forward(&ctx, &total);
 
     if (status != PHMM_OK) {
         return status;
     }
 
-    status = backward(&ctx);
+    status = backward(&ctx, total);
 
     if (status != PHMM_OK) {
         return status;
