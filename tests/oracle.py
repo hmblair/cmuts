@@ -233,16 +233,18 @@ def _counted_reads(data, directory):
     return ordered
 
 
-def samtools_depth(data, directory) -> dict:
+def samtools_depth(data, directory, deletions: bool = False) -> dict:
     """Returns the depth samtools reports at every covered position, keyed by
     reference name and zero-based position.
 
     QC-fail and duplicate reads are counted, as cmuts hmm counts them, so only
-    unmapped and secondary reads are left excluded.
+    unmapped and secondary reads are left excluded. With deletions, a read
+    whose CIGAR deletes a position counts toward the depth there too.
     """
     depths = defaultdict(dict)
+    flags = ("-J",) if deletions else ()
 
-    for line in samtools("depth", "-d", "0", "-g", "QCFAIL,DUP",
+    for line in samtools("depth", "-d", "0", "-g", "QCFAIL,DUP", *flags,
                          _counted_reads(data, directory)).splitlines():
         name, position, depth = line.split("\t")
         depths[name][int(position) - 1] = int(depth)

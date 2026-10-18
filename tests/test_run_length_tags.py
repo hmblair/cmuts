@@ -4,17 +4,19 @@ Ultima read carries.
 The quality of a base is the chance that the run it belongs to is one base
 longer or shorter than the read shows, and tp says which. t0 gives the chance
 that a run of one base of another letter is missing beside the base, where the
-flow order of the read group admits that letter. Each test writes a read with
-a tag and an alignment together, and scores it with the tag at several
-chances, or with and without the tag.
+flow order of the read group admits that letter. A base the read does not show
+is a base of the cDNA all the same: it pairs with the reference as the base of
+its run or of its flow, and it is counted. Each test writes a read with a tag
+and an alignment together, and scores it with the tag at several chances, or
+with and without the tag.
 """
 
 import numpy as np
 import pytest
 
 from alignments import NATIVE, build_placements, strip_tags
-from outputs import (COVERAGE, DELETION_RATE, INSERTION_RATE, PRIMARY_COUNTED, field_of,
-                     fields_of, outputs_agree)
+from outputs import (COVERAGE, DELETION_RATE, INSERTION_RATE, MISMATCH_RATE,
+                     PRIMARY_COUNTED, field_of, fields_of, outputs_agree)
 from programs import run_cmuts
 
 # The bases on each side of the run, as in the marginalization tests. A slide
@@ -61,8 +63,21 @@ KEPT = 1e-2
 # cannot lie between a run of A and a run of G.
 FLOW_ORDER = "TGCA"
 READ_GROUP = "g"
-READ_GROUP_LINE = f"@RG\tID:{READ_GROUP}\tFO:{FLOW_ORDER}"
 READ_GROUP_TAG = f"RG:Z:{READ_GROUP}"
+
+
+def read_group_line(flow_order=FLOW_ORDER) -> str:
+    return f"@RG\tID:{READ_GROUP}\tFO:{flow_order}"
+
+
+READ_GROUP_LINE = read_group_line()
+
+# The flow order as each base of the cycle starts it.
+ROTATIONS = [FLOW_ORDER[i:] + FLOW_ORDER[:i] for i in range(len(FLOW_ORDER))]
+
+# The substitution score of every base of a tagged read, which is also the
+# score the quality string of an untagged read written here carries.
+ULTIMA_PHRED = 40
 
 REVERSE_FLAG = 16
 
@@ -97,14 +112,30 @@ def counts_of(output) -> dict:
     }
 
 
-def score(tmp_path, name, reference, read, cigar, **placement) -> dict:
-    """Scores one read written one way, and returns its gap counts."""
+def coverage_of(output, positions) -> float:
+    """Returns the coverage summed over the given positions of the reference."""
+    return float(np.nansum(field_of(output, COVERAGE)[:, list(positions)]))
+
+
+def mismatches_at(output, position) -> float:
+    """Returns the mismatch count at one position of the reference: the rate
+    times the coverage there."""
+    fields = fields_of(output, [COVERAGE, MISMATCH_RATE])
+
+    return float(np.nansum(fields[MISMATCH_RATE][:, position] * fields[COVERAGE][:, position]))
+
+
+def write_and_run(tmp_path, name, reference, read, cigar, **placement):
+    """Scores one read written one way, and returns the output path."""
     data = build_placements(tmp_path, name, reference, read, [cigar], **placement)
     output = tmp_path / f"{name}.h5"
 
-    run_cmuts(data, output, band=BAND, **EVERY_POSITION)
+    return run_cmuts(data, output, band=BAND, **EVERY_POSITION)
 
-    return counts_of(output)
+
+def score(tmp_path, name, reference, read, cigar, **placement) -> dict:
+    """Scores one read written one way, and returns its gap counts."""
+    return counts_of(write_and_run(tmp_path, name, reference, read, cigar, **placement))
 
 
 def run_length_tags(read, at, direction, quality):
@@ -147,6 +178,20 @@ def assert_falls_with_the_chance(counted, gap):
         assert higher[gap] < lower[gap]
 
     assert tagged[-1][gap] < TAKEN * untagged[gap]
+
+
+def assert_rises_with_the_chance(measured):
+    """Asserts that a count at the impossible score equals the untagged count,
+    that it rises at each larger chance, and that it exceeds the untagged count
+    by at least the allowed share at the largest chance."""
+    untagged, *tagged = measured
+
+    assert abs(tagged[0] - untagged) < UNCHANGED
+
+    for lower, higher in zip(tagged, tagged[1:]):
+        assert higher > lower
+
+    assert tagged[-1] > untagged + TAKEN
 
 
 # ---------------------------------------------------------------------------
@@ -217,16 +262,30 @@ def test_a_tag_pointing_away_from_the_template_leaves_the_gap(tmp_path):
 # ---------------------------------------------------------------------------
 
 # A reference with a run of one base between two runs, and a read without that
-# base. The flow order has G between A and C. It does not have C between A
-# and G.
+# base. The flow order has G between A and C.
 MISSED_REFERENCE = LEFT + "AAA" + "G" + "CCC" + RIGHT
 MISSED_READ = LEFT + "AAA" + "CCC" + RIGHT
-NOT_ADMITTED_REFERENCE = LEFT + "AAA" + "C" + "GGG" + RIGHT
-NOT_ADMITTED_READ = LEFT + "AAA" + "GGG" + RIGHT
 MISSED_CIGAR = f"{len(LEFT) + 3}M1D{3 + len(RIGHT)}M"
 
-# The last base before the gap.
+# The last base before the gap, and the position of the missing base.
 BEFORE_GAP = len(LEFT) + 2
+GAP = len(LEFT) + 3
+
+# A reference whose base between the runs is a C, where the flow order admits
+# only a T between a run of A and a run of G.
+OTHER_BASE_REFERENCE = LEFT + "AAA" + "C" + "GGG" + RIGHT
+OTHER_BASE_READ = LEFT + "AAA" + "GGG" + RIGHT
+
+# A reference whose runs are adjacent in the flow order, since T follows A, so
+# that no base can be missed between them.
+NOT_ADMITTED_REFERENCE = LEFT + "AAA" + "G" + "TTT" + RIGHT
+NOT_ADMITTED_READ = LEFT + "AAA" + "TTT" + RIGHT
+
+# A reference whose run between the two read runs holds two bases, so that a
+# missed base pairs one of them and the reverse transcriptase deleted the other.
+LONGER_GAP_REFERENCE = LEFT + "AAA" + "GG" + "CCC" + RIGHT
+LONGER_GAP_CIGAR = f"{len(LEFT) + 3}M2D{3 + len(RIGHT)}M"
+LONGER_GAP = (len(LEFT) + 3, len(LEFT) + 4)
 
 
 def test_a_missed_run_takes_the_deletion_from_the_reverse_transcriptase(tmp_path):
@@ -255,7 +314,7 @@ def test_a_missed_run_on_the_reverse_strand_is_read_through_the_complement(tmp_p
 @pytest.mark.parametrize("reference, read, header", [
     (NOT_ADMITTED_REFERENCE, NOT_ADMITTED_READ, (READ_GROUP_LINE,)),
     (MISSED_REFERENCE, MISSED_READ, ()),
-], ids=["letter-off-the-flow", "no-read-group"])
+], ids=["adjacent-flows", "no-read-group"])
 def test_a_missed_run_the_flow_order_does_not_admit_is_not_read(
         tmp_path, reference, read, header):
     untagged = score(tmp_path, "untagged", reference, read, MISSED_CIGAR)
@@ -263,6 +322,106 @@ def test_a_missed_run_the_flow_order_does_not_admit_is_not_read(
                    **missed_run_tags(read, BEFORE_GAP, 0, header=header))
 
     assert abs(tagged[DELETION_RATE] - untagged[DELETION_RATE]) < UNCHANGED
+
+
+def test_a_missed_base_unlike_the_reference_is_read_as_a_mismatch(tmp_path):
+    """Scores a read whose missing base the flow order gives as a T, against a
+    reference holding a C there."""
+    untagged = write_and_run(tmp_path, "untagged", OTHER_BASE_REFERENCE,
+                             OTHER_BASE_READ, MISSED_CIGAR)
+    tagged = write_and_run(tmp_path, "tagged", OTHER_BASE_REFERENCE, OTHER_BASE_READ,
+                           MISSED_CIGAR, **missed_run_tags(OTHER_BASE_READ, BEFORE_GAP, 0))
+
+    assert counts_of(tagged)[DELETION_RATE] < TAKEN * counts_of(untagged)[DELETION_RATE]
+    assert mismatches_at(tagged, GAP) > mismatches_at(untagged, GAP) + TAKEN
+
+
+def test_a_missed_base_pairs_inside_a_longer_reference_run(tmp_path):
+    """Scores a read lacking a run of two reference bases, of which the
+    sequencer can have missed one."""
+    measured = [coverage_of(write_and_run(tmp_path, "untagged", LONGER_GAP_REFERENCE,
+                                          MISSED_READ, LONGER_GAP_CIGAR), LONGER_GAP)]
+
+    for quality in SCORES:
+        measured.append(coverage_of(
+            write_and_run(tmp_path, f"q{quality}", LONGER_GAP_REFERENCE, MISSED_READ,
+                          LONGER_GAP_CIGAR,
+                          **missed_run_tags(MISSED_READ, BEFORE_GAP, quality)),
+            LONGER_GAP))
+
+    assert_rises_with_the_chance(measured)
+
+
+def test_the_flow_order_is_read_as_a_cycle(tmp_path):
+    """Scores the missed run under each rotation of the flow order."""
+    outputs = [
+        write_and_run(tmp_path, rotation, MISSED_REFERENCE, MISSED_READ, MISSED_CIGAR,
+                      **missed_run_tags(MISSED_READ, BEFORE_GAP, 0,
+                                        header=(read_group_line(rotation),)))
+        for rotation in ROTATIONS
+    ]
+
+    assert all(outputs_agree(outputs[0], other) for other in outputs[1:])
+
+
+# ---------------------------------------------------------------------------
+# The bases the read does not show
+# ---------------------------------------------------------------------------
+
+# The positions of the reference run the shorter read lacks one base of.
+RUN_POSITIONS = range(IN_RUN, IN_RUN + RUN)
+
+# A reference with a C after the run, and a read whose run is the length of
+# the reference run but which lacks the C, so that an extra base of the run
+# pairs the C.
+UNLIKE_REFERENCE = LEFT + "A" * RUN + "C" + RIGHT
+UNLIKE_READ = LEFT + "A" * RUN + RIGHT
+UNLIKE_CIGAR = f"{len(LEFT) + RUN}M1D{len(RIGHT)}M"
+UNLIKE = len(LEFT) + RUN
+
+
+def shorter_run_case(tmp_path, name, quality=None):
+    read, cigar, direction, _ = SHORTER_READ
+    tags = run_length_tags(read, IN_RUN, direction, quality) if quality is not None else {}
+
+    return write_and_run(tmp_path, name, REFERENCE, read, cigar, **tags)
+
+
+def missed_run_case(tmp_path, name, quality=None):
+    tags = missed_run_tags(MISSED_READ, BEFORE_GAP, quality) if quality is not None else {}
+
+    return write_and_run(tmp_path, name, MISSED_REFERENCE, MISSED_READ, MISSED_CIGAR,
+                         **tags)
+
+
+@pytest.mark.parametrize("case, positions", [
+    (shorter_run_case, RUN_POSITIONS),
+    (missed_run_case, (GAP,)),
+], ids=["shorter-run", "missed-run"])
+def test_a_base_the_read_does_not_show_covers_the_base_it_pairs(
+        tmp_path, case, positions):
+    measured = [coverage_of(case(tmp_path, "untagged"), positions)]
+
+    for quality in SCORES:
+        measured.append(coverage_of(case(tmp_path, f"q{quality}", quality), positions))
+
+    assert_rises_with_the_chance(measured)
+
+
+def test_a_base_the_read_does_not_show_pays_for_a_mismatch(tmp_path):
+    """Tags the run of the read as one base longer, where the base after the
+    run in the reference is not the base of the run."""
+    measured = [mismatches_at(write_and_run(tmp_path, "untagged", UNLIKE_REFERENCE,
+                                            UNLIKE_READ, UNLIKE_CIGAR), UNLIKE)]
+
+    for quality in SCORES:
+        measured.append(mismatches_at(
+            write_and_run(tmp_path, f"q{quality}", UNLIKE_REFERENCE, UNLIKE_READ,
+                          UNLIKE_CIGAR, **run_length_tags(UNLIKE_READ, IN_RUN, LONGER,
+                                                          quality)),
+            UNLIKE))
+
+    assert_rises_with_the_chance(measured)
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +439,23 @@ def test_a_read_without_tp_is_scored_as_untagged(tmp_path):
 
     first = run_cmuts(untagged, tmp_path / "untagged.h5", band=BAND, **EVERY_POSITION)
     second = run_cmuts(partial, tmp_path / "partial.h5", band=BAND, **EVERY_POSITION)
+
+    assert outputs_agree(first, second)
+
+
+def test_tags_that_admit_no_error_score_as_no_tags(tmp_path):
+    """Writes tp values of no error on every base, and no t0, on a read whose
+    untagged quality string carries the substitution score of a tagged read."""
+    read, cigar, _, _ = LONGER_READ
+    untagged = build_placements(tmp_path, "untagged", REFERENCE, read, [cigar])
+    tagged = build_placements(tmp_path, "tagged", REFERENCE, read, [cigar],
+                              tags=(tp_tag([NONE] * len(read)), READ_GROUP_TAG),
+                              header=(READ_GROUP_LINE,))
+
+    first = run_cmuts(untagged, tmp_path / "untagged.h5", band=BAND,
+                      ultima_phred=ULTIMA_PHRED, **EVERY_POSITION)
+    second = run_cmuts(tagged, tmp_path / "tagged.h5", band=BAND,
+                       ultima_phred=ULTIMA_PHRED, **EVERY_POSITION)
 
     assert outputs_agree(first, second)
 
