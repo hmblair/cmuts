@@ -30,6 +30,10 @@
  * MINIMAL_CALL_PROB, which has the same value. */
 #define ULTIMA_MINIMAL_CALL_CHANCE 0.1
 
+/* The greatest chance of an error at a run or at the gap after it, which leaves the
+ * called length or the called gap the minimal chance. */
+#define ULTIMA_MAXIMAL_ERROR_CHANCE (1.0 - ULTIMA_MINIMAL_CALL_CHANCE)
+
 /* The offset that the t0 string adds to a Phred score to make it printable. */
 #define ULTIMA_PHRED_OFFSET 33
 

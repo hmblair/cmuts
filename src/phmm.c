@@ -1230,6 +1230,20 @@ static inline void exit_at(const exit_row *exit, int32_t x, size_t cell, double 
     }
 }
 
+/* Scales the three states of an outer cell by factor. */
+static inline void scale_outer_cell(double *cell, double factor)
+{
+    cell[CLOSED]    *= factor;
+    cell[DELETION]  *= factor;
+    cell[INSERTION] *= factor;
+}
+
+/* Returns the sum of the three states of an outer cell. */
+static inline double outer_cell_total(const double *cell)
+{
+    return cell[CLOSED] + cell[DELETION] + cell[INSERTION];
+}
+
 /* Writes the outer cells of row k from the inner rows at which the segment can end,
  * each weighted by its chance, and returns their total. A deletion that opens after
  * the segment and an insertion left open end in their own states, which the last row
@@ -1260,7 +1274,7 @@ static double fill_outer_row(const context *ctx, size_t k)
         to[CLOSED]    = closed;
         to[DELETION]  = last ? 0.0 : deletion;
         to[INSERTION] = last ? 0.0 : inserted;
-        total        += to[CLOSED] + to[DELETION] + to[INSERTION];
+        total        += outer_cell_total(to);
         deletion      = deletion * extend + closed;
     }
 
@@ -1268,25 +1282,32 @@ static double fill_outer_row(const context *ctx, size_t k)
 }
 
 /* Passes over the one-base runs the sequencer can have missed after the row's
- * segment, and returns what the pass adds to the total of the row. */
+ * segment, and returns what the pass adds to the total of the row. A path that skips a
+ * run takes the chance of the missed run, and every other path takes the chance that
+ * no run was missed. skipped is what the paths that skip the run at x - 1 carry to x. */
 static double missed_run_forward(const context *ctx, size_t k)
 {
-    const outer_row *row   = row_of(ctx, k);
-    double          *cells = outer_cells(ctx, k);
-    double           added = 0.0;
+    const outer_row *row     = row_of(ctx, k);
+    double          *cells   = outer_cells(ctx, k);
+    double           keep    = 1.0 - row->missed;
+    double           skipped = 0.0;
+    double           added   = 0.0;
 
     if (!missed_run_possible(ctx, k)) {
         return 0.0;
     }
 
-    for (int32_t x = row->lo; x < row->hi; x++) {
-        if (missed_run_at(ctx, row, x)) {
-            double missed = outer_at(cells, row->lo, x)[CLOSED] * row->missed
-                          * ctx->model->bases[x].after_no_gap;
+    for (int32_t x = row->lo; x <= row->hi; x++) {
+        double *cell   = outer_at(cells, row->lo, x);
+        double  closed = cell[CLOSED] + skipped;
+        double  before = outer_cell_total(cell);
 
-            outer_at(cells, row->lo, x + 1)[CLOSED] += missed;
-            added                                   += missed;
-        }
+        scale_outer_cell(cell, keep);
+        cell[CLOSED] += skipped;
+        added        += outer_cell_total(cell) - before;
+        skipped       = x < row->hi && missed_run_at(ctx, row, x)
+                      ? closed * row->missed * ctx->model->bases[x].after_no_gap
+                      : 0.0;
     }
 
     return added;
@@ -1334,11 +1355,7 @@ static phmm_status scale_row(const context *ctx, size_t k, double total)
     share                  = 1.0 / total;
 
     for (int32_t x = row->lo; x <= row->hi; x++) {
-        double *cell = outer_at(cells, row->lo, x);
-
-        cell[CLOSED]    *= share;
-        cell[DELETION]  *= share;
-        cell[INSERTION] *= share;
+        scale_outer_cell(outer_at(cells, row->lo, x), share);
     }
 
     return PHMM_OK;
@@ -1391,20 +1408,29 @@ static phmm_position *landing(const context *ctx, int32_t x)
     return ctx->scratch->window + (size_t)(x - ctx->origin);
 }
 
+/* Passes back over the one-base runs the sequencer can have missed after the row's
+ * segment, as the transpose of the forward pass. A cell then holds what an exit of the
+ * segment at its prefix is worth. onward is what a path that skips the run at x is
+ * worth at x + 1. */
 static void missed_run_backward(const context *ctx, size_t k)
 {
-    const outer_row *row = row_of(ctx, k);
+    const outer_row *row    = row_of(ctx, k);
+    double           keep   = 1.0 - row->missed;
+    double           onward = 0.0;
 
     if (!missed_run_possible(ctx, k)) {
         return;
     }
 
-    for (int32_t x = row->hi - 1; x >= row->lo; x--) {
-        if (missed_run_at(ctx, row, x)) {
-            backward_at(ctx, k, x)[CLOSED] += row->missed
-                                            * ctx->model->bases[x].after_no_gap
-                                            * backward_at(ctx, k, x + 1)[CLOSED];
-        }
+    for (int32_t x = row->hi; x >= row->lo; x--) {
+        double *cell  = backward_at(ctx, k, x);
+        double  skips = x < row->hi && missed_run_at(ctx, row, x)
+                      ? row->missed * ctx->model->bases[x].after_no_gap * onward
+                      : 0.0;
+
+        onward = cell[CLOSED] + skips;
+        scale_outer_cell(cell, keep);
+        cell[CLOSED] += skips;
     }
 }
 

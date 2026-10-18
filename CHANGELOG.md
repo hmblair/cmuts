@@ -10,6 +10,7 @@
 
 - `cmuts hmm` models a termination as a state of the pair HMM, reachable from the match state, so that stopping at a base is weighed against opening a gap there. Before, terminations were handled by a weight on the first base of each read, outside the transitions.
 - The denominator of the insertion rate and of the deletion rate is the coverage of the base which opens the gap, including the reads that terminate there. Before, the reads that terminated there were left out.
+- `cmuts hmm` uses the `t0` tag to compute the probability that the sequencer missed a base of an Ultima read. Before, `cmuts hmm` incorrectly used a slightly smaller probability, and counted slightly too many of these missing bases as deletions. The difference is small, except at bases with a low `t0` score.
 
 ## [2.1.0] - 2026-10-16
 

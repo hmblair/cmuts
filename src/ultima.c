@@ -293,11 +293,11 @@ static one_base_errors keep_called_length(one_base_errors errors)
     double total = errors.longer + errors.shorter;
     double scale;
 
-    if (total <= 1.0 - ULTIMA_MINIMAL_CALL_CHANCE) {
+    if (total <= ULTIMA_MAXIMAL_ERROR_CHANCE) {
         return errors;
     }
 
-    scale = (1.0 - ULTIMA_MINIMAL_CALL_CHANCE) / total;
+    scale = ULTIMA_MAXIMAL_ERROR_CHANCE / total;
 
     return (one_base_errors){ errors.longer * scale, errors.shorter * scale };
 }
@@ -321,9 +321,17 @@ static double missed_chance_at(const ultima_decoder *tables, const cm_bam_record
     return tables->error[score < 0 ? 0 : score];
 }
 
+/* Returns the lesser of chance and the greatest error chance, so that the called gap
+ * keeps the minimal chance. */
+static double capped_gap_chance(double chance)
+{
+    return chance < ULTIMA_MAXIMAL_ERROR_CHANCE ? chance : ULTIMA_MAXIMAL_ERROR_CHANCE;
+}
+
 /* Writes the chance that a base unlike either run is missing between a run and the
  * next. The t0 tag gives a chance at the last base of one run and at the first of the
- * next. The lesser is the chance of the gap, as in GATK's FlowBasedRead. */
+ * next. The lesser is the chance of the gap, as in GATK's FlowBasedRead. The function
+ * caps the chance so that the called gap keeps the minimal chance. */
 static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
                              const cm_bam_record *read, const ultima_read_group *group,
                              const run *r, const run *next)
@@ -345,7 +353,7 @@ static void decode_gap_after(phmm_run_errors *out, const ultima_decoder *tables,
     at_before = missed_chance_at(tables, read, r->start + r->len - 1);
     at_after  = missed_chance_at(tables, read, next->start);
 
-    out->missed       = at_before < at_after ? at_before : at_after;
+    out->missed       = capped_gap_chance(at_before < at_after ? at_before : at_after);
     out->missed_bases = group->bases_missed[reversed][r->base][next->base];
 }
 
