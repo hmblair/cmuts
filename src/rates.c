@@ -21,15 +21,16 @@ static const accum_field_id EVENTS_OF[FMT_N_CHANNELS] = {
 };
 
 /* How many bases 3' of the position each channel's trials sit. A mismatch is tried on
- * every pairing of the position. An insertion, a deletion, and the end of a read's
- * placed span are arms of the one decision that each pairing makes, so their trials are
- * the pairings that make it. That pairing sits at the position itself for an insertion
- * and an end, and one base 3' of it for a deletion. */
+ * every pairing of the position. An insertion, a deletion, and a termination are arms
+ * of the one decision that each pairing makes, so their trials are the pairings that
+ * make it. That pairing sits at the position itself for an insertion, and one base 3'
+ * of it for a deletion and for a termination, which are both counted at the first base
+ * the enzyme did not copy. */
 static const size_t TRIALS_SHIFT[FMT_N_CHANNELS] = {
     [FMT_CHANNEL_MISMATCHES]   = 0,
     [FMT_CHANNEL_INSERTIONS]   = 0,
     [FMT_CHANNEL_DELETIONS]    = 1,
-    [FMT_CHANNEL_TERMINATIONS] = 0,
+    [FMT_CHANNEL_TERMINATIONS] = 1,
 };
 
 /* Returns a channel's trials at one position, or zero where the pairing that tries it

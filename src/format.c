@@ -69,7 +69,7 @@ const fmt_field FMT_FIELDS[FMT_N_FIELDS] = {
     },
     [FMT_TERMINATION_RATE] = {
         .name    = "terminations/rate",
-        .detail  = "The hazard rate of read terminations at this position.",
+        .detail  = "The probability that the reverse transcriptase stopped at this position instead of copying it.",
         .row     = shape_per_base,
         .per_ref = true,
         .stored  = FMT_F32,

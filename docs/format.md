@@ -56,7 +56,7 @@ Binomial standard error of the deletion rate.
 
 **Shape** `(n, l)` · **Type** `float32` · **Fill** `NaN`
 
-The hazard rate of read terminations at this position.
+The probability that the reverse transcriptase stopped at this position instead of copying it.
 
 {.field}
 ### `terminations/error`

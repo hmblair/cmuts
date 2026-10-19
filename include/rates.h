@@ -24,13 +24,12 @@ rate_config rate_defaults(void);
 /* Write into out one channel's events at each of len positions over its denominator, and
  * the binomial standard error of that rate.
  *
- * A mismatch is tried wherever a read base pairs, and a read's placed span ends wherever
- * one of its pairings is the 5'-most. Both rates are therefore over the coverage.
+ * A mismatch is tried wherever a read base pairs, so its rate is over the coverage.
  *
- * Each opening is one arm of the decision a pairing makes toward the next base. The
- * pairing a span ends on makes no decision. An opening rate is therefore over the
- * coverage less those ends. That pairing sits at the base itself for an insertion, and
- * one base 3' of it for a deletion.
+ * Each opening and each termination is one arm of the decision a pairing makes toward
+ * the next base, so its rate is over the pairings that make the decision. That pairing
+ * sits at the base itself for an insertion, and one base 3' of it for a deletion and
+ * for a termination, which are both counted at the first base the enzyme did not copy.
  *
  * Both values are NaN at the same positions: where the denominator falls short, and
  * within the masked ends. out must not alias the accumulator's arrays, as restrict

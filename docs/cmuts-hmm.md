@@ -91,7 +91,7 @@ $$
 
 ### Deletions
 
-The deletion opening rate is the probability that base $b$ is the 3'-most base of a run of one or more deleted bases. A deletion at base $b$ is opened from base $b+1$, so the denominator is the reads that pair base $b+1$.
+The deletion opening rate is the probability that base $b$ is the 3'-most base of a run of one or more deleted bases. A deletion at base $b$ is opened from base $b+1$, but caused by a modification at base $b$, so the denominator is the reads that pair base $b+1$.
 
 $$
 r_{\mathrm{D},b} = \frac{D_b}{C_{b+1}}
@@ -99,10 +99,10 @@ $$
 
 ### Terminations
 
-The termination hazard rate is the probability that a read ends at base $b$, given that it reached it.
+The termination rate is the probability that the reverse transcriptase stopped at base $b$ instead of copying it. Like deletions, a termination at base $b$ is caused by a modification at $b$, so the denominator is the reads that pair base $b+1$.
 
 $$
-r_{\mathrm{T},b} = \frac{T_b}{C_b}
+r_{\mathrm{T},b} = \frac{T_b}{C_{b+1}}
 $$
 
 ## Error Computation

@@ -21,9 +21,9 @@
  * pairing is where it reached the end state. The passes run 5' to 3', so the end state
  * is where every path starts. It is held as one weight per row, the start, which is
  * one on the source and reaches a later row over skip edges alone; the pairing out of
- * it pays the termination rate of the base in place of the weight after no gap.
- * Stopping is one arm of the decision at each later pairing, beside the openings of
- * the two gaps.
+ * it pays the termination rate of the base before in place of the weight after no gap,
+ * since that is the base the enzyme stopped at instead of copying it. Stopping is one
+ * arm of the decision at each later pairing, beside the openings of the two gaps.
  *
  * The forward pass keeps every row. Every SCALE_EVERY rows, a row whose total leaves a
  * wide range is divided by it, except a row that a skip edge passes over, so that the
@@ -114,7 +114,7 @@ static double after_no_gap_at(const phmm_rates *rates, size_t len, hts_pos_t b)
 {
     return 1.0 - rate_at(rates->open_insertion, len, b)
                - rate_at(rates->open_deletion, len, b - 1)
-               - rate_at(rates->termination, len, b);
+               - rate_at(rates->termination, len, b - 1);
 }
 
 static int grow(void **ptr, size_t *cap, size_t needed, size_t size)
@@ -147,7 +147,7 @@ static phmm_base base_at(const phmm_rates *rates, const cm_fasta_record *ref,
         .after_deletion  = rate_at(rates->open_deletion, len, b - 1)
                          * rates->match_to_deletion,
         .after_insertion = rate_at(rates->open_insertion, len, b),
-        .termination     = rate_at(rates->termination, len, b),
+        .termination     = rate_at(rates->termination, len, b - 1),
         .modification    = rates->modification[b],
         .code            = (uint8_t)nuc_from_char(ref->seq[b]),
     };
@@ -861,7 +861,8 @@ static inline pairing_posterior posterior_of(const backward_step *s, int32_t x,
 }
 
 /* Accumulates the posterior of a pairing of reference base x into the window. The
- * deletion the pairing closes belongs to the base before. */
+ * deletion the pairing closes and the stop it makes both belong to the base before,
+ * which the enzyme did not copy. */
 static inline void accumulate_pairing(const backward_step *s, int32_t x,
                                       const pairing_posterior *p)
 {
@@ -871,7 +872,7 @@ static inline void accumulate_pairing(const backward_step *s, int32_t x,
     at->mismatches   += p->modified;
     at->insertions   += p->inserted;
     at[-1].deletions += p->deleted;
-    at->ends         += p->ended;
+    at[-1].ends      += p->ended;
 }
 
 /* Returns the cell of row a at prefix x: what the row reaches through the row after it

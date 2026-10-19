@@ -40,12 +40,13 @@
  * modification[b] is the chance base b was modified before it was read.
  * open_insertion[b] opens the insertion counted at base b, and open_deletion[b] the
  * deletion run whose 3'-most deleted base is b. termination[b] is the chance that the
- * reverse transcriptase stops once it has copied base b: the transition from the
- * pairing of b to the end state, which emits nothing and has no transitions out of
- * it. Each pairing makes one decision with four arms: it opens an insertion, opens a
- * deletion, stops, or pairs the next base with what the other three leave. A cell
- * outside the reference reads the nearest value, which reaches only terms a zero
- * emission clears. */
+ * reverse transcriptase stops at base b instead of copying it: the transition from the
+ * pairing of the base 3' of b to the end state, which emits nothing and has no
+ * transitions out of it. A deletion and a termination are both counted at the first
+ * base the enzyme did not copy. Each pairing makes one decision with four arms: it
+ * opens an insertion, opens a deletion, stops, or pairs the next base with what the
+ * other three leave. A cell outside the reference reads the nearest value, which
+ * reaches only terms a zero emission clears. */
 typedef struct {
     double        match_to_insertion;
     double        match_to_deletion;
@@ -66,8 +67,8 @@ void phmm_rates_set_transitions(phmm_rates *rates, const phmm_uniform_rates *uni
 
 /* One reference base as every pairing of it reads it: what the pairing pays after no
  * gap, after a deletion whose last base is the one before, and after an insertion; the
- * termination rate, which the first pairing of a read pays in place of the three; the
- * modification rate; and the base as nuc names it. */
+ * termination rate of the base before, which the first pairing of a read pays in place
+ * of the three; the modification rate; and the base as nuc names it. */
 typedef struct {
     double  after_no_gap;
     double  after_deletion;
@@ -116,7 +117,7 @@ typedef struct {
     double mismatches;   /* the base of z differs from it, under those pairings */
     double insertions;   /* insertions opened after this base */
     double deletions;    /* deletions opened at this base */
-    double ends;         /* the read's 5'-most pairing lands here */
+    double ends;         /* the read stops here, its 5'-most pairing one base 3' */
 } phmm_position;
 
 /* Computed values for one read, in a window around the reference. */

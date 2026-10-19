@@ -8,6 +8,7 @@
 
 ### Changed
 
+- `cmuts hmm` counts a termination at the first base the reverse transcriptase failed to copy, as it counts a deletion. Before, a termination was counted at the read's 5'-most base, off by one from the underlying position of the modification.
 - `cmuts hmm` models a termination as a state of the pair HMM, reachable from the match state, so that stopping at a base is weighed against opening a gap there. Before, terminations were handled by a weight on the first base of each read, outside the transitions.
 - The denominator of the insertion rate and of the deletion rate is the coverage of the base which opens the gap, including the reads that terminate there. Before, the reads that terminated there were left out.
 - The error of each rate is computed from the rounded rate and coverage that the output holds. Before, it was computed from the unrounded values, so two outputs with the same rate and coverage could hold different errors.
