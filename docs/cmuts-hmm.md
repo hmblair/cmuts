@@ -29,9 +29,11 @@ DMS data is insensitive to the bandwidth, since methylations mostly cause mismat
 
 ## Sequencing Errors
 
-Illumina reports a Phred quality per base, which is the probability that the sequencer introduced a substitution error at that base. Substitution errors serve as an alternative explanation for substitutions otherwise attributed to the reverse transcriptase.
+A read is the cDNA as the sequencer reported it, with sequencing errors. More than one cDNA can produce the same read. The pair HMM sums over each possible cDNA, weighted by its probability, and over each alignment of it to the reference. Every base of the cDNA is counted, whether or not the read shows it.
 
-Ultima reports a Phred quality per homopolymer run, which is the probability that the run was called one base too long or too short. Run-length errors serve as alternative explanations for insertions and deletions otherwise attributed to the reverse transcriptase. Since Ultima does not report substitution error probabilities, `--ultima-phred` sets one for every base.
+A read without run-length tags carries a Phred quality per base, as reads from Illumina and Oxford Nanopore do. The quality is the probability that the sequencer introduced a substitution error at that base. A substitution error serves as an alternative explanation for a substitution otherwise attributed to the reverse transcriptase.
+
+Ultima reports a Phred quality per homopolymer run, which is the probability that the run was called one base too long or too short. It also reports the probability that a run of one base was missed between two runs. `cmuts hmm` reads these values as GATK does. A base that the read does not show is the base of its run, or the base of the missed flow. It adds to the coverage, and it counts as a mismatch where the reference differs. A run-length error serves as an alternative explanation for an insertion or a deletion otherwise attributed to the reverse transcriptase. Since Ultima does not report substitution error probabilities, `--ultima-phred` sets one for every base.
 
 A file may hold both kinds of read. `cmuts hmm` selects the error handling of each read from its tags.
 

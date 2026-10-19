@@ -10,7 +10,7 @@
 
 - `cmuts hmm` models a termination as a state of the pair HMM, reachable from the match state, so that stopping at a base is weighed against opening a gap there. Before, terminations were handled by a weight on the first base of each read, outside the transitions.
 - The denominator of the insertion rate and of the deletion rate is the coverage of the base which opens the gap, including the reads that terminate there. Before, the reads that terminated there were left out.
-- `cmuts hmm` uses the `t0` tag to compute the probability that the sequencer missed a base of an Ultima read. Before, `cmuts hmm` incorrectly used a slightly smaller probability, and counted slightly too many of these missing bases as deletions. The difference is small, except at bases with a low `t0` score.
+- `cmuts hmm` counts every base of the cDNA of an Ultima read, including a base that the sequencer did not report. Such a base is aligned to the reference, adds to the coverage, and counts as a mismatch where the reference differs. Before, `cmuts hmm` ignored these bases. The coverage fell short at the end of each run of a tagged read, and some of these bases were counted as deletions. A base can now be missed at each flow between two runs, as GATK reads the tags. The output of a file without run-length tags does not change.
 
 ## [2.1.0] - 2026-10-16
 
