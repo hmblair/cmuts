@@ -81,20 +81,29 @@ static double rate_at(const rate_config *cfg, double events, double depth,
     return ratio_of(events, depth);
 }
 
+/* Returns a value as the output stores it, in single precision. */
+static double as_stored(double value)
+{
+    return (double)(float)value;
+}
+
 /* Returns the binomial standard error of one position's rate, or NaN where none is
- * reported. */
+ * reported. The rate and the depth enter at the precision the output stores them, so
+ * that the error is a function of the stored values alone. */
 static double error_at(const rate_config *cfg, double events, double depth,
                        size_t i, size_t len)
 {
     double rate;
+    double stored_depth;
 
     if (!reported_at(cfg, depth, i, len)) {
         return (double)NAN;
     }
 
-    rate = ratio_of(events, depth);
+    rate         = as_stored(ratio_of(events, depth));
+    stored_depth = as_stored(depth);
 
-    return sqrt(rate * (1.0 - rate) / depth);
+    return sqrt(rate * (1.0 - rate) / stored_depth);
 }
 
 void rate_of(const rate_config *cfg, const accum *acc, size_t len,
