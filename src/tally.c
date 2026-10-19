@@ -16,9 +16,6 @@
 #include "graph.h"
 #include "runs.h"
 
-/* The substitution score of every base of an Ultima read. */
-#define DEFAULT_ULTIMA_PHRED 40
-
 typedef struct {
     const cm_bam_record   *read;
     const cm_fasta_record *ref;
@@ -162,10 +159,7 @@ static int lay_out_graph(const context *ctx, tally_scratch *scratch)
         return -1;
     }
 
-    errors = (graph_read_errors){
-        .phred  = scratch->errors.phred,
-        .of_run = scratch->errors.of_run,
-    };
+    errors = (graph_read_errors){ .of_run = scratch->errors.of_run };
 
     return graph_lay_out(&scratch->g, ctx->read, span, scratch->runs, (size_t)n_runs,
                          tagged ? &errors : NULL);
@@ -203,7 +197,6 @@ tally_config tally_defaults(void)
     return (tally_config){
         .band         = PHMM_DEFAULT_BAND,
         .min_phred    = 0,
-        .ultima_phred = DEFAULT_ULTIMA_PHRED,
         .uniform      = phmm_uniform_defaults(),
     };
 }
@@ -232,7 +225,7 @@ int tally_tables_build(tally_tables *tables, const tally_config *config,
                        const cm_bam_stream *stream)
 {
     phred_build(&tables->quality, config->min_phred);
-    ultima_decoder_build(&tables->ultima, config->ultima_phred);
+    ultima_decoder_build(&tables->ultima);
     tables->uniform   = config->uniform;
     tables->band      = config->band;
     tables->emissions = phmm_emissions_create(&tables->quality);

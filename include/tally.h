@@ -20,8 +20,6 @@ typedef struct {
                                       side of the CIGAR; 0 pins it to the path as
                                       written */
     int                min_phred;  /* a base scoring below this takes the maximum error */
-    int                ultima_phred; /* the substitution score of every base of an
-                                      Ultima read */
     phmm_uniform_rates uniform;    /* the rates that fill every base of every reference */
 } tally_config;
 

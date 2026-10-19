@@ -75,11 +75,10 @@ READ_GROUP_LINE = read_group_line()
 # The flow order as each base of the cycle starts it.
 ROTATIONS = [FLOW_ORDER[i:] + FLOW_ORDER[:i] for i in range(len(FLOW_ORDER))]
 
-# The substitution score of every base of a tagged read, which is also the
-# score the quality string of an untagged read written here carries.
-ULTIMA_PHRED = 40
-
 REVERSE_FLAG = 16
+
+# The quality string of a read that stores no qualities.
+NO_QUALITIES = "*"
 
 
 def tp_tag(values) -> str:
@@ -126,7 +125,13 @@ def mismatches_at(output, position) -> float:
 
 
 def write_and_run(tmp_path, name, reference, read, cigar, **placement):
-    """Scores one read written one way, and returns the output path."""
+    """Scores one read written one way, and returns the output path. A read
+    written without tags is written without a quality string, so that it is
+    never misread, as a tagged read is not, and the two differ in the length
+    errors alone."""
+    if "tags" not in placement:
+        placement.setdefault("qualities", NO_QUALITIES)
+
     data = build_placements(tmp_path, name, reference, read, [cigar], **placement)
     output = tmp_path / f"{name}.h5"
 
@@ -444,18 +449,14 @@ def test_a_read_without_tp_is_scored_as_untagged(tmp_path):
 
 
 def test_tags_that_admit_no_error_score_as_no_tags(tmp_path):
-    """Writes tp values of no error on every base, and no t0, on a read whose
-    untagged quality string carries the substitution score of a tagged read."""
+    """Writes tp values of no error on every base, and no t0, and compares with
+    the same read without tags and without a quality string, which is never
+    misread either."""
     read, cigar, _, _ = LONGER_READ
-    untagged = build_placements(tmp_path, "untagged", REFERENCE, read, [cigar])
-    tagged = build_placements(tmp_path, "tagged", REFERENCE, read, [cigar],
-                              tags=(tp_tag([NONE] * len(read)), READ_GROUP_TAG),
-                              header=(READ_GROUP_LINE,))
-
-    first = run_cmuts(untagged, tmp_path / "untagged.h5", band=BAND,
-                      ultima_phred=ULTIMA_PHRED, **EVERY_POSITION)
-    second = run_cmuts(tagged, tmp_path / "tagged.h5", band=BAND,
-                       ultima_phred=ULTIMA_PHRED, **EVERY_POSITION)
+    first = write_and_run(tmp_path, "untagged", REFERENCE, read, cigar)
+    second = write_and_run(tmp_path, "tagged", REFERENCE, read, cigar,
+                           tags=(tp_tag([NONE] * len(read)), READ_GROUP_TAG),
+                           header=(READ_GROUP_LINE,))
 
     assert outputs_agree(first, second)
 
@@ -467,8 +468,6 @@ def test_tags_that_admit_no_error_score_as_no_tags(tmp_path):
 # The dataset with a large chance of a missing base, whose reads differ from
 # untagged reads in the tags only.
 MISSING = "missing"
-TAGGED = "tagged"
-PLAIN = "plain"
 
 
 def test_stripping_the_tags_keeps_the_reads_and_changes_the_gaps(catalogue, tmp_path):
@@ -488,14 +487,3 @@ def test_stripping_the_tags_keeps_the_reads_and_changes_the_gaps(catalogue, tmp_
 
     assert gaps_with[DELETION_RATE] < gaps_without[DELETION_RATE]
     assert sum(gaps_with.values()) < sum(gaps_without.values())
-
-
-def test_the_substitution_score_of_tagged_reads_reaches_only_them(catalogue, tmp_path):
-    """Scores a tagged dataset and an untagged one at two substitution
-    scores."""
-    for name, changes in ((TAGGED, True), (PLAIN, False)):
-        data = catalogue(name, NATIVE)
-        low = run_cmuts(data, tmp_path / f"{name}-low.h5", ultima_phred=10)
-        high = run_cmuts(data, tmp_path / f"{name}-high.h5", ultima_phred=40)
-
-        assert outputs_agree(low, high) != changes, name

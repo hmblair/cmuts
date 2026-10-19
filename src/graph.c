@@ -155,7 +155,7 @@ static void add_longer_run_end(const context *ctx, const run *read_run,
 {
     int32_t after = prefix_of(ctx, read_run->start + read_run->len - 1);
 
-    add_node(ctx->g, after, read_run->base, ctx->errors->phred, lengths.longer,
+    add_node(ctx->g, after, read_run->base, GRAPH_NO_QUALITY, lengths.longer,
              lengths.same, lengths.shorter);
 }
 
@@ -166,7 +166,7 @@ static void add_run_end(const context *ctx, const run *read_run, run_lengths len
 {
     int32_t after = prefix_of(ctx, read_run->start + read_run->len - 1);
 
-    add_node(ctx->g, after, read_run->base, ctx->errors->phred, lengths.same,
+    add_node(ctx->g, after, read_run->base, GRAPH_NO_QUALITY, lengths.same,
              lengths.shorter, 0.0);
 }
 
@@ -180,7 +180,7 @@ static void lay_out_run(const context *ctx, size_t k)
 
     for (int32_t j = 0; j < certain; j++) {
         add_certain_node(ctx->g, prefix_of(ctx, read_run->start + j), read_run->base,
-                         ctx->errors->phred);
+                         GRAPH_NO_QUALITY);
     }
 
     if (lengths.longer > 0.0) {
@@ -205,7 +205,7 @@ static void lay_out_missed_bases(const context *ctx, size_t k)
     }
 
     for (uint8_t m = 0; m < errors->n_missed; m++) {
-        add_node(ctx->g, after, errors->missed_base[m], ctx->errors->phred,
+        add_node(ctx->g, after, errors->missed_base[m], GRAPH_NO_QUALITY,
                  errors->missed, 1.0 - errors->missed, 0.0);
     }
 }

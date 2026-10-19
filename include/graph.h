@@ -20,9 +20,9 @@
  * base edge at the chance of the longest length, and by skip edges from the nodes
  * that end the shorter lengths at theirs. Each base whose flow lies between two runs
  * gives one node, entered by its base edge at the chance of a missed run and by a
- * skip edge at the rest. Every node of such a read carries the substitution score of
- * the read, whether or not the read shows the base, since the identity of a run comes
- * from one flow and every base of the run inherits it.
+ * skip edge at the rest. No node of such a read has a quality, since the quality
+ * string of the read describes run lengths and every sequencing error of the read is a
+ * length error.
  *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
@@ -59,16 +59,13 @@ typedef struct {
     nuc     missed_base[GRAPH_MISSED_BASES];
 } graph_run_errors;
 
-/* The run-length errors of one read: one entry per run of its placed span, and the
- * substitution score every base takes, since the quality string of such a read
- * describes run lengths. */
+/* The run-length errors of one read: one entry per run of its placed span. */
 typedef struct {
-    int                     phred;
     const graph_run_errors *of_run;
 } graph_read_errors;
 
-/* The quality of a base of a read that stores no quality string, which is never
- * misread. */
+/* The quality of a base that is never misread: a base of a read that stores no quality
+ * string, and every base of a read with run-length errors. */
 #define GRAPH_NO_QUALITY (-1)
 
 /* The skip edges into a node come from the node before it and from the node before

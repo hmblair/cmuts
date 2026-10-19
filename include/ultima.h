@@ -57,19 +57,16 @@ typedef struct {
     ultima_missed_bases  missed[2][NUC_COUNT][NUC_COUNT];
 } ultima_read_group;
 
-/* What decoding the tags needs: the error chance of each quality score, the
- * substitution score of every base of an Ultima read, and the flow order of each read
- * group. Built once and shared by every worker. */
+/* What decoding the tags needs: the error chance of each quality score and the flow
+ * order of each read group. Built once and shared by every worker. */
 typedef struct {
     double           error[PHRED_MAX + 1];
-    int              phred;
     ultima_read_group *groups;
     size_t           n_groups;
 } ultima_decoder;
 
-/* Builds the tables with no read groups. phred is the substitution score of every base
- * of an Ultima read, whose quality string describes run lengths only. */
-void ultima_decoder_build(ultima_decoder *tables, int phred);
+/* Builds the tables with no read groups. */
+void ultima_decoder_build(ultima_decoder *tables);
 
 /* Adds the read groups of a header. Returns -1 if the table cannot be grown. */
 int ultima_decoder_add_read_groups(ultima_decoder *tables, const cm_bam_reader *reader);
@@ -78,7 +75,6 @@ void ultima_decoder_free(ultima_decoder *tables);
 
 /* The length errors of one read, decoded from its tags, one entry per run. */
 typedef struct {
-    int               phred;   /* the substitution score of every base */
     graph_run_errors *of_run;
     size_t            cap;     /* runs of_run is sized for */
 } ultima_errors;

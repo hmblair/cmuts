@@ -206,13 +206,12 @@ static const ultima_read_group *group_of(const ultima_decoder *tables, const cha
     return NULL;
 }
 
-void ultima_decoder_build(ultima_decoder *tables, int phred)
+void ultima_decoder_build(ultima_decoder *tables)
 {
     for (unsigned quality = 0; quality <= PHRED_MAX; quality++) {
         tables->error[quality] = phred_error_of(quality);
     }
 
-    tables->phred    = phred;
     tables->groups   = NULL;
     tables->n_groups = 0;
 }
@@ -385,8 +384,7 @@ int ultima_errors_decode(ultima_errors *errors, const ultima_decoder *tables,
         return -1;
     }
 
-    errors->phred = tables->phred;
-    group         = group_of(tables, read->rg);
+    group = group_of(tables, read->rg);
 
     for (size_t k = 0; k < n_runs; k++) {
         graph_run_errors *out  = &errors->of_run[k];

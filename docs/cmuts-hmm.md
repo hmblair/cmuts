@@ -33,7 +33,7 @@ A read is the cDNA as the sequencer reported it, with sequencing errors. More th
 
 A read without run-length tags carries a Phred quality per base, as reads from Illumina and Oxford Nanopore do. The quality is the probability that the sequencer introduced a substitution error at that base. A substitution error serves as an alternative explanation for a substitution otherwise attributed to the reverse transcriptase.
 
-Ultima reports a Phred quality per homopolymer run, which is the probability that the run was called one base too long or too short. It also reports the probability that a run of one base was missed between two runs. `cmuts hmm` reads these values as GATK does. A base that the read does not show is the base of its run, or the base of the missed flow. It adds to the coverage, and it counts as a mismatch where the reference differs. A run-length error serves as an alternative explanation for an insertion or a deletion otherwise attributed to the reverse transcriptase. Since Ultima does not report substitution error probabilities, `--ultima-phred` sets one for every base.
+Ultima reports a Phred quality per homopolymer run, which is the probability that the run was called one base too long or too short. It also reports the probability that a run of one base was missed between two runs. `cmuts hmm` reads these values as GATK does. A base that the read does not show is the base of its run, or the base of the missed flow. It adds to the coverage, and it counts as a mismatch where the reference differs. A run-length error serves as an alternative explanation for an insertion or a deletion otherwise attributed to the reverse transcriptase. Ultima reports no substitution errors, and the model assumes none for its reads.
 
 A file may hold both kinds of read. `cmuts hmm` selects the error handling of each read from its tags.
 
@@ -170,7 +170,6 @@ Each rate is accompanied by a per-base estimate for its error, computed as the b
 | --- | --- |
 | `--band N` | reference positions the pair HMM may look either side of the CIGAR (default 2) |
 | `--min-phred Q` | assign the maximum sequencing error to bases below this quality (0 to 255; default 0) |
-| `--ultima-phred Q` | the substitution Phred score of every base of an Ultima read, whose quality string describes run lengths only (0 to 255; default 40) |
 | `--pairwise STATS` | write these statistics of how often two positions are modified together (correlation, conditional, none; default none) |
 | `--min-depth D` | write NaN rates and errors for positions below this depth (default 1) |
 | `--nan-5p N` | write NaN rates and errors for this many bases at the 5' end (default 0) |

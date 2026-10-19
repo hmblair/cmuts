@@ -164,18 +164,6 @@ static const cli_option OPTIONS[] = {
         .maximum = PHRED_MAX,
     },
     {
-        .group   = "Counting",
-        .name    = "ultima-phred",
-        .type    = OPT_INT,
-        .offset  = offsetof(cli_args, pipeline.tally_config.ultima_phred),
-        .metavar = "Q",
-        .help    = "the substitution Phred score of every base of an Ultima read, "
-                   "whose quality string describes run lengths only",
-        .label   = "Ultima Substitution Quality",
-        .minimum = 0,
-        .maximum = PHRED_MAX,
-    },
-    {
         .group        = "Counting",
         .name         = "pairwise",
         .type         = OPT_SET,
