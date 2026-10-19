@@ -277,14 +277,12 @@ static one_base_errors sum_lengths(const ultima_decoder *tables,
         return errors;
     }
 
+    /* The multiplication by a comparison avoids a branch. */
     for (int32_t j = r->start; j < r->start + r->len; j++) {
         double error = tables->error[read->qual[j]];
 
-        if (read->tp[j] == LENGTH_LONGER) {
-            errors.longer += error;
-        } else if (read->tp[j] == LENGTH_SHORTER) {
-            errors.shorter += error;
-        }
+        errors.longer  += error * (read->tp[j] == LENGTH_LONGER);
+        errors.shorter += error * (read->tp[j] == LENGTH_SHORTER);
     }
 
     return errors;

@@ -33,6 +33,12 @@
  * that a forward value times a transition times the backward value it reaches is the
  * posterior of that transition, which the pass adds to the window as it goes.
  *
+ * A step applies a weight, a skip edge, or a stop only if its node is not certain or
+ * the end state has weight in the row before. In a read without run-length errors,
+ * only the first step does. The functions that compute a cell take a flag, weighted,
+ * and skip these terms when it is false. The flag is constant at each call, so the
+ * compiler emits two versions of each pass, as a template would.
+ *
  * Author: Hamish M. Blair <hmblair@stanford.edu>
  */
 
@@ -308,8 +314,10 @@ static inline double modified_of(const comparisons *o, const phmm_base *base)
 
 /* One row of the matrix: the comparisons of its node's base, NULL on the source; the
  * index of its first cell in the forward matrix; its band, from lo to hi; the weight
- * of the start state in it; and one over the total it was divided by in the forward
- * pass. */
+ * of the start state in it; one over the total it was divided by in the forward pass;
+ * whether the end state has nonzero weight in the row; whether the step into the row
+ * applies a weight, a skip edge, or a stop; and whether a skip edge passes over the
+ * row, from the row before it to the row after it. */
 typedef struct {
     const comparisons *comparisons;
     size_t             first;
@@ -317,6 +325,9 @@ typedef struct {
     int32_t            hi;
     double             start;
     double             restore;
+    bool               reached;
+    bool               weighted;
+    bool               passed;
 } matrix_row;
 
 struct phmm_scratch {
@@ -470,8 +481,27 @@ static band_edges band_at(const context *ctx, int32_t prefix)
     };
 }
 
+/* Returns whether the end state has nonzero weight in row r. It has weight one in the
+ * source, and it has nonzero weight in any row that a skip edge enters from a row
+ * where it has nonzero weight. */
+static bool reached_by_start(const context *ctx, size_t r)
+{
+    const graph_node *node = node_of(ctx, r);
+    bool              near, far;
+
+    if (r == 0) {
+        return true;
+    }
+
+    /* Without a branch, as in graph_node_certain. */
+    near = (node->skip[0] > 0.0) & row_of(ctx, r - 1)->reached;
+    far  = r >= 2 && ((node->skip[1] > 0.0) & row_of(ctx, r - 2)->reached);
+
+    return near | far;
+}
+
 /* Lays out row r: its band, around the prefix its node stands at; its cells, after
- * those of the rows before it; and its comparisons. */
+ * those of the rows before it; its comparisons; and its three flags. */
 static void lay_out_row(context *ctx, size_t r)
 {
     const graph_node *node  = node_of(ctx, r);
@@ -485,6 +515,10 @@ static void lay_out_row(context *ctx, size_t r)
         .hi          = band.to,
         .start       = r == 0 ? 1.0 : 0.0,
         .restore     = 1.0,
+        .reached     = reached_by_start(ctx, r),
+        .weighted    = r == 0 || !graph_node_certain(ctx->g, r)
+                              || row_of(ctx, r - 1)->reached,
+        .passed      = graph_node_passed_over(ctx->g, r),
     };
 
     ctx->cells += (size_t)width;
@@ -554,26 +588,49 @@ static phmm_status prepare(context *ctx)
 /* The moves of a step                                                       */
 /* ------------------------------------------------------------------------ */
 
+/* The functions below take the flag weighted, which is constant at each call. This
+ * attribute forces the compiler to inline them at both calls, so each pass is compiled
+ * once with the flag true and once with it false. */
+#define ALWAYS_INLINE static inline __attribute__((always_inline))
+
 /* Returns the weight of the paths from cell from into the pairing of reference base b,
- * where start is the weight of the end state in the row of from. */
-static inline double pairing_from(const cell *from, const phmm_base *b, double start)
+ * where start is the weight of the end state in the row of from and weight is the
+ * weight of the base edge. */
+ALWAYS_INLINE double pairing_from(const cell *from, const phmm_base *b, double start,
+                                  double weight, bool weighted)
 {
-    return from->paired * b->after_no_gap + from->deleted * b->after_deletion
-         + from->inserted * b->after_insertion + start * b->termination;
+    double paths = from->paired * b->after_no_gap + from->deleted * b->after_deletion
+                 + from->inserted * b->after_insertion;
+
+    if (!weighted) {
+        return paths;
+    }
+
+    return (paths + start * b->termination) * weight;
 }
 
 /* Returns the weight of the paths from cell from into an insertion. */
-static inline double insertion_from(const cell *from, const gap_weights *w)
+ALWAYS_INLINE double insertion_from(const cell *from, const gap_weights *w)
 {
     return from->paired * w->open_insertion + from->inserted * w->extend_insertion;
 }
 
 /* Adds the states of cell from to cell to over a skip edge of the given weight. */
-static inline void add_skipped(cell *to, const cell *from, double weight)
+ALWAYS_INLINE void add_skipped(cell *to, const cell *from, double weight)
 {
     to->paired   += weight * from->paired;
     to->inserted += weight * from->inserted;
     to->deleted  += weight * from->deleted;
+}
+
+static inline int32_t max_prefix(int32_t a, int32_t b)
+{
+    return a > b ? a : b;
+}
+
+static inline int32_t min_prefix(int32_t a, int32_t b)
+{
+    return a < b ? a : b;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -595,41 +652,127 @@ typedef struct {
     double             skip_two;
 } forward_step;
 
-/* Returns the cell at prefix x. deletion carries the open deletion of the step along
- * the row: what it is worth at x on the way in, and at x + 1 on the way out, which the
- * pairing of the step opens and the skip edges leave alone. */
-static inline cell forward_cell(const forward_step *s, int32_t x, double *deletion)
+/* Returns the paired state of the cell at prefix x, which is the pairing of reference
+ * base x from the cell at prefix x - 1 of the row before. The row before must hold
+ * prefix x - 1. */
+ALWAYS_INLINE double forward_paired(const forward_step *s, int32_t x, bool weighted)
 {
-    cell   c      = { .deleted = *deletion };
-    double paired = 0.0;
+    const phmm_base *b = &s->bases[x - 1];
 
-    if (view_holds(&s->from, x - 1)) {
-        const phmm_base *b = &s->bases[x - 1];
+    return pairing_from(view_cell(&s->from, x - 1), b, s->start, s->weight, weighted)
+         * emission_of(s->o, b);
+}
 
-        paired = s->weight * pairing_from(view_cell(&s->from, x - 1), b, s->start)
-               * emission_of(s->o, b);
+/* Adds to cell c at prefix x the insertion of the base and the skip edge from the cell
+ * at prefix x of the row before. The row before must hold prefix x. */
+ALWAYS_INLINE void add_forward_same(const forward_step *s, int32_t x, cell *c,
+                                    bool weighted)
+{
+    const cell *same = view_cell(&s->from, x);
+
+    c->inserted = insertion_from(same, &s->w);
+
+    if (weighted) {
+        c->inserted *= s->weight;
+        add_skipped(c, same, s->skip_one);
     }
+}
 
-    *deletion = *deletion * s->w.extend_deletion + paired;
-    c.paired  = paired;
+/* Adds to cell c at prefix x the skip edge from the row two nodes back, if that row
+ * holds prefix x. A certain node has no such edge. */
+ALWAYS_INLINE void add_forward_far(const forward_step *s, int32_t x, cell *c,
+                                   bool weighted)
+{
+    if (weighted && view_holds(&s->far, x)) {
+        add_skipped(c, view_cell(&s->far, x), s->skip_two);
+    }
+}
+
+/* Returns the cell at prefix x when the row before does not hold prefix x - 1, so no
+ * pairing enters the cell. deletion holds the open deletion state at x on entry and at
+ * x + 1 on return. */
+ALWAYS_INLINE cell forward_unpaired_cell(const forward_step *s, int32_t x,
+                                         double *deletion, bool weighted)
+{
+    cell c = { .deleted = *deletion };
 
     if (view_holds(&s->from, x)) {
-        const cell *same = view_cell(&s->from, x);
-
-        c.inserted = s->weight * insertion_from(same, &s->w);
-        add_skipped(&c, same, s->skip_one);
+        add_forward_same(s, x, &c, weighted);
     }
 
-    if (view_holds(&s->far, x)) {
-        add_skipped(&c, view_cell(&s->far, x), s->skip_two);
-    }
+    add_forward_far(s, x, &c, weighted);
+    *deletion *= s->w.extend_deletion;
 
     return c;
 }
 
+/* Returns the cell at prefix x when the row before holds prefix x - 1, so a pairing
+ * enters the cell. same_hi is the last prefix that the row before holds. The pairing
+ * opens a deletion, which is added to deletion. */
+ALWAYS_INLINE cell forward_paired_cell(const forward_step *s, int32_t x, int32_t same_hi,
+                                       double *deletion, bool weighted)
+{
+    double paired = forward_paired(s, x, weighted);
+    cell   c      = { .paired = paired, .deleted = *deletion };
+
+    if (x <= same_hi) {
+        add_forward_same(s, x, &c, weighted);
+    }
+
+    add_forward_far(s, x, &c, weighted);
+    *deletion = *deletion * s->w.extend_deletion + paired;
+
+    return c;
+}
+
+/* Fills the cells of a row from lo to hi in three loops: over the prefixes below
+ * pair_lo, where no pairing enters, over pair_lo to pair_hi, where a pairing enters,
+ * and over the prefixes above pair_hi. A pairing enters prefix x from prefix x - 1 of
+ * the row before, so pair_lo and pair_hi follow from the band of that row. */
+ALWAYS_INLINE void fill_forward_cells(const forward_step *s, cell *to, int32_t lo,
+                                      int32_t hi, bool weighted)
+{
+    int32_t pair_lo  = max_prefix(lo, s->from.lo + 1);
+    int32_t pair_hi  = min_prefix(hi, s->from.hi + 1);
+    int32_t same_hi  = min_prefix(hi, s->from.hi);
+    double  deletion = 0.0;
+    int32_t x        = lo;
+
+    for (; x <= hi && x < pair_lo; x++) {
+        *to++ = forward_unpaired_cell(s, x, &deletion, weighted);
+    }
+
+    for (; x <= pair_hi; x++) {
+        /* Every row is laid out before any row is filled, so to points to the first
+         * cell of this row in the forward matrix. The analyzer follows an impossible
+         * path on which the layout stops after the source.
+         * NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
+        *to++ = forward_paired_cell(s, x, same_hi, &deletion, weighted);
+    }
+
+    for (; x <= hi; x++) {
+        *to++ = forward_unpaired_cell(s, x, &deletion, weighted);
+    }
+}
+
+/* Fills row r by an unweighted step from the row before it. The start of the row
+ * stays zero, as the layout set it. */
+static void forward_unweighted_row(context *ctx, size_t r)
+{
+    const matrix_row *row = row_of(ctx, r);
+    forward_step      s   = {
+        .bases = ctx->model->bases,
+        .o     = row->comparisons,
+        .w     = ctx->gaps,
+        .from  = forward_view(ctx, r - 1),
+    };
+
+    fill_forward_cells(&s, forward_cells_of(ctx, r), row->lo, row->hi, false);
+}
+
 /* Fills row r from the row before it and from the row its further skip edge leaves,
  * and carries the start state over the skip edges. */
-static void forward_row(context *ctx, size_t r)
+static void forward_weighted_row(context *ctx, size_t r)
 {
     const graph_node *node   = node_of(ctx, r);
     const matrix_row *before = row_of(ctx, r - 1);
@@ -646,15 +789,20 @@ static void forward_row(context *ctx, size_t r)
         .skip_one = node->skip[0],
         .skip_two = node->skip[1],
     };
-    cell             *to       = forward_cells_of(ctx, r);
-    double            deletion = 0.0;
 
-    for (int32_t x = row->lo; x <= row->hi; x++) {
-        to[x - row->lo] = forward_cell(&s, x, &deletion);
-    }
+    fill_forward_cells(&s, forward_cells_of(ctx, r), row->lo, row->hi, true);
 
     row->start = node->skip[0] * before->start
                + (far ? node->skip[1] * row_of(ctx, r - 2)->start : 0.0);
+}
+
+static void forward_row(context *ctx, size_t r)
+{
+    if (row_of(ctx, r)->weighted) {
+        forward_weighted_row(ctx, r);
+    } else {
+        forward_unweighted_row(ctx, r);
+    }
 }
 
 /* Returns the total of row r. */
@@ -713,7 +861,7 @@ static phmm_status scale_row(const context *ctx, size_t r)
     double      total;
     phmm_status status;
 
-    if (graph_node_passed_over(ctx->g, r)) {
+    if (row_of(ctx, r)->passed) {
         return PHMM_OK;
     }
 
@@ -811,15 +959,17 @@ typedef struct {
 
 /* Completes the cell of the next row at prefix x, whose cell one prefix on k holds on
  * the way in. Returns the completed insertion state of the cell. */
-static inline double complete_next(const backward_step *s, int32_t x, completed *k)
+ALWAYS_INLINE double complete_next(const backward_step *s, int32_t x, completed *k,
+                                   bool weighted)
 {
     const cell *c       = view_cell(&s->next, x);
-    double      deleted = s->weight * c->deleted + s->w.extend_deletion * k->deleted;
+    double      weight  = weighted ? s->weight : 1.0;
+    double      deleted = weight * c->deleted + s->w.extend_deletion * k->deleted;
 
-    k->paired  = s->weight * c->paired + k->deleted;
+    k->paired  = weight * c->paired + k->deleted;
     k->deleted = deleted;
 
-    return s->weight * c->inserted;
+    return weight * c->inserted;
 }
 
 /* The posterior of one pairing of a reference base: the paths through it, the paths
@@ -839,8 +989,9 @@ typedef struct {
  * of its emission over the whole emission, so the emission divides out. The posterior
  * of the read ending at the base is multiplied in the order of the coverage, so that
  * the two are the same number where nothing else reaches the pairing. */
-static inline pairing_posterior posterior_of(const backward_step *s, int32_t x,
-                                             const cell *fwd, double landing)
+ALWAYS_INLINE pairing_posterior posterior_of(const backward_step *s, int32_t x,
+                                             const cell *fwd, double landing,
+                                             bool weighted)
 {
     const phmm_base *b        = &s->bases[x];
     double           emission = emission_of(s->o, b);
@@ -848,7 +999,7 @@ static inline pairing_posterior posterior_of(const backward_step *s, int32_t x,
     double           no_gap   = fwd->paired * b->after_no_gap;
     double           closed   = fwd->deleted * b->after_deletion;
     double           joined   = fwd->inserted * b->after_insertion;
-    double           started  = s->start * b->termination;
+    double           started  = weighted ? s->start * b->termination : 0.0;
     double           through  = (no_gap + closed + joined + started) * landing;
 
     return (pairing_posterior){
@@ -863,8 +1014,8 @@ static inline pairing_posterior posterior_of(const backward_step *s, int32_t x,
 /* Accumulates the posterior of a pairing of reference base x into the window. The
  * deletion the pairing closes and the stop it makes both belong to the base before,
  * which the enzyme did not copy. */
-static inline void accumulate_pairing(const backward_step *s, int32_t x,
-                                      const pairing_posterior *p)
+ALWAYS_INLINE void accumulate_pairing(const backward_step *s, int32_t x,
+                                      const pairing_posterior *p, bool weighted)
 {
     phmm_position *at = s->window + (x - s->origin);
 
@@ -872,56 +1023,157 @@ static inline void accumulate_pairing(const backward_step *s, int32_t x,
     at->mismatches   += p->modified;
     at->insertions   += p->inserted;
     at[-1].deletions += p->deleted;
-    at[-1].ends      += p->ended;
+
+    if (weighted) {
+        at[-1].ends += p->ended;
+    }
 }
 
-/* Returns the cell of row a at prefix x: what the row reaches through the row after it
- * by the pairing of reference base x into the cell one prefix on, whose completed
- * values k holds, by the insertion into the cell at the same prefix, and over the skip
- * edges that leave the cell at the same prefix. The pairing is accumulated with its
- * posterior. k is left holding the completed cell at x. */
-static inline cell backward_cell(const backward_step *s, int32_t x, completed *k,
-                                 double *ends)
+/* Returns the cell of row a at prefix x from the pairing of reference base x into the
+ * cell at prefix x + 1 of the next row, whose completed values k holds, and
+ * accumulates the posterior of the pairing. */
+ALWAYS_INLINE cell backward_paired(const backward_step *s, int32_t x, const completed *k,
+                                   double *ends, bool weighted)
 {
-    cell c = { 0 };
+    const phmm_base  *b     = &s->bases[x];
+    double            reach = k->paired * emission_of(s->o, b);
+    pairing_posterior p     = posterior_of(s, x, view_cell(&s->forward, x), k->paired,
+                                           weighted);
 
-    if (view_holds(&s->next, x + 1)) {
-        const phmm_base  *b     = &s->bases[x];
-        double            reach = k->paired * emission_of(s->o, b);
-        pairing_posterior p     = posterior_of(s, x, view_cell(&s->forward, x),
-                                               k->paired);
+    accumulate_pairing(s, x, &p, weighted);
 
-        accumulate_pairing(s, x, &p);
+    if (weighted) {
         *ends += p.ended;
-
-        c.paired   = b->after_no_gap * reach;
-        c.deleted  = b->after_deletion * reach;
-        c.inserted = b->after_insertion * reach;
     }
 
-    if (view_holds(&s->next, x)) {
-        const cell *same = view_cell(&s->next, x);
-        double      open = complete_next(s, x, k);
+    return (cell){
+        .paired   = b->after_no_gap * reach,
+        .deleted  = b->after_deletion * reach,
+        .inserted = b->after_insertion * reach,
+    };
+}
 
-        c.paired   += s->w.open_insertion * open;
-        c.inserted += s->w.extend_insertion * open;
-        add_skipped(&c, same, s->skip_one);
+/* Adds to cell c at prefix x the insertion into the cell at prefix x of the next row
+ * and the skip edge onto it, and leaves the completed cell in k. The next row must
+ * hold prefix x. */
+ALWAYS_INLINE void add_backward_same(const backward_step *s, int32_t x, cell *c,
+                                     completed *k, bool weighted)
+{
+    const cell *same = view_cell(&s->next, x);
+    double      open = complete_next(s, x, k, weighted);
+
+    c->paired   += s->w.open_insertion * open;
+    c->inserted += s->w.extend_insertion * open;
+
+    if (weighted) {
+        add_skipped(c, same, s->skip_one);
+    }
+}
+
+/* Adds to cell c at prefix x the skip edge onto the row two nodes on, if that row
+ * holds prefix x. A certain node has no such edge. */
+ALWAYS_INLINE void add_backward_far(const backward_step *s, int32_t x, cell *c,
+                                    bool weighted)
+{
+    if (weighted && view_holds(&s->far, x)) {
+        add_skipped(c, view_cell(&s->far, x), s->skip_two);
+    }
+}
+
+/* Adds to cell c at prefix x the moves through the cell at prefix x of the next row,
+ * if that row holds the prefix, and the skip edge onto the row two nodes on. k is left
+ * holding the completed cell of the next row at x, or zero if that row does not hold
+ * the prefix. */
+ALWAYS_INLINE void add_backward_moves(const backward_step *s, int32_t x, cell *c,
+                                      completed *k, bool weighted)
+{
+    if (view_holds(&s->next, x)) {
+        add_backward_same(s, x, c, k, weighted);
     } else {
         *k = (completed){ 0.0, 0.0 };
     }
 
-    if (view_holds(&s->far, x)) {
-        add_skipped(&c, view_cell(&s->far, x), s->skip_two);
-    }
+    add_backward_far(s, x, c, weighted);
+}
+
+/* Returns the cell at prefix x when the next row does not hold prefix x + 1, so no
+ * pairing leaves the cell. */
+ALWAYS_INLINE cell backward_unpaired_cell(const backward_step *s, int32_t x, completed *k,
+                                          bool weighted)
+{
+    cell c = { 0 };
+
+    add_backward_moves(s, x, &c, k, weighted);
 
     return c;
 }
 
+/* Returns the cell at prefix x when the next row holds prefix x + 1, so a pairing
+ * leaves the cell. On entry, k holds the completed values of the cell at x + 1. */
+ALWAYS_INLINE cell backward_paired_cell(const backward_step *s, int32_t x, completed *k,
+                                        double *ends, bool weighted)
+{
+    cell c = backward_paired(s, x, k, ends, weighted);
+
+    add_backward_moves(s, x, &c, k, weighted);
+
+    return c;
+}
+
+/* Fills the backward cells of a row from hi down to lo in three loops: over the
+ * prefixes above pair_hi, where no pairing leaves, over pair_hi down to pair_lo, where
+ * a pairing leaves, and over the prefixes below pair_lo. A pairing leaves prefix x
+ * into prefix x + 1 of the next row, so pair_lo and pair_hi follow from the band of
+ * that row. The cells of the next row above hi are completed first, since the open
+ * deletion of each cell extends from the cell after it. */
+ALWAYS_INLINE void fill_backward_cells(const backward_step *s, cell *to, int32_t lo,
+                                       int32_t hi, double *ends, bool weighted)
+{
+    int32_t   pair_lo = max_prefix(lo, s->next.lo - 1);
+    int32_t   pair_hi = min_prefix(hi, s->next.hi - 1);
+    completed k       = { 0.0, 0.0 };
+    int32_t   x       = hi;
+
+    for (int32_t n = s->next.hi; n > hi && n >= s->next.lo; n--) {
+        complete_next(s, n, &k, weighted);
+    }
+
+    for (; x >= lo && x > pair_hi; x--) {
+        to[x - lo] = backward_unpaired_cell(s, x, &k, weighted);
+    }
+
+    for (; x >= pair_lo; x--) {
+        to[x - lo] = backward_paired_cell(s, x, &k, ends, weighted);
+    }
+
+    for (; x >= lo; x--) {
+        to[x - lo] = backward_unpaired_cell(s, x, &k, weighted);
+    }
+}
+
+/* Fills the backward cells of row r by an unweighted step into the row after it, and
+ * accumulates the posteriors of the pairings out of r. */
+static void backward_unweighted_row(context *ctx, size_t r)
+{
+    const matrix_row *row  = row_of(ctx, r);
+    const matrix_row *next = row_of(ctx, r + 1);
+    backward_step     s    = {
+        .bases   = ctx->model->bases,
+        .o       = next->comparisons,
+        .w       = ctx->gaps,
+        .forward = forward_view(ctx, r),
+        .next    = backward_view(ctx, r + 1),
+        .window  = ctx->scratch->window,
+        .origin  = ctx->origin,
+    };
+
+    fill_backward_cells(&s, backward_cells_of(ctx, r), row->lo, row->hi, &ctx->ends,
+                        false);
+}
+
 /* Fills the backward cells of row r from those of the rows after it, from the right,
- * and accumulates the posteriors of the pairings out of r. The cells of the next row
- * past the band of r are completed first, since the open deletion of each extends
- * from the one after it. */
-static void backward_row(context *ctx, size_t r)
+ * and accumulates the posteriors of the pairings out of r. */
+static void backward_weighted_row(context *ctx, size_t r)
 {
     const matrix_row *row  = row_of(ctx, r);
     const matrix_row *next = row_of(ctx, r + 1);
@@ -942,15 +1194,22 @@ static void backward_row(context *ctx, size_t r)
         .window   = ctx->scratch->window,
         .origin   = ctx->origin,
     };
-    cell             *to   = backward_cells_of(ctx, r);
-    completed         k    = { 0.0, 0.0 };
 
-    for (int32_t x = next->hi; x > row->hi && x >= next->lo; x--) {
-        complete_next(&s, x, &k);
-    }
+    fill_backward_cells(&s, backward_cells_of(ctx, r), row->lo, row->hi, &ctx->ends,
+                        true);
+}
 
-    for (int32_t x = row->hi; x >= row->lo; x--) {
-        to[x - row->lo] = backward_cell(&s, x, &k, &ctx->ends);
+static void backward_row(context *ctx, size_t r)
+{
+    const matrix_row *next = row_of(ctx, r + 1);
+
+    /* This pass also applies the weights of the edges into the row after and one over
+     * its scale, so the step is weighted here if a skip edge passes over the row after
+     * or that row was divided. */
+    if (next->weighted || next->passed || next->restore != 1.0) {
+        backward_weighted_row(ctx, r);
+    } else {
+        backward_unweighted_row(ctx, r);
     }
 }
 

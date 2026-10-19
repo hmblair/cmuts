@@ -55,11 +55,11 @@ static void add_node(graph *g, int32_t prefix, nuc base, int quality, double wei
                      double skip_one, double skip_two)
 {
     g->nodes[g->n_nodes++] = (graph_node){
-        .prefix  = prefix,
-        .base    = base,
-        .quality = (int16_t)quality,
         .weight  = weight,
         .skip    = { skip_one, skip_two },
+        .prefix  = prefix,
+        .quality = (int16_t)quality,
+        .base    = (uint8_t)base,
     };
 }
 
@@ -260,11 +260,6 @@ int graph_lay_out(graph *g, const cm_bam_record *read, aln_span span, const run 
     }
 
     return 0;
-}
-
-bool graph_node_passed_over(const graph *g, size_t n)
-{
-    return n + 1 < g->n_nodes && g->nodes[n + 1].skip[1] > 0.0;
 }
 
 void graph_free(graph *g)

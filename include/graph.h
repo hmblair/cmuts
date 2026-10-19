@@ -72,16 +72,16 @@ typedef struct {
  * that: a run can end two nodes before the node that holds its longest length. */
 #define GRAPH_SKIPS 2
 
-/* One node: the read prefix it stands at, which places its band on the reference; its
- * base and the quality the base was read at; the weight of its base edge; and the
- * weight of the skip edge from each node before it, zero where there is none. The
- * source holds no base, and nothing reads its other fields. */
+/* One node: the weight of its base edge; the weight of the skip edge from each node
+ * before it, zero where there is none; the read prefix it stands at, which places its
+ * band on the reference; and its base, as nuc names it, with the quality the base was
+ * read at. The source holds no base, and nothing reads its other fields. */
 typedef struct {
-    int32_t prefix;
-    nuc     base;
-    int16_t quality;
     double  weight;
     double  skip[GRAPH_SKIPS];
+    int32_t prefix;
+    int16_t quality;
+    uint8_t base;
 } graph_node;
 
 /* The graph of one read, grown to fit and reused across reads. Node 0 is the source. */
@@ -100,6 +100,20 @@ int graph_lay_out(graph *g, const cm_bam_record *read, aln_span span, const run 
 
 /* Returns whether a skip edge passes over node n without landing on it: the edge into
  * node n + 1 from node n - 1. */
-bool graph_node_passed_over(const graph *g, size_t n);
+static inline bool graph_node_passed_over(const graph *g, size_t n)
+{
+    return n + 1 < g->n_nodes && g->nodes[n + 1].skip[1] > 0.0;
+}
+
+/* Returns whether z holds the base of node n for certain: the node has no skip edge
+ * and a base edge of weight one. */
+static inline bool graph_node_certain(const graph *g, size_t n)
+{
+    const graph_node *node = &g->nodes[n];
+
+    /* The certain nodes of a read with run-length errors follow no regular pattern,
+     * so a branch on them is often mispredicted. The bitwise operators avoid one. */
+    return (node->weight == 1.0) & (node->skip[0] == 0.0) & (node->skip[1] == 0.0);
+}
 
 void graph_free(graph *g);
