@@ -91,9 +91,11 @@ def execute_into(path, command):
 
 
 def reported_version(program) -> str:
-    """Returns the version a program prints for --version, which it gives after
-    its own name, with a v in front of it."""
-    printed = execute([*program, "--version"]).stdout.split()[-1]
+    """Returns the version a program prints for --version. The line holds the
+    program name, the version with a v in front of it, and then the commit the
+    binary was built from."""
+    words = execute([*program, "--version"]).stdout.split()
+    printed = next(word for word in words if word.startswith("v"))
 
     return printed.removeprefix("v")
 

@@ -4,6 +4,7 @@
 
 ### Added
 
+- `--version` reports the commit the binary was built from in brackets after the version, when available.
 - `--params` reads `termination-rate`, the probability that the reverse transcriptase stops at a base. It defaults to 0.001.
 
 ### Changed

@@ -114,6 +114,14 @@ APPS        := $(NAME) $(SUBCOMMANDS)
 SCRIPTS  := cmuts-plot
 VERSION  := $(shell sed -n 's/.*CMUTS_VERSION "\(.*\)".*/\1/p' include/version.h)
 
+# The abbreviated hash of the checked-out commit, with -dirty appended when
+# the checkout has uncommitted changes. Empty when the source directory is not
+# a git checkout. Every tag is excluded, so that git prints the hash alone.
+# Only version.o and the scripts depend on it, so a change of commit does not
+# recompile the other objects.
+COMMIT       := $(shell git describe --always --dirty --exclude='*' 2>/dev/null)
+COMMIT_FLAGS := $(if $(COMMIT),-DCMUTS_COMMIT='"$(COMMIT)"')
+
 LIB      := $(BUILD)/lib$(NAME).a
 
 # Sources under src/ are the library and nothing else: no entry point lives
@@ -155,14 +163,23 @@ $(CONFIG): FORCE
 
 FORCE:
 
+# The commit that the variant was last built from. Rewritten only when the
+# value differs, like the configuration file above.
+STAMP := $(BUILD)/.commit
+
+$(STAMP): FORCE
+	@mkdir -p $(@D)
+	@printf '%s\n' '$(COMMIT)' | cmp -s - "$@" \
+	  || printf '%s\n' '$(COMMIT)' > "$@"
+
 # Objects first and the archive last, which is the order a linker resolves in.
 $(BUILD)/$(NAME): $(APP_OBJ) $(LIB)
 	$(CC) $^ -o $@ $(LIBS)
 
 define script_rule
-$(BUILD)/$(1): apps/$(1)/$(1).in include/version.h
+$(BUILD)/$(1): apps/$(1)/$(1).in include/version.h $(STAMP)
 	@mkdir -p $$(@D)
-	sed 's/@VERSION@/$$(VERSION)/' $$< > $$@
+	sed -e 's/@VERSION@/$$(VERSION)/' -e 's/@COMMIT@/$$(COMMIT)/' $$< > $$@
 	@chmod +x $$@
 endef
 
@@ -180,6 +197,10 @@ $(BUILD)/apps/%.o: apps/%.c $(CONFIG)
 $(BUILD)/src/%.o: src/%.c $(CONFIG)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/src/version.o: src/version.c $(CONFIG) $(STAMP)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(COMMIT_FLAGS) -c $< -o $@
 
 install: $(BINS)
 	$(INSTALL) -d $(DESTDIR)$(BINDIR)

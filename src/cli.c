@@ -9,6 +9,7 @@
  */
 
 #include "cli.h"
+#include "version.h"
 
 #include <errno.h>
 #include <float.h>
@@ -1135,7 +1136,7 @@ static bool answer(const cli_spec *spec, const cli_option *opt)
 
     switch (opt->action) {
         case CLI_SHOW_HELP:    cli_usage(spec, stdout);        return true;
-        case CLI_SHOW_VERSION: printf("%s v%s\n", spec->program, spec->version);
+        case CLI_SHOW_VERSION: printf("%s v%s\n", spec->program, cmuts_version());
                                return true;
         case CLI_DUMP_OPTIONS: cli_dump_options(spec, stdout); return true;
         case CLI_PRINT:        opt->print(stdout);             return true;

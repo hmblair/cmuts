@@ -35,6 +35,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 VERSION = "@VERSION@"
+COMMIT = "@COMMIT@"
+VERSION_STAMP = f"{VERSION} ({COMMIT})" if COMMIT else VERSION
 
 try:
     import h5py
@@ -2151,7 +2153,7 @@ def parse_arguments():
     parser.add_argument("--port", type=int, default=0,
                         help="port to bind (default: an OS-chosen free port)")
     parser.add_argument("-V", "--version", action="version",
-                        version=f"cmuts plot v{VERSION}")
+                        version=f"cmuts plot v{VERSION_STAMP}")
 
     # Intermixed parsing accepts a --label between files. Both lists keep
     # command-line order, and the first n labels name the first n files.

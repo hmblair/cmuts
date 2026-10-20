@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     }
 
     if (strcmp(name, "-V") == 0 || strcmp(name, "--version") == 0) {
-        printf("%s v%s\n", PROGRAM, CMUTS_VERSION);
+        printf("%s v%s\n", PROGRAM, cmuts_version());
         return 0;
     }
 
